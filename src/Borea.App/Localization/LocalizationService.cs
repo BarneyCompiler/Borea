@@ -379,6 +379,129 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string SettingsGitHubSteward => Resources.SettingsGitHubSteward;
 
+    public string SettingsGitHubStewardTools => Resources.SettingsGitHubStewardTools;
+
+    public string StewardHeading => Resources.StewardHeading;
+
+    public string StewardTabStatus => Resources.StewardTabStatus;
+
+    public string StewardStatusHint => Resources.StewardStatusHint;
+
+    public string StewardStatusLoading => Resources.StewardStatusLoading;
+
+    public string StewardStatusEmpty => Resources.StewardStatusEmpty;
+
+    public string StewardStatusPullRequests => Resources.StewardStatusPullRequests;
+
+    public string StewardStatusConflict => Resources.StewardStatusConflict;
+
+    public string FormatStewardPullRequestBy(string number, string title, string author)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardPullRequestByFormat, number, title, author);
+
+    public string StewardStateDelisted => Resources.StewardStateDelisted;
+
+    public string StewardStateDisputed => Resources.StewardStateDisputed;
+
+    public string StewardStateRetracted => Resources.StewardStateRetracted;
+
+    public string FormatStewardVersion(string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardVersionFormat, version);
+
+    public string FormatStewardSince(string date)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardSinceFormat, date);
+
+    public string StewardLift => Resources.StewardLift;
+
+    public string StewardDispute => Resources.StewardDispute;
+
+    public string StewardDelist => Resources.StewardDelist;
+
+    public string StewardRetract => Resources.StewardRetract;
+
+    public string FormatStewardDisputeTitle(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardDisputeTitleFormat, id);
+
+    public string FormatStewardDelistTitle(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardDelistTitleFormat, id);
+
+    public string FormatStewardRetractTitle(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardRetractTitleFormat, id, version);
+
+    public string FormatStewardLiftTitle(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardLiftTitleFormat, id);
+
+    public string StewardDisputeEffect => Resources.StewardDisputeEffect;
+
+    public string StewardDelistEffect => Resources.StewardDelistEffect;
+
+    public string StewardRetractEffect => Resources.StewardRetractEffect;
+
+    public string FormatStewardLiftEffect(string state)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardLiftEffectFormat, state);
+
+    public string StewardPullRequestExplanation => Resources.StewardPullRequestExplanation;
+
+    public string StewardReason => Resources.StewardReason;
+
+    public string StewardReasonHint => Resources.StewardReasonHint;
+
+    public string StewardLiftReasonHint => Resources.StewardLiftReasonHint;
+
+    public string StewardChecking => Resources.StewardChecking;
+
+    public string FormatStewardOpenPullRequests(string numbers)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardOpenPullRequestsFormat, numbers);
+
+    public string StewardOpenPullRequestsUnknown => Resources.StewardOpenPullRequestsUnknown;
+
+    public string StewardOwnerWarning => Resources.StewardOwnerWarning;
+
+    public string StewardOwnerOwnRequest => Resources.StewardOwnerOwnRequest;
+
+    public string FormatStewardMention(string logins)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardMentionFormat, logins);
+
+    public string StewardOpening => Resources.StewardOpening;
+
+    public string FormatStewardOpened(string number)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardOpenedFormat, number);
+
+    public string StewardRefusedInvalidReason => Resources.StewardRefusedInvalidReason;
+
+    public string StewardRefusedMissingVersion => Resources.StewardRefusedMissingVersion;
+
+    public string FormatStewardRefusedDuplicate(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardRefusedDuplicateFormat, id);
+
+    public string FormatStewardRefusedUnknownId(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardRefusedUnknownIdFormat, id);
+
+    public string FormatStewardRefusedNotAPack(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardRefusedNotAPackFormat, id);
+
+    public string FormatStewardRefusedUnknownVersion(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardRefusedUnknownVersionFormat, id, version);
+
+    public string StewardRefusedNotInFile => Resources.StewardRefusedNotInFile;
+
+    public string StewardErrorSignedOut => Resources.StewardErrorSignedOut;
+
+    public string StewardErrorNotSteward => Resources.StewardErrorNotSteward;
+
+    public string StewardErrorNotFound => Resources.StewardErrorNotFound;
+
+    public string FormatStewardErrorRefused(string detail)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardErrorRefusedFormat, detail);
+
+    public string StewardErrorForbidden => Resources.StewardErrorForbidden;
+
+    public string StewardErrorNetwork => Resources.StewardErrorNetwork;
+
+    public string FormatStewardErrorUnreadable(string detail)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardErrorUnreadableFormat, detail);
+
+    public string StewardErrorUnexpected => Resources.StewardErrorUnexpected;
+
     public string SettingsGitHubSignOutHint => Resources.SettingsGitHubSignOutHint;
 
     public string SettingsGitHubSignOut => Resources.SettingsGitHubSignOut;

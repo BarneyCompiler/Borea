@@ -109,6 +109,7 @@
                 <StackPanel Spacing="6" IsVisible="{Binding IsGitHubSignedIn}">
                     <TextBlock Classes="body-md" Text="{Binding GitHubSignedInText}" TextWrapping="Wrap" />
                     <TextBlock Classes="body-sm secondary" Text="{Binding Localization.SettingsGitHubSteward}" TextWrapping="Wrap" IsVisible="{Binding IsGitHubSteward}" />
+                    <Button Classes="text" Content="{Binding Localization.SettingsGitHubStewardTools}" Command="{Binding OpenStewardPageCommand}" IsVisible="{Binding IsGitHubSteward}" />
                     <TextBlock Classes="body-sm secondary" Text="{Binding Localization.SettingsGitHubSignOutHint}" TextWrapping="Wrap" Width="340" HorizontalAlignment="Left" />
                     <WrapPanel ItemSpacing="8" LineSpacing="4">
                         <Button Classes="text" Content="{Binding Localization.SettingsGitHubSignOut}" Command="{Binding SignOutOfGitHubCommand}" />

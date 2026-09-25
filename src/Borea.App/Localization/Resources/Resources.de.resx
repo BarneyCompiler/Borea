@@ -195,6 +195,165 @@
   <data name="SettingsGitHubSteward" xml:space="preserve">
     <value>Steward des Inhaltsindex</value>
   </data>
+  <data name="SettingsGitHubStewardTools" xml:space="preserve">
+    <value>Steward-Werkzeuge öffnen</value>
+  </data>
+  <data name="StewardHeading" xml:space="preserve">
+    <value>Steward-Werkzeuge</value>
+  </data>
+  <data name="StewardTabStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="StewardStatusHint" xml:space="preserve">
+    <value>Die Zustände in index-status.toml des Inhaltsindex. Jede Änderung öffnet einen Pull Request in KSAModding/content-index und wirkt, sobald ein Steward ihn mergt.</value>
+  </data>
+  <data name="StewardStatusLoading" xml:space="preserve">
+    <value>Lese index-status.toml von GitHub...</value>
+  </data>
+  <data name="StewardStatusEmpty" xml:space="preserve">
+    <value>Kein Eintrag und kein Modpack hat einen Zustand.</value>
+  </data>
+  <data name="StewardStatusPullRequests" xml:space="preserve">
+    <value>Offene Pull Requests, die index-status.toml ändern</value>
+  </data>
+  <data name="StewardStatusConflict" xml:space="preserve">
+    <value>Hat einen Konflikt, GitHub kann ihn nicht mergen</value>
+  </data>
+  <data name="StewardPullRequestByFormat" xml:space="preserve">
+    <value>#{0} {1}, von {2}</value>
+  </data>
+  <data name="StewardStateDelisted" xml:space="preserve">
+    <value>Ausgetragen</value>
+  </data>
+  <data name="StewardStateDisputed" xml:space="preserve">
+    <value>Umstritten</value>
+  </data>
+  <data name="StewardStateRetracted" xml:space="preserve">
+    <value>Zurückgezogen</value>
+  </data>
+  <data name="StewardVersionFormat" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="StewardSinceFormat" xml:space="preserve">
+    <value>Seit {0}</value>
+  </data>
+  <data name="StewardLift" xml:space="preserve">
+    <value>Aufheben</value>
+  </data>
+  <data name="StewardDispute" xml:space="preserve">
+    <value>Als umstritten markieren</value>
+  </data>
+  <data name="StewardDelist" xml:space="preserve">
+    <value>Austragen</value>
+  </data>
+  <data name="StewardRetract" xml:space="preserve">
+    <value>Diese Version zurückziehen</value>
+  </data>
+  <data name="StewardDisputeTitleFormat" xml:space="preserve">
+    <value>{0} als umstritten markieren</value>
+  </data>
+  <data name="StewardDelistTitleFormat" xml:space="preserve">
+    <value>{0} austragen</value>
+  </data>
+  <data name="StewardRetractTitleFormat" xml:space="preserve">
+    <value>{0} {1} zurückziehen</value>
+  </data>
+  <data name="StewardLiftTitleFormat" xml:space="preserve">
+    <value>Zustand von {0} aufheben</value>
+  </data>
+  <data name="StewardDisputeEffect" xml:space="preserve">
+    <value>Der Eintrag bleibt im Index, und Borea zeigt eine Warnung mit dem Grund.</value>
+  </data>
+  <data name="StewardDelistEffect" xml:space="preserve">
+    <value>Der Eintrag und seine Releases verlassen den Index, und Installationen werden nicht mehr angeboten. Auf den Computern der Spieler wird nichts gelöscht.</value>
+  </data>
+  <data name="StewardRetractEffect" xml:space="preserve">
+    <value>Diese Modpack-Version wird nicht mehr angeboten. Die anderen Versionen des Modpacks bleiben.</value>
+  </data>
+  <data name="StewardLiftEffectFormat" xml:space="preserve">
+    <value>Der Zustand "{0}" verschwindet mit dem nächsten Snapshot des Index.</value>
+  </data>
+  <data name="StewardPullRequestExplanation" xml:space="preserve">
+    <value>Borea öffnet einen Pull Request in KSAModding/content-index, der index-status.toml ändert. Es ändert sich nichts, bis ein Steward ihn mergt.</value>
+  </data>
+  <data name="StewardReason" xml:space="preserve">
+    <value>Grund</value>
+  </data>
+  <data name="StewardReasonHint" xml:space="preserve">
+    <value>Ein Satz. Spieler sehen ihn dort, wo Borea den Zustand zeigt.</value>
+  </data>
+  <data name="StewardLiftReasonHint" xml:space="preserve">
+    <value>Ein Satz für den Pull Request.</value>
+  </data>
+  <data name="StewardChecking" xml:space="preserve">
+    <value>Prüfe index-status.toml auf GitHub...</value>
+  </data>
+  <data name="StewardOpenPullRequestsFormat" xml:space="preserve">
+    <value>Pull Request {0} ändert index-status.toml auch. Der Pull Request, der als zweiter gemergt wird, hat dann einen Konflikt.</value>
+  </data>
+  <data name="StewardOpenPullRequestsUnknown" xml:space="preserve">
+    <value>Borea konnte nicht prüfen, ob ein anderer offener Pull Request index-status.toml ändert.</value>
+  </data>
+  <data name="StewardOwnerWarning" xml:space="preserve">
+    <value>Das gehört dir. POLICY.md bittet einen Steward, der an einem Streitfall beteiligt ist, ihn einem anderen Steward zu überlassen.</value>
+  </data>
+  <data name="StewardOwnerOwnRequest" xml:space="preserve">
+    <value>Das gehört dir, also ist es deine eigene Anfrage, die ein Steward laut POLICY.md ausführen darf.</value>
+  </data>
+  <data name="StewardMentionFormat" xml:space="preserve">
+    <value>Der Pull Request erwähnt {0}, damit der Besitzer Bescheid bekommt.</value>
+  </data>
+  <data name="StewardOpening" xml:space="preserve">
+    <value>Öffne den Pull Request...</value>
+  </data>
+  <data name="StewardOpenedFormat" xml:space="preserve">
+    <value>Pull Request #{0} ist offen. Er wartet darauf, dass ein Steward ihn mergt.</value>
+  </data>
+  <data name="StewardRefusedInvalidReason" xml:space="preserve">
+    <value>Schreib den Grund als einen Satz in einer Zeile.</value>
+  </data>
+  <data name="StewardRefusedMissingVersion" xml:space="preserve">
+    <value>Zum Zurückziehen nenne eine Modpack-Version.</value>
+  </data>
+  <data name="StewardRefusedDuplicateFormat" xml:space="preserve">
+    <value>{0} hat schon diesen oder einen anderen Zustand in index-status.toml. Hebe ihn zuerst auf.</value>
+  </data>
+  <data name="StewardRefusedUnknownIdFormat" xml:space="preserve">
+    <value>{0} ist im Inhaltsindex weder ein Eintrag noch ein Modpack.</value>
+  </data>
+  <data name="StewardRefusedNotAPackFormat" xml:space="preserve">
+    <value>{0} ist kein Modpack. Nur eine Modpack-Version kann zurückgezogen werden. Ein Release eines Eintrags wird in content-index-releases zurückgezogen.</value>
+  </data>
+  <data name="StewardRefusedUnknownVersionFormat" xml:space="preserve">
+    <value>{0} hat im Inhaltsindex keine Version {1}.</value>
+  </data>
+  <data name="StewardRefusedNotInFile" xml:space="preserve">
+    <value>index-status.toml hat diesen Zustand nicht mehr. Lade die Liste neu.</value>
+  </data>
+  <data name="StewardErrorSignedOut" xml:space="preserve">
+    <value>GitHub hat dich abgemeldet. Melde dich in den Einstellungen wieder an.</value>
+  </data>
+  <data name="StewardErrorNotSteward" xml:space="preserve">
+    <value>GitHub lässt dieses Konto die Regeln von content-index nicht umgehen, deshalb kann es das nicht tun.</value>
+  </data>
+  <data name="StewardErrorNotFound" xml:space="preserve">
+    <value>GitHub hat KSAModding/content-index oder index-status.toml darin nicht gefunden.</value>
+  </data>
+  <data name="StewardErrorRefusedFormat" xml:space="preserve">
+    <value>GitHub hat die Änderung abgelehnt. {0}</value>
+  </data>
+  <data name="StewardErrorForbidden" xml:space="preserve">
+    <value>GitHub hat den Zugriff auf KSAModding/content-index verweigert.</value>
+  </data>
+  <data name="StewardErrorNetwork" xml:space="preserve">
+    <value>GitHub ist nicht erreichbar. Versuche es noch einmal.</value>
+  </data>
+  <data name="StewardErrorUnreadableFormat" xml:space="preserve">
+    <value>index-status.toml hat eine Form, die Borea nicht bearbeitet. Ändere die Datei auf GitHub. {0}</value>
+  </data>
+  <data name="StewardErrorUnexpected" xml:space="preserve">
+    <value>GitHub hat eine Antwort gegeben, die Borea nicht versteht.</value>
+  </data>
   <data name="SettingsGitHubSignOutHint" xml:space="preserve">
     <value>Beim Abmelden vergisst Borea den Zugriff. Widerrufen kannst du ihn auf GitHub.</value>
   </data>

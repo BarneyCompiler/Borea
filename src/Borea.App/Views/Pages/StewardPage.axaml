@@ -2,20 +2,21 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Borea.App.ViewModels"
              xmlns:views="using:Borea.App.Views"
+             xmlns:steward="using:Borea.Core.Stewardship"
              x:Class="Borea.App.Views.Pages.StewardPage"
              x:DataType="vm:MainViewModel">
-    <!-- Steward tools: the tabs of the steward work in content-index -->
+    <!-- Steward tools: the tabs of the steward work in content-index and content-index-releases -->
     <ScrollViewer>
         <views:PageBodyPanel>
             <StackPanel DataContext="{Binding StewardPage}" x:DataType="vm:StewardPage">
-                <!-- header: the page name and Refresh, bottom border -->
+                <!-- header: the page name and Refresh of the tab that shows, bottom border -->
                 <Border BorderBrush="{StaticResource Brush.Surface}" BorderThickness="0,0,0,1" Padding="0,0,0,12">
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="24">
                         <StackPanel Orientation="Horizontal" Spacing="4" Height="24">
                             <Path Classes="icon" Data="{StaticResource Icon.Settings}" />
                             <TextBlock Classes="label-lg" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardHeading}" VerticalAlignment="Center" />
                         </StackPanel>
-                        <Button Grid.Column="1" Classes="link" Command="{Binding RefreshCommand}" IsEnabled="{Binding !IsLoading}">
+                        <Button Grid.Column="1" Classes="link" Command="{Binding RefreshTabCommand}">
                             <TextBlock Classes="action-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingRefresh}" VerticalAlignment="Center" />
                         </Button>
                     </Grid>
@@ -24,65 +25,159 @@
                 <!-- c/inner-nav-bar -->
                 <Border Background="{StaticResource Brush.SurfaceHeader}" CornerRadius="100" Padding="6" Margin="0,24,0,0" HorizontalAlignment="Left">
                     <StackPanel Orientation="Horizontal" Spacing="16">
-                        <Button Classes="tab quiet active" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardTabStatus}" />
+                        <Button Classes="tab quiet" Classes.active="{Binding IsQueueTab}" Content="{Binding QueueTabText}" Command="{Binding ShowQueueCommand}" />
+                        <Button Classes="tab quiet" Classes.active="{Binding IsStatusTab}" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardTabStatus}" Command="{Binding ShowStatusCommand}" />
                     </StackPanel>
                 </Border>
 
-                <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusHint}" TextWrapping="Wrap" Margin="0,16,0,0" />
-                <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,16,0,0" IsVisible="{Binding IsLoading}">
-                    <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
-                    <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusLoading}" VerticalAlignment="Center" />
-                </StackPanel>
-                <TextBlock Classes="body-md danger" Text="{Binding Error}" TextWrapping="Wrap" Margin="0,16,0,0" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                <TextBlock Classes="body-md muted" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusEmpty}" Margin="0,16,0,0" IsVisible="{Binding IsStatusEmpty}" />
+                <!-- Queue: the open pull requests of both index repositories, oldest first -->
+                <Panel IsVisible="{Binding IsQueueTab}">
+                    <StackPanel DataContext="{Binding Queue}" x:DataType="vm:StewardQueueTab">
+                        <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueHint}" TextWrapping="Wrap" Margin="0,16,0,0" />
+                        <!-- what the queue shows: the scope by what a pull request changes, and whether all open ones show -->
+                        <WrapPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button Classes="dropdown" Margin="0,0,32,0" VerticalAlignment="Center" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueScope}">
+                                <Button.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                        <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueScopeContent}" Command="{Binding SelectScopeCommand}" CommandParameter="{x:Static steward:StewardQueueScope.Content}" />
+                                        <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueScopeOther}" Command="{Binding SelectScopeCommand}" CommandParameter="{x:Static steward:StewardQueueScope.Other}" />
+                                        <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueScopeAll}" Command="{Binding SelectScopeCommand}" CommandParameter="{x:Static steward:StewardQueueScope.All}" />
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueScope, StringFormat='{}{0}:'}" VerticalAlignment="Center" />
+                                    <TextBlock Classes="body-md" Text="{Binding ScopeText}" VerticalAlignment="Center" />
+                                    <Path Classes="icon size-16" Data="{StaticResource Icon.CaretDown}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueAllOpen}" VerticalAlignment="Center" />
+                                <ToggleSwitch Classes="switch" IsChecked="{Binding ShowAllOpen}" VerticalAlignment="Center" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueAllOpen}" />
+                            </StackPanel>
+                        </WrapPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,16,0,0" IsVisible="{Binding IsLoading}">
+                            <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                            <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueLoading}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Classes="body-md danger" Text="{Binding Error}" TextWrapping="Wrap" Margin="0,16,0,0" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <ItemsControl ItemsSource="{Binding Failures}" Margin="0,16,0,0" IsVisible="{Binding !!Failures.Count}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Classes="body-md danger" Text="{Binding}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="body-md muted" Text="{Binding EmptyText}" Margin="0,16,0,0" IsVisible="{Binding IsEmpty}" />
 
-                <ItemsControl ItemsSource="{Binding StatusEntries}" Margin="0,16,0,0">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Spacing="8" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:StewardStatusEntry">
-                            <Border Classes="card" Padding="24,16">
-                                <Grid ColumnDefinitions="*,16,Auto">
-                                    <StackPanel Spacing="4">
-                                        <WrapPanel ItemSpacing="12" LineSpacing="4">
-                                            <TextBlock Classes="heading-md" Text="{Binding Id}" VerticalAlignment="Center" />
-                                            <Border Classes="chip" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding StateText}" />
-                                            </Border>
-                                            <TextBlock Classes="body-sm secondary" Text="{Binding VersionText}" VerticalAlignment="Center" IsVisible="{Binding VersionText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                            <TextBlock Classes="body-sm secondary" Text="{Binding SinceText}" VerticalAlignment="Center" IsVisible="{Binding SinceText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                        </WrapPanel>
-                                        <TextBlock Classes="body-md secondary" Text="{Binding Reason}" TextWrapping="Wrap" IsVisible="{Binding Reason, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                    </StackPanel>
-                                    <Button Grid.Column="2" Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardLift}" Command="{Binding LiftCommand}" VerticalAlignment="Center" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).CanEditIndexStatus}" />
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding Items}" Margin="0,16,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StewardQueueEntry">
+                                    <Border Classes="card" Padding="24,16">
+                                        <StackPanel Spacing="6">
+                                            <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                                <TextBlock Classes="body-sm secondary" Text="{Binding NumberText}" VerticalAlignment="Center" />
+                                                <Button Classes="link" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding Item.Url}">
+                                                    <TextBlock Classes="action-md" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                </Button>
+                                            </WrapPanel>
+                                            <TextBlock Classes="body-sm secondary" Text="{Binding ByText}" TextWrapping="Wrap" />
+                                            <WrapPanel ItemSpacing="4" LineSpacing="4">
+                                                <Border Classes="chip positive" IsVisible="{Binding ShowsWaiting}">
+                                                    <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueWaiting}" />
+                                                </Border>
+                                                <Border Classes="chip untested" IsVisible="{Binding Item.IsDraft}">
+                                                    <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueDraft}" />
+                                                </Border>
+                                                <ItemsControl ItemsSource="{Binding KindTexts}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel ItemSpacing="4" LineSpacing="4" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="x:String">
+                                                            <Border Classes="chip">
+                                                                <TextBlock Text="{Binding}" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <Border Classes="chip untested" IsVisible="{Binding Item.HasOtherFiles}">
+                                                    <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardQueueOtherFiles}" />
+                                                </Border>
+                                            </WrapPanel>
+                                            <TextBlock Classes="body-md secondary" Classes.muted="{Binding !HasVerdict}" Text="{Binding VerdictText}" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Panel>
 
-                <StackPanel Spacing="8" Margin="0,32,0,0" IsVisible="{Binding HasStatusPullRequests}">
-                    <TextBlock Classes="heading-sm heading" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusPullRequests}" />
-                    <ItemsControl ItemsSource="{Binding StatusPullRequests}">
+                <!-- Status: the states of index-status.toml on the base branch, with Lift on each -->
+                <StackPanel IsVisible="{Binding IsStatusTab}">
+                    <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusHint}" TextWrapping="Wrap" Margin="0,16,0,0" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,16,0,0" IsVisible="{Binding IsLoading}">
+                        <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                        <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusLoading}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="body-md danger" Text="{Binding Error}" TextWrapping="Wrap" Margin="0,16,0,0" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Classes="body-md muted" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusEmpty}" Margin="0,16,0,0" IsVisible="{Binding IsStatusEmpty}" />
+
+                    <ItemsControl ItemsSource="{Binding StatusEntries}" Margin="0,16,0,0">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Spacing="4" />
+                                <StackPanel Spacing="8" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:StewardPullRequest">
-                                <WrapPanel ItemSpacing="12" LineSpacing="4">
-                                    <Button Classes="link" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding PullRequest.Url}">
-                                        <TextBlock Classes="action-md" Text="{Binding Text}" TextWrapping="Wrap" />
-                                    </Button>
-                                    <TextBlock Classes="body-sm danger" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusConflict}" VerticalAlignment="Center" IsVisible="{Binding Conflicts}" />
-                                </WrapPanel>
+                            <DataTemplate x:DataType="vm:StewardStatusEntry">
+                                <Border Classes="card" Padding="24,16">
+                                    <Grid ColumnDefinitions="*,16,Auto">
+                                        <StackPanel Spacing="4">
+                                            <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                                <TextBlock Classes="heading-md" Text="{Binding Id}" VerticalAlignment="Center" />
+                                                <Border Classes="chip" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding StateText}" />
+                                                </Border>
+                                                <TextBlock Classes="body-sm secondary" Text="{Binding VersionText}" VerticalAlignment="Center" IsVisible="{Binding VersionText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <TextBlock Classes="body-sm secondary" Text="{Binding SinceText}" VerticalAlignment="Center" IsVisible="{Binding SinceText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            </WrapPanel>
+                                            <TextBlock Classes="body-md secondary" Text="{Binding Reason}" TextWrapping="Wrap" IsVisible="{Binding Reason, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardLift}" Command="{Binding LiftCommand}" VerticalAlignment="Center" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).CanEditIndexStatus}" />
+                                    </Grid>
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <StackPanel Spacing="8" Margin="0,32,0,0" IsVisible="{Binding HasStatusPullRequests}">
+                        <TextBlock Classes="heading-sm heading" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusPullRequests}" />
+                        <ItemsControl ItemsSource="{Binding StatusPullRequests}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StewardPullRequest">
+                                    <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                        <Button Classes="link" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding PullRequest.Url}">
+                                            <TextBlock Classes="action-md" Text="{Binding Text}" TextWrapping="Wrap" />
+                                        </Button>
+                                        <TextBlock Classes="body-sm danger" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardStatusConflict}" VerticalAlignment="Center" IsVisible="{Binding Conflicts}" />
+                                    </WrapPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
         </views:PageBodyPanel>

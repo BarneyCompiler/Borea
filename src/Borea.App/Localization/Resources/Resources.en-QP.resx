@@ -156,6 +156,24 @@
   <data name="StewardHeading" xml:space="preserve">
     <value>Steward's sea chest</value>
   </data>
+  <data name="StewardTabQueue" xml:space="preserve">
+    <value>Waitin' deck</value>
+  </data>
+  <data name="StewardTabQueueCountFormat" xml:space="preserve">
+    <value>Waitin' deck ({0})</value>
+  </data>
+  <data name="StewardQueueAllOpen" xml:space="preserve">
+    <value>Show every open pull request, arr</value>
+  </data>
+  <data name="StewardQueueEmpty" xml:space="preserve">
+    <value>No scallywag waits for the steward.</value>
+  </data>
+  <data name="StewardQueueWaiting" xml:space="preserve">
+    <value>Waits fer the steward</value>
+  </data>
+  <data name="StewardQueueKindPack" xml:space="preserve">
+    <value>Fleet</value>
+  </data>
   <data name="StewardTabStatus" xml:space="preserve">
     <value>Flags</value>
   </data>

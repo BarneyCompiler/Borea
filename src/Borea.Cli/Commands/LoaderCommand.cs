@@ -112,6 +112,7 @@ internal static class LoaderCommand
             output.WriteLine($"Installed {result.LoaderId} {result.Version} in '{result.Directory}'.");
             if (result.ConfigurationFile is not null)
                 output.WriteLine($"Configured game directory in '{result.ConfigurationFile}'.");
+            ContentOutput.WriteSteps(output, $"Install steps for {listing.ModId}:", listing.Install?.Steps);
             return ExitCodes.Done;
         }));
 
@@ -159,6 +160,8 @@ internal static class LoaderCommand
             output.WriteLine(result.DirectoryRemoved
                 ? $"Removed loader {result.LoaderId} and its directory '{result.Directory}'."
                 : $"Removed loader {result.LoaderId} from Borea. Its directory '{result.Directory}' remains.");
+            var listing = await ModInstallCommands.FindCachedListingAsync(cli, result.LoaderId, ct).ConfigureAwait(false);
+            ContentOutput.WriteSteps(output, $"Uninstall steps for {result.LoaderId}:", listing?.Install?.Uninstall);
             return ExitCodes.Done;
         }));
 

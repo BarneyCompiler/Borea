@@ -9,8 +9,8 @@ namespace Borea.Cli.Tests;
 internal static class LoaderFixtures
 {
     /// <summary>A loader listing shaped like StarMap's, with the flag and the variable it takes an instance by.</summary>
-    public static ModMetadata Listing(string id = "StarMap", string launch = "StarMap.exe") =>
-        LoaderListing(id, launch, new InstanceHandover("-InstancePath", "STARMAP_INSTANCE_PATH"));
+    public static ModMetadata Listing(string id = "StarMap", string launch = "StarMap.exe", IReadOnlyList<string>? steps = null, IReadOnlyList<string>? uninstall = null) =>
+        LoaderListing(id, launch, new InstanceHandover("-InstancePath", "STARMAP_INSTANCE_PATH"), steps: steps, uninstall: uninstall);
 
     /// <summary>A loader listing that does not say how the loader takes an instance.</summary>
     public static ModMetadata ListingWithoutInstance(string id = "OtherLoader", string launch = "StarMap.exe") =>
@@ -24,7 +24,7 @@ internal static class LoaderFixtures
             new InstanceHandover("-InstancePath", "STARMAP_INSTANCE_PATH"),
             Enum.GetValues<OsPlatform>().ToDictionary(platform => platform, _ => new LoaderPlatformLaunch("StarMap.dll", runtime)));
 
-    private static ModMetadata LoaderListing(string id, string launch, InstanceHandover? instance, Dictionary<OsPlatform, LoaderPlatformLaunch>? platforms = null) => new(
+    private static ModMetadata LoaderListing(string id, string launch, InstanceHandover? instance, Dictionary<OsPlatform, LoaderPlatformLaunch>? platforms = null, IReadOnlyList<string>? steps = null, IReadOnlyList<string>? uninstall = null) => new(
         specVersion: 1,
         modId: id,
         source: "index",
@@ -35,7 +35,7 @@ internal static class LoaderFixtures
         links: new Dictionary<string, string> { ["forums"] = "https://example.invalid/forums" },
         gameMin: "2026.9.7.5402",
         type: ContentType.ModLoader,
-        install: new InstallDescriptor(target: InstallAnchor.Standalone),
+        install: new InstallDescriptor(target: InstallAnchor.Standalone, steps: steps, uninstall: uninstall),
         provides: new LoaderProvides(
             launch: launch,
             configure: new LoaderConfigure("StarMapConfig.json", ConfigureFormat.Json, "GameLocation"),

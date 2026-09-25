@@ -198,6 +198,58 @@ public sealed class LoaderCommandTests : IDisposable
         Assert.Contains("remains", run.Output);
     }
 
+    [Fact]
+    public async Task Install_PrintsTheInstallStepsOfTheLoaderAfterTheResult()
+    {
+        _host.LoaderInstaller = new FakeLoaderInstaller();
+        _host.Mods.Listings.Add(LoaderFixtures.Listing(steps: ["Allow StarMap through your firewall."]));
+        _host.Mods.Releases.Add(LoaderFixtures.Release());
+
+        var run = await _host.RunAsync("loader", "install", "StarMap");
+
+        Assert.Equal(0, run.ExitCode);
+        var output = run.Output.ReplaceLineEndings("\n");
+        Assert.True(output.IndexOf("Installed StarMap 0.4.6", StringComparison.Ordinal) < output.IndexOf("Install steps for StarMap:\n  1. Allow StarMap through your firewall.\n", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Uninstall_PrintsTheUninstallStepsOfTheIndexListing()
+    {
+        var listing = LoaderFixtures.Listing(uninstall: ["Delete the StarMap directory. The game runs unmodded again with no further cleanup."]);
+        _host.IndexReader.Snapshot = new Borea.Core.Index.ContentIndexSnapshot(
+            1,
+            [new Borea.Core.Index.ContentIndexListing(listing.ModId, listing, Array.Empty<ModVersionMetadata>(), null)],
+            Array.Empty<Borea.Core.Index.ContentIndexPack>(),
+            null,
+            Array.Empty<Borea.Core.Index.ContentIndexDiagnostic>());
+        _host.LoaderUninstaller = new FakeLoaderUninstaller
+        {
+            Result = new LoaderUninstallResult("StarMap", "C:\\Loaders\\StarMap", RecordRemoved: true, DirectoryRemoved: true),
+        };
+
+        var run = await _host.RunAsync("loader", "uninstall", "StarMap");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Contains("Uninstall steps for StarMap:\n  1. Delete the StarMap directory. The game runs unmodded again with no further cleanup.\n", run.Output.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public async Task Uninstall_IndexWithoutReadAccess_RemovesWithoutSteps()
+    {
+        _host.IndexReader.Read = _ => throw new UnauthorizedAccessException("Access to the cached index is denied.");
+        _host.LoaderUninstaller = new FakeLoaderUninstaller
+        {
+            Result = new LoaderUninstallResult("StarMap", "C:\\Loaders\\StarMap", RecordRemoved: true, DirectoryRemoved: true),
+        };
+
+        var run = await _host.RunAsync("loader", "uninstall", "StarMap");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal(string.Empty, run.Error);
+        Assert.Contains("Removed loader StarMap", run.Output);
+        Assert.DoesNotContain("steps", run.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
     internal static string CreateLoaderDirectory(string loaderId, string executableContents, string root, string? gameDirectory = null)
     {
         var directory = Directory.CreateDirectory(Path.Combine(root, loaderId)).FullName;

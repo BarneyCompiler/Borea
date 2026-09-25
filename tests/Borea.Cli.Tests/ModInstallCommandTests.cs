@@ -319,6 +319,77 @@ public sealed class ModInstallCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task Install_PrintsTheInstallStepsOfEveryListingThePlanInstalls_AfterTheResult()
+    {
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(dependencies: [new ModDependency("library", ModDependencyKind.Required)]));
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(id: "library", version: "1.0.0"));
+        IndexListings(
+            ContentCommandFixtures.Listing(install: new InstallDescriptor(steps: ["Install QEMU from your package manager."])),
+            ContentCommandFixtures.Listing(id: "library", name: "Library", install: new InstallDescriptor(steps: ["Restart the game once."], uninstall: ["Delete the library cache."])));
+        await _host.RunAsync("instance", "create", "Alpha");
+        _host.InstallerFactory = graph => new RecordingInstaller(graph);
+
+        var run = await _host.RunAsync("install", "flight-tools", "--instance", "Alpha");
+
+        Assert.Equal(0, run.ExitCode);
+        var output = run.Output.ReplaceLineEndings("\n");
+        Assert.Contains("Install steps for flight-tools:\n  1. Install QEMU from your package manager.\n", output);
+        Assert.Contains("Install steps for library:\n  1. Restart the game once.\n", output);
+        Assert.True(output.IndexOf("Install flight-tools 2.0.0.", StringComparison.Ordinal) < output.IndexOf("Install steps", StringComparison.Ordinal));
+        Assert.DoesNotContain("Uninstall steps", output);
+    }
+
+    [Fact]
+    public async Task InstallDryRun_PrintsTheInstallSteps_AndAListingWithoutStepsPrintsNone()
+    {
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release());
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(id: "plain-tools", version: "1.0.0"));
+        IndexListings(
+            ContentCommandFixtures.Listing(install: new InstallDescriptor(steps: ["Install QEMU from your package manager."])),
+            ContentCommandFixtures.Listing(id: "plain-tools", name: "Plain Tools"));
+        await _host.RunAsync("instance", "create", "Alpha");
+
+        var withSteps = await _host.RunAsync("install", "flight-tools", "--instance", "Alpha", "--dry-run");
+        var without = await _host.RunAsync("install", "plain-tools", "--instance", "Alpha", "--dry-run");
+
+        Assert.Contains("Install steps for flight-tools:", withSteps.Output);
+        Assert.Equal(0, without.ExitCode);
+        Assert.DoesNotContain("steps", without.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Remove_PrintsTheUninstallStepsAfterTheResult()
+    {
+        await SaveInstalledAsync(ContentCommandFixtures.Release());
+        IndexListings(ContentCommandFixtures.Listing(install: new InstallDescriptor(
+            steps: ["Install QEMU from your package manager."],
+            uninstall: ["Remove QEMU when no other program needs it."])));
+        _host.UninstallerFactory = graph => new RecordingUninstaller(graph);
+
+        var run = await _host.RunAsync("remove", "flight-tools", "--instance", "Alpha");
+
+        Assert.Equal(0, run.ExitCode);
+        var output = run.Output.ReplaceLineEndings("\n");
+        Assert.Contains("Remove flight-tools 2.0.0 from 'Alpha'.\nUninstall steps for flight-tools:\n  1. Remove QEMU when no other program needs it.\n", output);
+        Assert.DoesNotContain("Install steps", output);
+    }
+
+    [Fact]
+    public async Task Remove_UnreadableIndex_RemovesWithoutSteps()
+    {
+        await SaveInstalledAsync(ContentCommandFixtures.Release());
+        _host.IndexReader.Read = _ => throw new IOException("The cached index is gone.");
+        RecordingUninstaller? uninstaller = null;
+        _host.UninstallerFactory = graph => uninstaller = new RecordingUninstaller(graph);
+
+        var run = await _host.RunAsync("remove", "flight-tools", "--instance", "Alpha");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("flight-tools", Assert.Single(uninstaller!.Removed));
+        Assert.DoesNotContain("steps", run.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Update_SkipsYankedNewestRelease()
     {
         await SaveInstalledAsync(ContentCommandFixtures.Release(version: "1.0.0"));
@@ -546,6 +617,14 @@ public sealed class ModInstallCommandTests : IDisposable
     private Dictionary<string, string> FileHashes() => Directory.Exists(_host.Root)
         ? Directory.GetFiles(_host.Root, "*", SearchOption.AllDirectories).Where(path => Path.GetRelativePath(_host.Root, path).Split(Path.DirectorySeparatorChar)[0] != "Logs").ToDictionary(path => Path.GetRelativePath(_host.Root, path), path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))), StringComparer.Ordinal)
         : new Dictionary<string, string>(StringComparer.Ordinal);
+
+    private void IndexListings(params ModMetadata[] listings) =>
+        _host.IndexReader.Snapshot = new Borea.Core.Index.ContentIndexSnapshot(
+            1,
+            listings.Select(listing => new Borea.Core.Index.ContentIndexListing(listing.ModId, listing, Array.Empty<ModVersionMetadata>(), null)).ToList(),
+            Array.Empty<Borea.Core.Index.ContentIndexPack>(),
+            null,
+            Array.Empty<Borea.Core.Index.ContentIndexDiagnostic>());
 
     private async Task SaveInstalledAsync(ModVersionMetadata first, ModVersionMetadata? second = null, ModInstallOwnership ownership = ModInstallOwnership.Borea)
     {

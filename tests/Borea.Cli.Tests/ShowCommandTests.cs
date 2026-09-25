@@ -44,6 +44,59 @@ public sealed class ShowCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task Show_PrintsTheInstallAndUninstallStepsAsNumberedLists()
+    {
+        var listing = ContentCommandFixtures.Listing(install: new InstallDescriptor(
+            steps: ["Install QEMU from your package manager.", "Start the game once.\nThen close it."],
+            uninstall: ["Remove QEMU when no other program needs it."]));
+        _host.Mods.Listings.Add(listing);
+        _host.IndexReader.Snapshot = Snapshot(new ContentIndexListing(listing.ModId, listing, Array.Empty<ModVersionMetadata>(), null));
+
+        var run = await _host.RunAsync("show", listing.ModId);
+
+        Assert.Equal(0, run.ExitCode);
+        var output = run.Output.ReplaceLineEndings("\n");
+        Assert.Contains("Install steps:\n  1. Install QEMU from your package manager.\n  2. Start the game once.\n     Then close it.\nUninstall steps:\n  1. Remove QEMU when no other program needs it.\n", output);
+    }
+
+    [Fact]
+    public async Task Show_AbsentOrEmptySteps_PrintNothing()
+    {
+        var listing = ContentCommandFixtures.Listing(install: new InstallDescriptor(steps: Array.Empty<string>()));
+        _host.Mods.Listings.Add(listing);
+        _host.IndexReader.Snapshot = Snapshot(new ContentIndexListing(listing.ModId, listing, Array.Empty<ModVersionMetadata>(), null));
+
+        var run = await _host.RunAsync("show", listing.ModId);
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.DoesNotContain("steps", run.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Show_Json_CarriesBothListsAndAListingWithoutThemCarriesNone()
+    {
+        var withSteps = ContentCommandFixtures.Listing(install: new InstallDescriptor(
+            steps: ["Install QEMU from your package manager."],
+            uninstall: Array.Empty<string>()));
+        var without = ContentCommandFixtures.Listing(id: "plain-tools", name: "Plain Tools");
+        _host.Mods.Listings.AddRange(new[] { withSteps, without });
+        _host.IndexReader.Snapshot = Snapshot(
+            new ContentIndexListing(withSteps.ModId, withSteps, Array.Empty<ModVersionMetadata>(), null),
+            new ContentIndexListing(without.ModId, without, Array.Empty<ModVersionMetadata>(), null));
+
+        var stepsRun = await _host.RunAsync("show", withSteps.ModId, "--json");
+        var withoutRun = await _host.RunAsync("show", without.ModId, "--json");
+
+        var listing = stepsRun.Json.GetProperty("listing");
+        Assert.Equal(["Install QEMU from your package manager."], listing.GetProperty("steps").EnumerateArray().Select(step => step.GetString()));
+        Assert.Equal(System.Text.Json.JsonValueKind.Array, listing.GetProperty("uninstall").ValueKind);
+        Assert.Equal(0, listing.GetProperty("uninstall").GetArrayLength());
+        var plain = withoutRun.Json.GetProperty("listing");
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, plain.GetProperty("steps").ValueKind);
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, plain.GetProperty("uninstall").ValueKind);
+    }
+
+    [Fact]
     public async Task Show_PrintsTheChangelogUnderEachReleaseThatHasOne()
     {
         var listing = ContentCommandFixtures.Listing();

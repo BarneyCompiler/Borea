@@ -49,9 +49,16 @@ internal static class ModInstallCommands
             var plan = await PlanAsync(cli, target, repository, [new RequestedMod(release, InstallReason.Manual, exactText is not null)], releaseChannel, parse.GetValue(recommended), ParseAlternatives(parse.GetValue(alternatives)), ct).ConfigureAwait(false);
             PrintPlan(output, plan);
             if (parse.GetValue(dryRun))
-                return plan.IsReady ? ExitCodes.Done : ExitCodes.Failed;
+            {
+                if (!plan.IsReady)
+                    return ExitCodes.Failed;
+
+                await PrintInstallStepsAsync(output, cli, plan, ct).ConfigureAwait(false);
+                return ExitCodes.Done;
+            }
 
             await ExecuteAsync(cli, plan, error, ct).ConfigureAwait(false);
+            await PrintInstallStepsAsync(output, cli, plan, ct).ConfigureAwait(false);
             return ExitCodes.Done;
         }));
         return command;
@@ -83,6 +90,8 @@ internal static class ModInstallCommands
             output.WriteLine($"Remove {installed.ModId} {installed.Version} from '{target.Name}'.");
             if (!parse.GetValue(dryRun))
                 await cli.Uninstaller.UninstallAsync(target.InstanceId, installed.ModId, ct).ConfigureAwait(false);
+            var listing = await FindCachedListingAsync(cli, installed.ModId, ct).ConfigureAwait(false);
+            ContentOutput.WriteSteps(output, $"Uninstall steps for {installed.ModId}:", listing?.Install?.Uninstall);
             return ExitCodes.Done;
         }));
         return command;
@@ -188,6 +197,33 @@ internal static class ModInstallCommands
         }
         if (plan.Operations.Count == 0 && plan.IsReady)
             output.WriteLine("Nothing to do.");
+    }
+
+    /// <summary>The install steps of every listing the plan installs.</summary>
+    private static async Task PrintInstallStepsAsync(TextWriter output, CliServices cli, InstallPlan plan, CancellationToken cancellationToken)
+    {
+        foreach (var operation in plan.Operations)
+        {
+            var listing = await FindCachedListingAsync(cli, operation.Release.ModId, cancellationToken).ConfigureAwait(false);
+            ContentOutput.WriteSteps(output, $"Install steps for {operation.Release.ModId}:", listing?.Install?.Steps);
+        }
+    }
+
+    /// <summary>
+    /// The listing in the cached content index, or null when there is none. Only an index
+    /// listing states steps, and an install or removal that is done must not fail on the way it reads them.
+    /// </summary>
+    internal static async Task<ModMetadata?> FindCachedListingAsync(CliServices cli, string id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var snapshot = await cli.IndexReader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            return snapshot.Listings.FirstOrDefault(listing => ModIds.Equals(listing.Id, id))?.Authored;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or FormatException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     internal static OsPlatform CurrentPlatform() =>

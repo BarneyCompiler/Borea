@@ -184,6 +184,8 @@ internal static class ShowCommand
             output.WriteLine("Links:");
             foreach (var link in listing.Links)
                 output.WriteLine($"  {link.Key}: {link.Value}");
+            ContentOutput.WriteSteps(output, "Install steps:", listing.Steps);
+            ContentOutput.WriteSteps(output, "Uninstall steps:", listing.Uninstall);
         }
 
         if (view.IndexStatus is { } status)
@@ -327,7 +329,9 @@ internal static class ShowCommand
         IReadOnlyList<string> Tags,
         string Status,
         string? SupersededBy,
-        IReadOnlyDictionary<string, string> Links)
+        IReadOnlyDictionary<string, string> Links,
+        IReadOnlyList<string>? Steps,
+        IReadOnlyList<string>? Uninstall)
     {
         public static ListingView From(ModMetadata listing) => new(
             listing.SpecVersion,
@@ -344,7 +348,9 @@ internal static class ShowCommand
             listing.SupersededBy,
             new SortedDictionary<string, string>(
                 listing.Links.ToDictionary(link => link.Key, link => link.Value),
-                StringComparer.OrdinalIgnoreCase));
+                StringComparer.OrdinalIgnoreCase),
+            listing.Install?.Steps,
+            listing.Install?.Uninstall);
     }
 
     private sealed record ReleaseView(

@@ -12,7 +12,8 @@ namespace Borea.App.ViewModels;
 
 /// <summary>
 /// The pull request that Borea opens from the signed-in GitHub account, the ownership pre-check before it,
-/// and the verdict of the checks after it. The sign-in lasts while the page is open and the pull request is open.
+/// and the verdict of the checks after it. A sign-in that the page started lasts while the page is open and the pull request is open,
+/// and a sign-in from Settings stays, so a steward keeps the steward tools.
 /// </summary>
 public sealed partial class ListingEditor
 {
@@ -227,7 +228,7 @@ public sealed partial class ListingEditor
             return;
 
         PublishError = null;
-        if (!IsSignedIn && !await _owner.SignInToGitHubAsync())
+        if (!IsSignedIn && !await _owner.SignInToGitHubAsync(forListing: true))
             return;
 
         string? raised = null;
@@ -298,13 +299,17 @@ public sealed partial class ListingEditor
             if (_signOutAfterPublish)
             {
                 _signOutAfterPublish = false;
-                services.GitHub.SignOut();
+                _owner.SignOutOfGitHubForListing();
             }
         }
     }
 
     [RelayCommand]
     private void CancelPublish() => _publishing?.Cancel();
+
+    /// <summary>Signs in to follow the pull request, for as long as the page is open.</summary>
+    [RelayCommand]
+    private Task SignInAsync() => _owner.SignInToGitHubAsync(forListing: true);
 
     [RelayCommand]
     private Task RefreshStatusAsync() => RefreshStatusCoreAsync(CancellationToken.None);
@@ -352,7 +357,7 @@ public sealed partial class ListingEditor
     }
 
     /// <summary>
-    /// Stops what runs only while the page is open, and signs out of GitHub, after a running publish.
+    /// Stops what runs only while the page is open, and ends a GitHub session that the page started, after a running publish.
     /// <see cref="OpenAsync"/> starts it again.
     /// </summary>
     internal void Leave()
@@ -365,7 +370,7 @@ public sealed partial class ListingEditor
 
         _isPageOpen = false;
         if (_publishing is null)
-            _owner.Services?.GitHub.SignOut();
+            _owner.SignOutOfGitHubForListing();
         else
             _signOutAfterPublish = true;
     }
@@ -513,7 +518,7 @@ public sealed partial class ListingEditor
             PullRequestStatus = status;
             StatusError = null;
             if (status.IsFinal && !wasFinal)
-                services.GitHub.SignOut();
+                _owner.SignOutOfGitHubForListing();
         }
         catch (ListingPublishException exception) when (ReferenceEquals(pullRequest, _pullRequest))
         {

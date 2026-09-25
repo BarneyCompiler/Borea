@@ -9,6 +9,12 @@ public enum ListingOwnershipState
     NotVerified,
 
     CouldNotEvaluate,
+
+    /// <summary>
+    /// The pack id is free, so the pull request claims it for the signed-in account. It never merges itself, because a steward
+    /// accepts every first claim after the checks pass.
+    /// </summary>
+    FirstClaim,
 }
 
 public enum ListingOwnershipProof
@@ -16,6 +22,9 @@ public enum ListingOwnershipProof
     Owner,
     Topic,
     MarkerFile,
+
+    /// <summary>The owner record of the pack on main names the signed-in account.</summary>
+    PackOwner,
 }
 
 /// <summary>Why the proof is missing, which decides the one step that fixes it.</summary>
@@ -29,12 +38,21 @@ public enum ListingOwnershipProblem
     SpaceDockModUnusable,
     SpaceDockNoSourceLink,
     PullRequestHasOtherFiles,
+
+    /// <summary>The owner record of the pack on main names another account, which <see cref="ListingOwnership.PackOwner"/> holds.</summary>
+    PackOwnedByOther,
+
+    /// <summary>Another listing or pack holds the pack id in another letter case, which <see cref="ListingOwnership.TakenBy"/> holds.</summary>
+    PackIdTaken,
 }
 
 /// <param name="Repository">The GitHub repository the proof or the fix is about.</param>
 /// <param name="SpaceDockMod">The SpaceDock mod whose source code link is missing or unusable.</param>
 /// <param name="RenamedTo">The name GitHub answers with for a renamed repository.</param>
 /// <param name="PullRequest">The number of the author's open pull request that the listing goes into.</param>
+/// <param name="PackOwner">The login that the owner record of the pack on main names.</param>
+/// <param name="TakenBy">The id in the content index that already holds the pack id.</param>
+/// <param name="Claim">For a first claim, the owner record of the signed-in account that the pull request adds.</param>
 public sealed record ListingOwnership(
     ListingOwnershipState State,
     ListingOwnershipProof? Proof = null,
@@ -42,7 +60,10 @@ public sealed record ListingOwnership(
     string? Repository = null,
     string? SpaceDockMod = null,
     string? RenamedTo = null,
-    int? PullRequest = null)
+    int? PullRequest = null,
+    string? PackOwner = null,
+    string? TakenBy = null,
+    ListingPackOwner? Claim = null)
 {
     public const string MarkerPath = ".github/ksa-content-index.toml";
 

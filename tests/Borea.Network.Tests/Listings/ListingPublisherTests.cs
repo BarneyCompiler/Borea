@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Borea.Core.GitHub;
+using Borea.Core.Index;
 using Borea.Core.Listings;
 using Borea.Network.GitHub;
 using Borea.Network.Listings;
@@ -20,6 +21,7 @@ public sealed class ListingPublisherTests
     private const string BaseSha = "0054ba6";
     private const string Token = "ghu_secret";
     private const string Text = "spec_version = 1\nid = \"MyMod\"\nname = \"My Mod\"\n";
+    private const string PackText = "spec_version = 1\ntype = \"modpack\"\nid = \"my-pack\"\n";
 
     private const string ForkJson = """
         { "id": 42, "full_name": "octocat/content-index", "fork": true, "default_branch": "main",
@@ -396,6 +398,132 @@ public sealed class ListingPublisherTests
     }
 
     [Fact]
+    public async Task PublishAsync_FirstPackClaim_CommitsTheVersionAndTheOwnerRecordToOneBranchBeforeThePullRequest()
+    {
+        OnInstalledFork();
+        On("PUT", Fork + "/contents/packs/my-pack/1.0.0.toml", () => Json("{}", HttpStatusCode.Created));
+        On("PUT", Fork + "/contents/packs/my-pack/owner.json", () => Json("{}", HttpStatusCode.Created));
+        On("POST", Upstream + "/pulls", () => Json(PullJson, HttpStatusCode.Created));
+        var (publisher, _) = await SignedInAsync();
+
+        var pullRequest = await publisher.PublishAsync(Pack("1.0.0"));
+
+        Assert.Equal(ListingPublishOutcome.Opened, pullRequest.Outcome);
+        Assert.Equal(
+            [
+                "GET " + Installations,
+                "GET " + InstalledRepositories,
+                "GET " + Fork,
+                "GET " + Upstream + "/contents/packs/my-pack/owner.json?ref=main",
+                "GET " + Api + "/user",
+                "GET " + Upstream + "/pulls?state=open&per_page=100&page=1",
+                "GET " + Compare,
+                "GET " + Upstream + "/contents/packs/my-pack/1.0.0.toml?ref=" + MainSha,
+                "GET " + Upstream + "/contents/packs/my-pack/owner.json?ref=" + MainSha,
+                "GET " + Fork + "/git/ref/heads/pack-my-pack-1.0.0",
+                "POST " + Fork + "/git/refs",
+                "PUT " + Fork + "/contents/packs/my-pack/1.0.0.toml",
+                "PUT " + Fork + "/contents/packs/my-pack/owner.json",
+                "POST " + Upstream + "/pulls",
+            ],
+            _sent.Select(sent => sent.Line));
+        Assert.Equal(JsonSerializer.Serialize(new { message = "Add my-pack 1.0.0", content = Base64(PackText), branch = "pack-my-pack-1.0.0" }), Body("PUT", Fork + "/contents/packs/my-pack/1.0.0.toml"));
+        Assert.Equal(
+            JsonSerializer.Serialize(new { message = "Claim my-pack", content = Base64("{\n  \"github_login\": \"octocat\",\n  \"github_id\": 1\n}\n"), branch = "pack-my-pack-1.0.0" }),
+            Body("PUT", Fork + "/contents/packs/my-pack/owner.json"));
+        Assert.Equal(
+            """{"title":"List My Pack","head":"octocat:pack-my-pack-1.0.0","base":"main","body":"Lists the pack My Pack with its first version 1.0.0.","maintainer_can_modify":true}""",
+            Body("POST", Upstream + "/pulls"));
+    }
+
+    [Fact]
+    public async Task PublishAsync_LaterPackVersion_CommitsOnlyTheVersion()
+    {
+        OnInstalledFork();
+        OnPackOwnerOnMain("octocat", 1);
+        On("PUT", Fork + "/contents/packs/my-pack/1.1.0.toml", () => Json("{}", HttpStatusCode.Created));
+        On("POST", Upstream + "/pulls", () => Json(PullJson, HttpStatusCode.Created));
+        var (publisher, _) = await SignedInAsync();
+
+        await publisher.PublishAsync(Pack("1.1.0"));
+
+        Assert.Equal(["PUT " + Fork + "/contents/packs/my-pack/1.1.0.toml"], _sent.Where(sent => sent.Method == "PUT").Select(sent => sent.Line));
+        Assert.DoesNotContain(_sent, sent => sent.Url == Api + "/user" || sent.Url.StartsWith(Upstream + "/contents/packs/my-pack/owner.json?ref=" + MainSha, StringComparison.Ordinal));
+        Assert.Equal($$"""{"ref":"refs/heads/pack-my-pack-1.1.0","sha":"{{MainSha}}"}""", Body("POST", Fork + "/git/refs"));
+        Assert.Equal(
+            """{"title":"Add My Pack 1.1.0","head":"octocat:pack-my-pack-1.1.0","base":"main","body":"Adds version 1.1.0 of the pack My Pack.","maintainer_can_modify":true}""",
+            Body("POST", Upstream + "/pulls"));
+    }
+
+    [Fact]
+    public async Task PublishAsync_OpenFirstClaimOfTheAuthor_CommitsOnlyTheChangedFileToIt()
+    {
+        OnInstalledFork();
+        OnOpenPackPullRequest("packs/my-pack/1.0.0.toml", "packs/my-pack/owner.json");
+        On("GET", Fork + "/contents/packs/my-pack/1.0.0.toml?ref=pack-my-pack-1.0.0", () => Json(Content("id = \"my-pack\"\n", "c0ffee")));
+        On("GET", Fork + "/contents/packs/my-pack/owner.json?ref=pack-my-pack-1.0.0", () => Json(Content(Owner("octocat", 1), "0a1")));
+        On("PUT", Fork + "/contents/packs/my-pack/1.0.0.toml", () => Json("{}"));
+        var (publisher, _) = await SignedInAsync();
+
+        var pullRequest = await publisher.PublishAsync(Pack("1.0.0"));
+
+        Assert.Equal(new ListingPullRequest(82, new Uri("https://github.com/KSAModding/content-index/pull/82"), ListingPublishOutcome.Updated), pullRequest);
+        Assert.Equal(["PUT " + Fork + "/contents/packs/my-pack/1.0.0.toml"], _sent.Where(sent => sent.Method != "GET").Select(sent => sent.Line));
+        Assert.Equal(JsonSerializer.Serialize(new { message = "Add my-pack 1.0.0", content = Base64(PackText), branch = "pack-my-pack-1.0.0", sha = "c0ffee" }), Body("PUT", Fork + "/contents/packs/my-pack/1.0.0.toml"));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PublishAsync_OpenPullRequestOfAnotherVersionOfThePack_IsNotReused(bool ownerOnMain)
+    {
+        OnInstalledFork();
+        if (ownerOnMain)
+            OnPackOwnerOnMain("octocat", 1);
+        OnOpenPackPullRequest(ownerOnMain ? ["packs/my-pack/1.0.0.toml"] : ["packs/my-pack/1.0.0.toml", "packs/my-pack/owner.json"]);
+        On("PUT", Fork + "/contents/packs/my-pack/1.1.0.toml", () => Json("{}", HttpStatusCode.Created));
+        On("PUT", Fork + "/contents/packs/my-pack/owner.json", () => Json("{}", HttpStatusCode.Created));
+        On("POST", Upstream + "/pulls", () => Json(PullJson, HttpStatusCode.Created));
+        var (publisher, _) = await SignedInAsync();
+
+        var pullRequest = await publisher.PublishAsync(Pack("1.1.0"));
+
+        Assert.Equal(90, pullRequest.Number);
+        Assert.Equal(ListingPublishOutcome.Opened, pullRequest.Outcome);
+        Assert.DoesNotContain(_sent, sent => sent.Url.Contains("ref=pack-my-pack-1.0.0", StringComparison.Ordinal));
+        Assert.Contains("\"head\":\"octocat:pack-my-pack-1.1.0\"", Body("POST", Upstream + "/pulls"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PublishAsync_PackVersionAlreadyOnMain_StopsBeforeAnyWrite()
+    {
+        OnInstalledFork();
+        OnPackOwnerOnMain("octocat", 1);
+        On("GET", Upstream + "/contents/packs/my-pack/1.0.0.toml?ref=" + MainSha, () => Json(Content(PackText, "b10b5a")));
+        var (publisher, _) = await SignedInAsync();
+
+        var failure = await Assert.ThrowsAsync<ListingPublishException>(() => publisher.PublishAsync(Pack("1.0.0")));
+
+        Assert.Equal(ListingPublishFailure.NoChange, failure.Failure);
+        Assert.All(_sent, sent => Assert.Equal("GET", sent.Method));
+    }
+
+    [Fact]
+    public async Task PublishAsync_FirstPackClaimOnAForkBehindMain_ChecksBothFilesAtTheMergeBase()
+    {
+        OnInstalledFork();
+        OnCompare(BaseSha);
+        On("GET", Upstream + "/contents/packs/my-pack/owner.json?ref=" + BaseSha, () => Json(Content(Owner("someone", 99), "0b1")));
+        var (publisher, _) = await SignedInAsync();
+
+        var failure = await Assert.ThrowsAsync<ListingPublishException>(() => publisher.PublishAsync(Pack("1.0.0")));
+
+        Assert.Equal(ListingPublishFailure.ForkNeedsSync, failure.Failure);
+        Assert.Contains(_sent, sent => sent.Line == "GET " + Upstream + "/contents/packs/my-pack/1.0.0.toml?ref=" + BaseSha);
+        Assert.All(_sent, sent => Assert.Equal("GET", sent.Method));
+    }
+
+    [Fact]
     public async Task PublishAsync_TokenRefused_SignsOut()
     {
         On("GET", Installations, () => Json("""{"message":"Bad credentials"}""", HttpStatusCode.Unauthorized));
@@ -726,6 +854,76 @@ public sealed class ListingPublisherTests
         Assert.DoesNotContain(_sent, sent => sent.Url.StartsWith(Upstream + "/pulls", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(1, ListingOwnershipState.Verified)]
+    [InlineData(99, ListingOwnershipState.NotVerified)]
+    public async Task CheckOwnershipAsync_PackOwnerRecordOnMain_IsYoursOnlyWithTheSameAccountId(long ownerId, ListingOwnershipState state)
+    {
+        OnPackOwnerOnMain("octocat", ownerId);
+        var (publisher, _) = await SignedInAsync();
+
+        var ownership = await publisher.CheckOwnershipAsync(PackDraft("1.1.0"), null, Snapshot());
+
+        Assert.Equal(
+            state == ListingOwnershipState.Verified
+                ? new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.PackOwner)
+                : new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.PackOwnedByOther, PackOwner: "octocat"),
+            ownership);
+        Assert.Contains(_sent, sent => sent.Line == "GET " + Upstream + "/contents/packs/my-pack/owner.json?ref=main");
+    }
+
+    [Theory]
+    [InlineData("My-Pack", false)]
+    [InlineData("MY-PACK", true)]
+    public async Task CheckOwnershipAsync_PackIdHeldInAnotherLetterCase_IsNotFree(string holder, bool isPack)
+    {
+        var (publisher, _) = await SignedInAsync();
+
+        var ownership = await publisher.CheckOwnershipAsync(PackDraft(), null, isPack ? Snapshot(pack: holder) : Snapshot(listing: holder));
+
+        Assert.Equal(new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.PackIdTaken, TakenBy: holder), ownership);
+    }
+
+    [Fact]
+    public async Task CheckOwnershipAsync_PackIdNobodyHolds_IsAFirstClaimThatTheChecksDecide()
+    {
+        var (publisher, _) = await SignedInAsync();
+
+        Assert.Equal(new ListingOwnership(ListingOwnershipState.FirstClaim, Claim: new ListingPackOwner("octocat", 1)), await publisher.CheckOwnershipAsync(PackDraft(), null, Snapshot(listing: "other-pack")));
+        Assert.Equal(ListingOwnership.Unknown, await publisher.CheckOwnershipAsync(PackDraft(), null, snapshot: null));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("my pack")]
+    [InlineData("Core")]
+    [InlineData("../x")]
+    public async Task CheckOwnershipAsync_PackIdThatCannotBeClaimed_IsNotFree(string id)
+    {
+        var (publisher, _) = await SignedInAsync();
+
+        Assert.Equal(ListingOwnership.Unknown, await publisher.CheckOwnershipAsync(PackDraft(id: id), null, Snapshot()));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CheckOwnershipAsync_OpenFirstClaimWithBothFiles_IsYoursAndNotOtherFiles(bool otherFile)
+    {
+        OnOpenPackPullRequest(otherFile
+            ? ["packs/my-pack/1.0.0.toml", "packs/my-pack/owner.json", "listings/Other.toml"]
+            : ["packs/my-pack/1.0.0.toml", "packs/my-pack/owner.json"]);
+        var (publisher, _) = await SignedInAsync();
+
+        var ownership = await publisher.CheckOwnershipAsync(PackDraft(), null, Snapshot());
+
+        Assert.Equal(
+            otherFile
+                ? new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.PullRequestHasOtherFiles, PullRequest: 82)
+                : new ListingOwnership(ListingOwnershipState.FirstClaim, Claim: new ListingPackOwner("octocat", 1)),
+            ownership);
+    }
+
     [Fact]
     public async Task CheckOwnershipAsync_ChangeOnTheSameHost_ChecksTheListedHost()
     {
@@ -971,7 +1169,38 @@ public sealed class ListingPublisherTests
 
     private string Body(string method, string url) => _sent.Last(sent => sent.Method == method && sent.Url == url).Body!;
 
-    private static ListingSubmission New() => new("MyMod", "My Mod", Text, IsEdit: false);
+    private static ListingSubmission New() => new("MyMod", "My Mod", [new ListingFile("listings/MyMod.toml", Text)], IsEdit: false);
+
+    private static ListingSubmission Pack(string version, string text = PackText) => ListingSubmission.Of(PackDraft(version), text);
+
+    private static ListingDraft PackDraft(string version = "1.0.0", string id = "my-pack") => new()
+    {
+        Type = ListingDraft.ModPackType,
+        Id = id,
+        Name = "My Pack",
+        Version = version,
+    };
+
+    private static string Owner(string login, long id) => new ListingPackOwner(login, id).ToJson();
+
+    private static ContentIndexSnapshot Snapshot(string? listing = null, string? pack = null) => new(
+        1,
+        listing is null ? [] : [new ContentIndexListing(listing, null, [], null)],
+        pack is null ? [] : [new ContentIndexPack(pack, [], null)],
+        null,
+        []);
+
+    private void OnPackOwnerOnMain(string login, long id) =>
+        On("GET", Upstream + "/contents/packs/my-pack/owner.json?ref=main", () => Json(Content(Owner(login, id), "0a1")));
+
+    private void OnOpenPackPullRequest(params string[] files)
+    {
+        On("GET", Upstream + "/pulls?state=open&per_page=100&page=1", () => Json("""
+            [ { "number": 82, "html_url": "https://github.com/KSAModding/content-index/pull/82", "user": { "login": "octocat" },
+                "head": { "ref": "pack-my-pack-1.0.0", "repo": { "full_name": "octocat/content-index" } } } ]
+            """));
+        On("GET", Upstream + "/pulls/82/files?per_page=100&page=1", () => Json(JsonSerializer.Serialize(files.Select(file => new { filename = file }))));
+    }
 
     private static ListingDraft Draft(string? github = null, long? spaceDock = null) => new()
     {

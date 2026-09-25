@@ -1,19 +1,23 @@
+using Borea.Core.Index;
+
 namespace Borea.Core.Listings;
 
 /// <summary>
-/// Opens the pull request of one listing document in content-index from the signed-in GitHub account, and follows it.
+/// Opens the pull request of one listing document or pack version in content-index from the signed-in GitHub account, and follows it.
 /// The checks of content-index stay the authority on the verdict and on ownership.
 /// </summary>
 public interface IListingPublisher
 {
     /// <summary>Which ownership proof the checks would find for the signed-in account. It reads only and never blocks.</summary>
     /// <param name="listed">The listed document on main that an edit changes, or null for a new listing.</param>
+    /// <param name="snapshot">The content index, which tells for a pack whether another holder has its id in another letter case.</param>
     /// <exception cref="ListingPublishException">Signed out, or GitHub refused the token.</exception>
-    Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, CancellationToken cancellationToken = default);
+    Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, ContentIndexSnapshot? snapshot = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Commits the file to a branch of the author's fork and opens the pull request, or commits it to the
-    /// author's open pull request that already changes the file. The author makes the fork and installs the App on it.
+    /// Commits the files to a branch of the author's fork and opens the pull request, or commits them to the
+    /// author's open pull request that already changes the document. The author makes the fork and installs the App on it.
+    /// The first version of a pack also gets the owner record of the signed-in account, while main has none.
     /// </summary>
     /// <exception cref="ListingPublishException">A step failed. Nothing of the draft is lost.</exception>
     Task<ListingPullRequest> PublishAsync(ListingSubmission submission, IProgress<ListingPublishStep>? progress = null, CancellationToken cancellationToken = default);
@@ -22,21 +26,38 @@ public interface IListingPublisher
     Task<ListingPullRequestStatus> GetStatusAsync(int number, CancellationToken cancellationToken = default);
 }
 
-/// <param name="Text">The listing file, as the listing format writes it.</param>
-/// <param name="IsEdit">Whether the file changes a listed document.</param>
-public sealed record ListingSubmission(string Id, string Name, string Text, bool IsEdit)
+/// <param name="Files">The files of the pull request, the document first.</param>
+/// <param name="IsEdit">Whether the document changes a listed one.</param>
+/// <param name="PackVersion">The version of a pack document, or null for a listing.</param>
+public sealed record ListingSubmission(string Id, string Name, IReadOnlyList<ListingFile> Files, bool IsEdit, string? PackVersion = null)
 {
-    public string Path => $"{ListingDraft.ListingsFolder}/{Id}.toml";
+    /// <param name="text">The document, as the listing format writes it.</param>
+    public static ListingSubmission Of(ListingDraft draft, string text)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        ArgumentNullException.ThrowIfNull(text);
+        return new(draft.Id, draft.Name, [new ListingFile(draft.Path, text)], draft.IsEdit, draft.IsPack ? draft.Version : null);
+    }
+
+    public bool IsPack => PackVersion is not null;
+
+    public ListingFile Document => Files[0];
+
+    /// <summary>Whether the pull request also adds the owner record of the pack, which makes it the first claim of the pack id.</summary>
+    public bool ClaimsPack => IsPack && Files.Any(file => file.Path == ListingPackOwner.PathOf(Id));
 }
+
+/// <param name="Path">Where the file goes in content-index.</param>
+public sealed record ListingFile(string Path, string Text);
 
 public enum ListingPublishOutcome
 {
     Opened,
 
-    /// <summary>The file went to the author's open pull request as a new commit.</summary>
+    /// <summary>The files went to the author's open pull request as new commits.</summary>
     Updated,
 
-    /// <summary>The author's open pull request already has this file.</summary>
+    /// <summary>The author's open pull request already has these files.</summary>
     Unchanged,
 }
 
@@ -86,7 +107,7 @@ public enum ListingPublishFailure
     /// <summary>The Borea App is not installed on the author's fork, which <see cref="ListingPublishException.Detail"/> names.</summary>
     AppNotOnFork,
 
-    /// <summary>The author's open pull request that changes the file does not come from the fork. <see cref="ListingPublishException.Detail"/> holds its number.</summary>
+    /// <summary>The author's open pull request that changes the document does not come from the fork. <see cref="ListingPublishException.Detail"/> holds its number.</summary>
     PullRequestNotOnFork,
 
     /// <summary>The author's fork, which <see cref="ListingPublishException.Detail"/> names, has to be synced with content-index on GitHub first.</summary>

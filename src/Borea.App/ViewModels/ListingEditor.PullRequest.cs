@@ -225,7 +225,7 @@ public sealed partial class ListingEditor
         if (!IsSignedIn && !await _owner.SignInToGitHubAsync())
             return;
 
-        var submission = new ListingSubmission(Draft.Id, Draft.Name, DocumentText, IsEdit);
+        var submission = ListingSubmission.Of(Draft, DocumentText);
         using var cancel = new CancellationTokenSource();
         _publishing = cancel;
         OutputMessage = null;
@@ -381,7 +381,7 @@ public sealed partial class ListingEditor
         try
         {
             await Task.Delay(OwnershipDelay, cancellationToken);
-            var ownership = await services.ListingPublisher.CheckOwnershipAsync(submitted, listed, cancellationToken);
+            var ownership = await services.ListingPublisher.CheckOwnershipAsync(submitted, listed, _snapshot, cancellationToken);
             if (!cancellationToken.IsCancellationRequested)
                 Ownership = ownership;
         }

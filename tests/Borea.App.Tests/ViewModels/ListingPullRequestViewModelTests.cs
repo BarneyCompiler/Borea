@@ -1,5 +1,6 @@
 using Borea.App.ViewModels;
 using Borea.Core.GitHub;
+using Borea.Core.Index;
 using Borea.Core.Listings;
 
 namespace Borea.App.Tests.ViewModels;
@@ -229,7 +230,8 @@ public sealed class ListingPullRequestViewModelTests
         await editor.Following;
 
         var submission = Assert.Single(_publisher.Submissions);
-        Assert.Equal(new ListingSubmission("MyMod", "My Mod", editor.DocumentText, IsEdit: false), submission);
+        Assert.Equal(("MyMod", "My Mod", false, (string?)null), (submission.Id, submission.Name, submission.IsEdit, submission.PackVersion));
+        Assert.Equal(new ListingFile("listings/MyMod.toml", editor.DocumentText), Assert.Single(submission.Files));
         Assert.Equal("Opened pull request #90.", editor.OutputMessage);
         Assert.Null(editor.PublishError);
         Assert.True(editor.HasPullRequest);
@@ -730,7 +732,7 @@ public sealed class ListingPullRequestViewModelTests
 
         public ListingOwnership Ownership { get; set; } = new(ListingOwnershipState.Verified, ListingOwnershipProof.Topic, Repository: "owner/MyMod");
 
-        public List<(ListingDraft Submitted, ListingDraft? Listed)> Checks { get; } = [];
+        public List<(ListingDraft Submitted, ListingDraft? Listed, ContentIndexSnapshot? Snapshot)> Checks { get; } = [];
 
         public List<ListingSubmission> Submissions { get; } = [];
 
@@ -754,10 +756,10 @@ public sealed class ListingPullRequestViewModelTests
 
         public int StatusReads => Volatile.Read(ref _statusReads);
 
-        public Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, CancellationToken cancellationToken = default)
+        public Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, ContentIndexSnapshot? snapshot = null, CancellationToken cancellationToken = default)
         {
             lock (_gate)
-                Checks.Add((submitted, listed));
+                Checks.Add((submitted, listed, snapshot));
             return Task.FromResult(Ownership);
         }
 

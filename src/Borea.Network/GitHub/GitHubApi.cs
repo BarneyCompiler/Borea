@@ -29,6 +29,8 @@ internal sealed class GitHubApi
 
     private const int MaxPages = 10;
 
+    private const int MaxBranchNumber = 100;
+
     private static readonly string[] CommitBranchPrefixes = ["steward/", "listing-"];
 
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
@@ -153,6 +155,34 @@ internal sealed class GitHubApi
         {
             return new GitHubFile(file.Sha, null);
         }
+    }
+
+    /// <summary>Creates the branch <paramref name="name"/> at <paramref name="sha"/>, or the first free <paramref name="name"/>-N when it is taken.</summary>
+    /// <returns>The name of the branch it created.</returns>
+    /// <exception cref="GitHubApiException">A request failed, or every name up to <paramref name="name"/>-<see cref="MaxBranchNumber"/> is taken.</exception>
+    public async Task<string> CreateFreeBranchAsync(string repository, string name, string sha, CancellationToken cancellationToken)
+    {
+        for (var number = 1; number <= MaxBranchNumber; number++)
+        {
+            var branch = number == 1 ? name : $"{name}-{number.ToString(CultureInfo.InvariantCulture)}";
+            var existing = await SendAsync(HttpMethod.Get, $"{Root}/repos/{repository}/git/ref/heads/{branch}", null, cancellationToken).ConfigureAwait(false);
+            if (existing.Status == HttpStatusCode.OK)
+                continue;
+            if (existing.Status != HttpStatusCode.NotFound)
+                Ensure(existing);
+
+            var body = new Dictionary<string, object> { ["ref"] = "refs/heads/" + branch, ["sha"] = sha };
+            var created = await SendAsync(HttpMethod.Post, $"{Root}/repos/{repository}/git/refs", body, cancellationToken).ConfigureAwait(false);
+            if (created.Status == HttpStatusCode.Created)
+                return branch;
+            if (created.Status == HttpStatusCode.UnprocessableEntity && created.Message?.Contains("already exists", StringComparison.OrdinalIgnoreCase) == true)
+                continue;
+
+            Ensure(created);
+            throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse);
+        }
+
+        throw new GitHubApiException(GitHubApiFailure.Refused, $"{name} to {name}-{MaxBranchNumber} are taken");
     }
 
     /// <summary>The items of a list endpoint that answers with a JSON array, page by page, up to the first page with fewer than <see cref="PageSize"/> items.</summary>

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Borea.Core.GitHub;
 using Borea.Core.Listings;
 using Borea.Network.GitHub;
@@ -11,7 +12,7 @@ namespace Borea.Network.Listings;
 /// IListingOwnershipCheck after tools/ownership.py of content-index. The release hosts are read without the token, as the checks read them,
 /// and the documents of content-index through the signed-in session.
 /// </summary>
-public sealed class ListingOwnershipCheck : IListingOwnershipCheck
+public sealed partial class ListingOwnershipCheck : IListingOwnershipCheck
 {
     private const string Api = GitHubApi.Root;
 
@@ -78,6 +79,67 @@ public sealed class ListingOwnershipCheck : IListingOwnershipCheck
         {
             return ListingOwnership.Unknown;
         }
+    }
+
+    public async Task<IReadOnlyList<string>> OwnersAsync(ListingDraft listed, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(listed);
+        try
+        {
+            var target = ListingAuthority.Of(listed) switch
+            {
+                { Kind: ListingAuthority.GitHub } github => github.Target,
+                { Kind: ListingAuthority.SpaceDock } spaceDock => (await SpaceDockRepositoryAsync(spaceDock.Target, cancellationToken).ConfigureAwait(false)).Repository,
+                _ => null,
+            };
+            return target is null ? [] : await RepositoryOwnersAsync(target, listed.Id, cancellationToken).ConfigureAwait(false);
+        }
+        catch (GitHubApiException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>The owners that owner_logins of tools/ownership.py names, sorted and without a login twice.</summary>
+    private async Task<IReadOnlyList<string>> RepositoryOwnersAsync(string target, string id, CancellationToken cancellationToken)
+    {
+        var reply = await _api.SendAsync(HttpMethod.Get, $"{Api}/repos/{target}", null, cancellationToken, anonymous: true).ConfigureAwait(false);
+        if (reply.Status == HttpStatusCode.NotFound)
+            return [];
+
+        var repository = GitHubApi.Parse<RepositoryDto>(GitHubApi.Ensure(reply));
+        if (!string.Equals(repository.FullName, target, StringComparison.OrdinalIgnoreCase))
+            return [];
+        if (repository.Owner?.Type == "User")
+            return repository.Owner.Login is { } owner && Login().IsMatch(owner) ? [owner] : [];
+
+        var topics = await _api.SendAsync(HttpMethod.Get, $"{Api}/repos/{target}/topics", null, cancellationToken, anonymous: true).ConfigureAwait(false);
+        var prefix = ListingOwnership.TopicFor(string.Empty);
+        var logins = (topics.Status == HttpStatusCode.NotFound ? [] : GitHubApi.Parse<TopicsDto>(GitHubApi.Ensure(topics)).Names)
+            .Where(topic => topic.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(topic => topic[prefix.Length..])
+            .ToList();
+
+        // A fork inherits the marker file of its parent, so only its topics name an owner.
+        if (!repository.Fork)
+        {
+            try
+            {
+                var marker = await _api.ReadFileAsync(target, ListingOwnership.MarkerPath, null, cancellationToken, anonymous: true).ConfigureAwait(false);
+                if (marker?.Text is { } text && MarkerLogin(text, id) is { } claimed)
+                    logins.Add(claimed);
+            }
+            catch (GitHubApiException) when (logins.Count > 0)
+            {
+                // the topics still name owners
+            }
+        }
+
+        return logins
+            .Where(login => Login().IsMatch(login))
+            .DistinctBy(login => login.ToLowerInvariant())
+            .OrderBy(login => login.ToLowerInvariant(), StringComparer.Ordinal)
+            .ToList();
     }
 
     private static bool IsListingPath(string? path)
@@ -169,24 +231,35 @@ public sealed class ListingOwnershipCheck : IListingOwnershipCheck
     /// <summary>A SpaceDock mod binds to the GitHub repository of its source code link, which only its authors can set.</summary>
     private async Task<ListingOwnership> VerifySpaceDockAsync(string modId, string id, GitHubAccount author, CancellationToken cancellationToken)
     {
+        var (repository, failure) = await SpaceDockRepositoryAsync(modId, cancellationToken).ConfigureAwait(false);
+        if (repository is null)
+            return failure!;
+
+        var result = await VerifyRepositoryAsync(repository, id, author, cancellationToken).ConfigureAwait(false);
+        return result with { SpaceDockMod = modId };
+    }
+
+    /// <summary>The GitHub repository that the source code link of a SpaceDock mod names, or the result that says why there is none.</summary>
+    private async Task<(string? Repository, ListingOwnership? Failure)> SpaceDockRepositoryAsync(string modId, CancellationToken cancellationToken)
+    {
         var unusable = new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.SpaceDockModUnusable, SpaceDockMod: modId);
         if (modId.Length == 0 || !modId.All(char.IsAsciiDigit))
-            return unusable;
+            return (null, unusable);
 
         SpaceDockModDto? mod;
         try
         {
             using var response = await _http.GetAsync($"{SpaceDockModRepository.BaseUrl}/api/mod/{modId}", cancellationToken).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.NotFound)
-                return unusable;
+                return (null, unusable);
 
             var refused = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
             if (!response.IsSuccessStatusCode && !refused)
-                return ListingOwnership.Unknown;
+                return (null, ListingOwnership.Unknown);
 
             mod = JsonSerializer.Deserialize<SpaceDockModDto>(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false), GitHubApi.Json);
             if (mod is null || (refused && !mod.Error))
-                return ListingOwnership.Unknown;
+                return (null, ListingOwnership.Unknown);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -194,20 +267,19 @@ public sealed class ListingOwnershipCheck : IListingOwnershipCheck
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JsonException)
         {
-            return ListingOwnership.Unknown;
+            return (null, ListingOwnership.Unknown);
         }
 
         if (mod.Error)
-            return unusable;
+            return (null, unusable);
         if (mod.Id?.ToString() != modId)
-            return ListingOwnership.Unknown;
+            return (null, ListingOwnership.Unknown);
         if (mod.GameId != SpaceDockGameId)
-            return unusable;
-        if (ListingAuthority.GitHubRepositoryOf(mod.SourceCode) is not { } repository)
-            return unusable with { Problem = ListingOwnershipProblem.SpaceDockNoSourceLink };
+            return (null, unusable);
 
-        var result = await VerifyRepositoryAsync(repository, id, author, cancellationToken).ConfigureAwait(false);
-        return result with { SpaceDockMod = modId };
+        return ListingAuthority.GitHubRepositoryOf(mod.SourceCode) is { } repository
+            ? (repository, null)
+            : (null, unusable with { Problem = ListingOwnershipProblem.SpaceDockNoSourceLink });
     }
 
     /// <summary>GitHub answers the old name of a renamed or transferred repository with the new one.</summary>
@@ -224,8 +296,11 @@ public sealed class ListingOwnershipCheck : IListingOwnershipCheck
         return !repository.Fork && string.Equals(repository.FullName, submitted.Target, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>A marker that names only the login covers every listing of the repository.</summary>
-    private bool MarkerNames(string text, string id, string login)
+    private bool MarkerNames(string text, string id, string login) =>
+        MarkerLogin(text, id) is { } claimed && string.Equals(claimed, login, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The login a marker file names for the listing, or null. A marker that names only the login covers every listing of the repository.</summary>
+    private string? MarkerLogin(string text, string id)
     {
         AuthoredTable marker;
         try
@@ -234,14 +309,14 @@ public sealed class ListingOwnershipCheck : IListingOwnershipCheck
         }
         catch (FormatException)
         {
-            return false;
+            return null;
         }
 
         var claimed = IsSet(marker["login"]) ? marker["login"] : marker["account"];
         var identifier = IsSet(marker["id"]) ? marker["id"] : marker["listing"];
-        return claimed is string account
-            && string.Equals(account, login, StringComparison.OrdinalIgnoreCase)
-            && (identifier is not string named || string.Equals(named, id, StringComparison.OrdinalIgnoreCase));
+        return claimed is string account && (identifier is not string named || string.Equals(named, id, StringComparison.OrdinalIgnoreCase))
+            ? account
+            : null;
     }
 
     private static bool IsSet(object? value) => value switch
@@ -256,12 +331,19 @@ public sealed class ListingOwnershipCheck : IListingOwnershipCheck
         _ => true,
     };
 
+    [GeneratedRegex("^(?!.*--)[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")]
+    private static partial Regex Login();
+
     private static ListingOwnership NotVerified(ListingOwnershipProblem problem, string repository) =>
         new(ListingOwnershipState.NotVerified, Problem: problem, Repository: repository);
 
     private sealed class OwnerDto
     {
         public long Id { get; set; }
+
+        public string? Login { get; set; }
+
+        public string? Type { get; set; }
     }
 
     private sealed class RepositoryDto

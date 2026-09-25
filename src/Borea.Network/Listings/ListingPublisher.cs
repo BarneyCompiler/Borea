@@ -29,8 +29,6 @@ public sealed class ListingPublisher : IListingPublisher
 
     internal const string MergingDescription = "validated, arming auto-merge";
 
-    private const int MaxBranchNumber = 100;
-
     private readonly IGitHubSession _session;
     private readonly GitHubApi _api;
     private readonly ListingOwnershipCheck _ownership;
@@ -337,38 +335,12 @@ public sealed class ListingPublisher : IListingPublisher
     {
         try
         {
-            return await CreateFreeBranchAsync(fork, baseName, sha, cancellationToken).ConfigureAwait(false);
+            return await At(ListingPublishStep.Branch, _api.CreateFreeBranchAsync(fork.FullName, baseName, sha, cancellationToken)).ConfigureAwait(false);
         }
         catch (ListingPublishException exception) when (exception.Failure == ListingPublishFailure.Forbidden)
         {
             throw new ListingPublishException(ListingPublishFailure.ForkNeedsSync, ListingPublishStep.Branch, fork.FullName, innerException: exception);
         }
-    }
-
-    private async Task<string> CreateFreeBranchAsync(Fork fork, string baseName, string sha, CancellationToken cancellationToken)
-    {
-        const ListingPublishStep step = ListingPublishStep.Branch;
-        for (var number = 1; number <= MaxBranchNumber; number++)
-        {
-            var name = number == 1 ? baseName : $"{baseName}-{number.ToString(CultureInfo.InvariantCulture)}";
-            var existing = await SendAsync(HttpMethod.Get, $"{Api}/repos/{fork.FullName}/git/ref/heads/{name}", null, step, cancellationToken).ConfigureAwait(false);
-            if (existing.Status == HttpStatusCode.OK)
-                continue;
-            if (existing.Status != HttpStatusCode.NotFound)
-                Ensure(existing, step);
-
-            var body = new Dictionary<string, object> { ["ref"] = "refs/heads/" + name, ["sha"] = sha };
-            var created = await SendAsync(HttpMethod.Post, $"{Api}/repos/{fork.FullName}/git/refs", body, step, cancellationToken).ConfigureAwait(false);
-            if (created.Status == HttpStatusCode.Created)
-                return name;
-            if (created.Status == HttpStatusCode.UnprocessableEntity && created.Message?.Contains("already exists", StringComparison.OrdinalIgnoreCase) == true)
-                continue;
-
-            Ensure(created, step);
-            throw Unexpected(step);
-        }
-
-        throw new ListingPublishException(ListingPublishFailure.Refused, step, $"{baseName} to {baseName}-{MaxBranchNumber} are taken");
     }
 
     private async Task PutFileAsync(string repository, string branch, ListingSubmission submission, ListingFile file, string? sha, CancellationToken cancellationToken)

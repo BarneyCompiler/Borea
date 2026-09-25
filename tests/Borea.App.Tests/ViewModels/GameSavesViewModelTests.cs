@@ -423,6 +423,152 @@ public sealed class GameSavesViewModelTests
     }
 
     [Fact]
+    public async Task Rename_WritesTheNameAndRenamesTheFolder()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        var saves = harness.Services.Paths.GetInstanceSavesFolder(instance.InstanceId);
+        WriteItem(saves, "Orbit", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 10);
+        await OpenAsync(harness, "Main");
+        var row = Assert.Single(viewModel.SavesSection.Items);
+
+        row.BeginRenameCommand.Execute(null);
+
+        Assert.True(viewModel.IsNameModalOpen);
+        Assert.Equal(harness.Localization.GameSaveRenameSaveTitle, viewModel.NameModalTitle);
+        Assert.Equal(harness.Localization.LibrarySave, viewModel.NameModalConfirmText);
+        Assert.Null(viewModel.NameModalPlaceholder);
+        Assert.Equal("Orbit", viewModel.ModalInstanceName);
+
+        viewModel.ModalInstanceName = " Mun landing ";
+        await viewModel.ConfirmNameModalCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsNameModalOpen);
+        Assert.Null(viewModel.InstanceError);
+        var renamed = Assert.Single(viewModel.SavesSection.Items);
+        Assert.Equal("Mun landing", renamed.Name);
+        Assert.Equal("Mun landing", renamed.FolderName);
+        Assert.False(Directory.Exists(Path.Combine(saves, "Orbit")));
+        Assert.Equal(harness.Localization.FormatGameSaveRenamed("Orbit", "Mun landing"), viewModel.Toasts.Items[^1].Message);
+    }
+
+    [Fact]
+    public async Task Rename_Vehicle_TitlesTheModalForAVehicleAndCancelLeavesIt()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        var vehicles = harness.Services.Paths.GetInstanceVehiclesFolder(instance.InstanceId);
+        WriteItem(vehicles, "Rocket", "2026-08-10T06:44:36.6429982", "v2026.8.3.5117", 10, "vehicle.xml");
+        await OpenAsync(harness, "Main");
+
+        Assert.Single(viewModel.VehiclesSection.Items).BeginRenameCommand.Execute(null);
+        Assert.Equal(harness.Localization.GameSaveRenameVehicleTitle, viewModel.NameModalTitle);
+        viewModel.ModalInstanceName = "Rocket 2";
+        viewModel.CancelNameModalCommand.Execute(null);
+
+        Assert.False(viewModel.IsNameModalOpen);
+        Assert.Null(viewModel.RenamingGameSave);
+        Assert.Equal("Rocket", Assert.Single(viewModel.VehiclesSection.Items).FolderName);
+        Assert.True(Directory.Exists(Path.Combine(vehicles, "Rocket")));
+    }
+
+    [Theory]
+    [InlineData("Mun/landing")]
+    [InlineData("...")]
+    [InlineData("moon")]
+    public async Task Rename_NameTheGameRefusesOrThatIsTaken_KeepsTheModalOpenWithTheReason(string name)
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        var saves = harness.Services.Paths.GetInstanceSavesFolder(instance.InstanceId);
+        WriteItem(saves, "Orbit", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 10);
+        WriteItem(saves, "Moon", "2026-08-02T14:34:32.4054896", "v2026.8.3.5117", 10);
+        await OpenAsync(harness, "Main");
+        var meta = File.ReadAllText(Path.Combine(saves, "Orbit", "meta.toml"));
+        viewModel.SavesSection.Items.Single(item => item.Name == "Orbit").BeginRenameCommand.Execute(null);
+
+        viewModel.ModalInstanceName = name;
+        await viewModel.ConfirmNameModalCommand.ExecuteAsync(null);
+
+        var expected = name switch
+        {
+            "Mun/landing" => harness.Localization.FormatGameSaveNameInvalid("Munlanding"),
+            "..." => harness.Localization.GameSaveNameNeedsLetter,
+            _ => harness.Localization.GameSaveSaveNameTaken,
+        };
+        Assert.Equal(expected, viewModel.InstanceError);
+        Assert.True(viewModel.IsNameModalOpen);
+        Assert.Equal(meta, File.ReadAllText(Path.Combine(saves, "Orbit", "meta.toml")));
+    }
+
+    [Fact]
+    public async Task Rename_WhileTheGameRuns_RefusesWithCloseTheGame()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        var saves = harness.Services.Paths.GetInstanceSavesFolder(instance.InstanceId);
+        WriteItem(saves, "Orbit", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 10);
+        await OpenAsync(harness, "Main");
+        harness.IsGameProcessRunning = () => true;
+        Assert.Single(viewModel.SavesSection.Items).BeginRenameCommand.Execute(null);
+
+        viewModel.ModalInstanceName = "Mun";
+        await viewModel.ConfirmNameModalCommand.ExecuteAsync(null);
+
+        Assert.Equal(harness.Localization.GameSaveCloseGame, viewModel.InstanceError);
+        Assert.True(Directory.Exists(Path.Combine(saves, "Orbit")));
+        Assert.False(Directory.Exists(Path.Combine(saves, "Mun")));
+    }
+
+    [Fact]
+    public async Task Rename_WhileBoreaRunsTheInstance_RefusesWithCloseTheGame()
+    {
+        var starter = new RunningGameStarter();
+        using var harness = await ViewModelHarness.CreateAsync(WithStarMap, processStarter: starter);
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        var saves = harness.Services.Paths.GetInstanceSavesFolder(instance.InstanceId);
+        WriteItem(saves, "Orbit", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 10);
+        starter.GameLogPath = harness.Services.Paths.GetInstanceGameLogPath(instance.InstanceId);
+        await OpenAsync(harness, "Main");
+        await viewModel.PlayCommand.ExecuteAsync(null);
+        Assert.True(harness.Services.Launcher.IsRunning(instance.InstanceId));
+        Assert.Single(viewModel.SavesSection.Items).BeginRenameCommand.Execute(null);
+
+        viewModel.ModalInstanceName = "Mun";
+        await viewModel.ConfirmNameModalCommand.ExecuteAsync(null);
+
+        Assert.Equal(harness.Localization.GameSaveCloseGame, viewModel.InstanceError);
+        Assert.True(Directory.Exists(Path.Combine(saves, "Orbit")));
+    }
+
+    [Fact]
+    public async Task Rename_MoveFails_ShowsTheReasonAndKeepsTheOldName()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        var saves = harness.Services.Paths.GetInstanceSavesFolder(instance.InstanceId);
+        WriteItem(saves, "Orbit", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 10);
+        File.WriteAllText(Path.Combine(saves, "Mun"), "not a save");
+        await OpenAsync(harness, "Main");
+        var meta = File.ReadAllText(Path.Combine(saves, "Orbit", "meta.toml"));
+        Assert.Single(viewModel.SavesSection.Items).BeginRenameCommand.Execute(null);
+
+        viewModel.ModalInstanceName = "Mun";
+        await viewModel.ConfirmNameModalCommand.ExecuteAsync(null);
+
+        Assert.NotNull(viewModel.InstanceError);
+        Assert.True(viewModel.IsNameModalOpen);
+        Assert.Equal(meta, File.ReadAllText(Path.Combine(saves, "Orbit", "meta.toml")));
+        Assert.Equal("Orbit", Assert.Single(viewModel.SavesSection.Items).Name);
+    }
+
+    [Fact]
     public async Task LanguageChange_RetitlesTheSections()
     {
         using var harness = await ViewModelHarness.CreateAsync();

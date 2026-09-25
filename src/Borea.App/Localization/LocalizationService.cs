@@ -700,6 +700,18 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string GameSaveDeleteConfirm => Resources.GameSaveDeleteConfirm;
 
+    public string GameSaveRenameSaveTitle => Resources.GameSaveRenameSaveTitle;
+
+    public string GameSaveRenameVehicleTitle => Resources.GameSaveRenameVehicleTitle;
+
+    public string GameSaveNameRules => Resources.GameSaveNameRules;
+
+    public string GameSaveNameNeedsLetter => Resources.GameSaveNameNeedsLetter;
+
+    public string GameSaveSaveNameTaken => Resources.GameSaveSaveNameTaken;
+
+    public string GameSaveVehicleNameTaken => Resources.GameSaveVehicleNameTaken;
+
     public string GameSaveCloseGame => Resources.GameSaveCloseGame;
 
     public string GameSaveCopyFromProfile => Resources.GameSaveCopyFromProfile;
@@ -2202,6 +2214,12 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatGameSaveDeleted(string name)
         => string.Format(CultureInfo.CurrentCulture, Resources.GameSaveDeletedFormat, name);
+
+    public string FormatGameSaveRenamed(string name, string newName)
+        => string.Format(CultureInfo.CurrentCulture, Resources.GameSaveRenamedFormat, name, newName);
+
+    public string FormatGameSaveNameInvalid(string suggestion)
+        => string.Format(CultureInfo.CurrentCulture, Resources.GameSaveNameInvalidFormat, suggestion);
 
     public string FormatGameSavesCopiedFromProfile(int count)
         => string.Format(CultureInfo.CurrentCulture, Resources.GameSavesCopiedFromProfileFormat, count);

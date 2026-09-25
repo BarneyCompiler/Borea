@@ -222,15 +222,24 @@ public partial class MainViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(IsNameModalOpen), nameof(NameModalTitle), nameof(NameModalConfirmText))]
     private InstanceItem? _renamingInstance;
 
-    /// <summary>The name the modal creates or renames an instance with.</summary>
+    /// <summary>The save or vehicle the name modal renames. Null while the modal is for an instance or closed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNameModalOpen), nameof(NameModalTitle), nameof(NameModalConfirmText), nameof(NameModalPlaceholder))]
+    private GameSaveItem? _renamingGameSave;
+
+    /// <summary>The name the modal creates or renames an instance, a save or a vehicle with.</summary>
     [ObservableProperty]
     private string _modalInstanceName = string.Empty;
 
-    public bool IsNameModalOpen => IsCreatingInstance || RenamingInstance is not null;
+    public bool IsNameModalOpen => IsCreatingInstance || RenamingInstance is not null || RenamingGameSave is not null;
 
-    public string NameModalTitle => RenamingInstance is not null ? Localization.ModalRenameInstanceTitle : IsImportingSharedProfile ? Localization.SharedProfileModalTitle : Localization.ModalCreateInstanceTitle;
+    public string NameModalTitle => RenamingGameSave is { } save
+        ? save.IsVehicle ? Localization.GameSaveRenameVehicleTitle : Localization.GameSaveRenameSaveTitle
+        : RenamingInstance is not null ? Localization.ModalRenameInstanceTitle : IsImportingSharedProfile ? Localization.SharedProfileModalTitle : Localization.ModalCreateInstanceTitle;
 
-    public string NameModalConfirmText => RenamingInstance is null ? Localization.LibraryCreate : Localization.LibrarySave;
+    public string NameModalConfirmText => RenamingInstance is null && RenamingGameSave is null ? Localization.LibraryCreate : Localization.LibrarySave;
+
+    public string? NameModalPlaceholder => RenamingGameSave is null ? Localization.LibraryNewInstancePlaceholder : null;
 
     /// <summary>The row the delete modal asks about. Null while the modal is closed.</summary>
     [ObservableProperty]
@@ -554,6 +563,7 @@ public partial class MainViewModel : ViewModelBase
         ClearNameRequired();
         IsCreatingInstance = false;
         RenamingInstance = null;
+        RenamingGameSave = null;
     }
 
     private string? _nameRequiredError;
@@ -571,7 +581,8 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task ConfirmNameModalAsync() => RenamingInstance is { } item ? RenameFromModalAsync(item) : CreateInstanceAsync();
+    private Task ConfirmNameModalAsync()
+        => RenamingGameSave is { } save ? RenameGameSaveFromModalAsync(save) : RenamingInstance is { } item ? RenameFromModalAsync(item) : CreateInstanceAsync();
 
     [RelayCommand]
     private Task CreateInstanceAsync()
@@ -913,6 +924,7 @@ public partial class MainViewModel : ViewModelBase
         RefreshInstanceHint();
         OnPropertyChanged(nameof(NameModalTitle));
         OnPropertyChanged(nameof(NameModalConfirmText));
+        OnPropertyChanged(nameof(NameModalPlaceholder));
         OnPropertyChanged(nameof(DeleteModalText));
         OnPropertyChanged(nameof(ContentVersionsEmptyText));
         OnPropertyChanged(nameof(DiscoverSortText));

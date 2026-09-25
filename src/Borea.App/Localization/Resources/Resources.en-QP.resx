@@ -831,6 +831,30 @@
   <data name="GameSaveDeletedFormat" xml:space="preserve">
     <value>Hauled {0} into the Backups treasure chest. Fetch it back under Backups.</value>
   </data>
+  <data name="GameSaveRenameSaveTitle" xml:space="preserve">
+    <value>Rechristen the tale</value>
+  </data>
+  <data name="GameSaveRenameVehicleTitle" xml:space="preserve">
+    <value>Rechristen the ship</value>
+  </data>
+  <data name="GameSaveNameRules" xml:space="preserve">
+    <value>The game be callin' it by this name. A name can have letters, digits, lone spaces, - and _, and no more than 64 characters.</value>
+  </data>
+  <data name="GameSaveNameInvalidFormat" xml:space="preserve">
+    <value>The game won't be takin' that name. Try {0}.</value>
+  </data>
+  <data name="GameSaveNameNeedsLetter" xml:space="preserve">
+    <value>A name needs at least one letter or digit, matey.</value>
+  </data>
+  <data name="GameSaveSaveNameTaken" xml:space="preserve">
+    <value>Another tale in this sea already be carryin' that name.</value>
+  </data>
+  <data name="GameSaveVehicleNameTaken" xml:space="preserve">
+    <value>Another ship in this sea already be carryin' that name.</value>
+  </data>
+  <data name="GameSaveRenamedFormat" xml:space="preserve">
+    <value>Rechristened {0} as {1}.</value>
+  </data>
   <data name="GameSaveCloseGame" xml:space="preserve">
     <value>Quit sailin' before ye do that.</value>
   </data>

@@ -1201,6 +1201,12 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ListingFileType => Resources.ListingFileType;
 
+    public string ListingCopyOwnerFile => Resources.ListingCopyOwnerFile;
+
+    public string ListingSaveOwnerFile => Resources.ListingSaveOwnerFile;
+
+    public string ListingOwnerFileType => Resources.ListingOwnerFileType;
+
     public string ListingOpenPullRequest => Resources.ListingOpenPullRequest;
 
     public string ListingNewPullRequestText => Resources.ListingNewPullRequestText;
@@ -1210,6 +1216,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ListingFixErrors => Resources.ListingFixErrors;
 
     public string ListingCopied => Resources.ListingCopied;
+
+    public string ListingOwnerFileCopied => Resources.ListingOwnerFileCopied;
 
     public string ListingSaveFailed => Resources.ListingSaveFailed;
 
@@ -1234,6 +1242,10 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ListingOwnershipSteward => Resources.ListingOwnershipSteward;
 
     public string ListingOwnershipUnknown => Resources.ListingOwnershipUnknown;
+
+    public string ListingOwnershipPackUnknown => Resources.ListingOwnershipPackUnknown;
+
+    public string ListingOwnershipFirstClaim => Resources.ListingOwnershipFirstClaim;
 
     public string ListingFixNoHost => Resources.ListingFixNoHost;
 
@@ -1276,6 +1288,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ListingWhatBranch => Resources.ListingWhatBranch;
 
     public string ListingWhatFile => Resources.ListingWhatFile;
+
+    public string ListingWhatPackOwner => Resources.ListingWhatPackOwner;
 
     public string ListingWhatPullRequest => Resources.ListingWhatPullRequest;
 
@@ -2032,11 +2046,20 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatListingPackPullRequestText(string path)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackPullRequestTextFormat, path);
 
+    public string FormatListingNewPackPullRequestText(string path, string ownerPath)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingNewPackPullRequestTextFormat, path, ownerPath);
+
+    public string FormatListingOwnerFileText(string ownerPath)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingOwnerFileTextFormat, ownerPath);
+
     public string FormatListingSaved(string fileName)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingSavedFormat, fileName);
 
     public string FormatListingOpenFailed(string reason)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingOpenFailedFormat, reason);
+
+    public string FormatListingOpenedAddOwner(string ownerPath)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingOpenedAddOwnerFormat, ownerPath);
 
     public string FormatListingPublishText(string login)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingPublishTextFormat, login);
@@ -2049,6 +2072,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatListingProofMarker(string repository)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingProofMarkerFormat, repository);
+
+    public string FormatListingProofPackOwner(string ownerPath)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingProofPackOwnerFormat, ownerPath);
 
     public string FormatListingFixTopic(string repository, string topic)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingFixTopicFormat, repository, topic);
@@ -2070,6 +2096,15 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatListingFixOtherFiles(string number)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingFixOtherFilesFormat, number);
+
+    public string FormatListingFirstClaimDetail(string ownerPath)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingFirstClaimDetailFormat, ownerPath);
+
+    public string FormatListingFixPackOwnedByOther(string ownerPath, string login)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingFixPackOwnedByOtherFormat, ownerPath, login);
+
+    public string FormatListingFixPackIdTaken(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingFixPackIdTakenFormat, id);
 
     public string FormatListingAppNotOnFork(string repository)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingAppNotOnForkFormat, repository);

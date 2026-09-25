@@ -67,8 +67,50 @@ public sealed partial class ListingEditor
 
     public string? LeftOutTitle => _fromInstance is { } from ? Localization.FormatListingLeftOut(from.InstanceName) : null;
 
+    /// <summary>The first version of a new pack claims its id, so its pull request also adds the owner record.</summary>
+    public bool IsNewPack => IsPack && !IsNextVersion;
+
+    public string OwnerFilePath => ListingPackOwner.PathOf(Draft.Id);
+
+    /// <summary>
+    /// The owner record for the browser path. Signed in, the ownership check of a free id gives the record of the account.
+    /// Otherwise Borea does not know the numeric account id, so the author puts it in, and the checks refuse the record
+    /// until it names the account that opens the pull request.
+    /// </summary>
+    public string OwnerFile => (Ownership?.Claim ?? new ListingPackOwner(_owner.GitHubLogin ?? "your-github-login", 0)).ToJson();
+
+    public string OwnerFileText => Localization.FormatListingOwnerFileText(OwnerFilePath);
+
     [RelayCommand]
     private void StartPack() => StartNewPack(NewPack());
+
+    [RelayCommand]
+    private async Task CopyOwnerFileAsync()
+    {
+        if (_owner.WindowServices is not { } window)
+            return;
+
+        await window.CopyTextAsync(OwnerFile);
+        _owner.ShowSuccessToast(() => Localization.ListingOwnerFileCopied);
+    }
+
+    [RelayCommand]
+    private async Task SaveOwnerFileAsync()
+    {
+        if (_owner.WindowServices is not { } window)
+            return;
+
+        try
+        {
+            var fileName = await window.SaveTextFileAsync(Localization.ListingSaveOwnerFile, ListingPackOwner.FileName, Localization.ListingOwnerFileType, OwnerFile);
+            if (fileName is not null)
+                _owner.ShowSuccessToast(() => Localization.FormatListingSaved(fileName));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _owner.ShowErrorToast(() => Localization.ListingSaveFailed, exception.Message);
+        }
+    }
 
     /// <summary>
     /// Opens a new pack of the enabled mods that Borea installed from the index in an instance, at their installed versions,

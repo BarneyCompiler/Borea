@@ -209,7 +209,7 @@ public sealed class ListingPageTests
     }
 
     [Fact]
-    public async Task PackForm_ShowsThePackAndItsMembersAndOnlyTheBrowserPath()
+    public async Task PackForm_ShowsThePackItsMembersTheOwnerFileAndTheSignedInPublish()
     {
         var session = new ListingPullRequestViewModelTests.FakeSession();
         session.SignIn();
@@ -225,13 +225,15 @@ public sealed class ListingPageTests
         Assert.Contains(localization.ListingPack, texts);
         Assert.Contains(localization.ListingMembers, texts);
         Assert.Contains("AdvancedFlightComputer", texts);
-        Assert.Contains(localization.FormatListingPackPullRequestText("packs/my-pack/1.0.0.toml"), texts);
-        Assert.Contains(localization.ListingOpenPullRequest, texts);
+        Assert.Contains(localization.FormatListingOwnerFileText("packs/my-pack/owner.json"), texts);
+        Assert.Contains(localization.ListingCopyOwnerFile, texts);
+        Assert.Contains(localization.ListingSaveOwnerFile, texts);
+        Assert.Contains(localization.ListingPublish, texts);
+        Assert.Contains(localization.ListingOpenInBrowser, texts);
+        Assert.DoesNotContain(localization.FormatListingNewPackPullRequestText("packs/my-pack/1.0.0.toml", "packs/my-pack/owner.json"), texts);
         Assert.DoesNotContain(localization.ListingReleases, texts);
         Assert.DoesNotContain(localization.ListingDependencies, texts);
         Assert.DoesNotContain(localization.ListingUsesLoader, texts);
-        Assert.DoesNotContain(localization.ListingPublish, texts);
-        Assert.DoesNotContain(localization.ListingOpenInBrowser, texts);
     }
 
     [Fact]

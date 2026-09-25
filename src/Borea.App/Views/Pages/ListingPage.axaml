@@ -488,7 +488,18 @@
                                     <Button Classes="text" Content="{Binding Localization.ListingCopy}" Command="{Binding ListingEditor.CopyCommand}" />
                                     <Button Classes="text" Content="{Binding Localization.ListingSaveAs}" Command="{Binding ListingEditor.SaveCommand}" />
                                 </WrapPanel>
-                                <!-- no GitHub sign-in in this build, or a pack version, so the browser opens the pull request -->
+                                <!-- the owner record that the first version of a new pack adds, for the browser path -->
+                                <StackPanel Spacing="8" IsVisible="{Binding ListingEditor.IsNewPack}">
+                                    <TextBlock Classes="body-sm secondary" Text="{Binding ListingEditor.OwnerFileText}" TextWrapping="Wrap" />
+                                    <Border Background="{StaticResource Brush.Window}" CornerRadius="8" Padding="12">
+                                        <SelectableTextBlock FontFamily="{StaticResource Font.Mono}" FontSize="12" Text="{Binding ListingEditor.OwnerFile}" TextWrapping="Wrap" />
+                                    </Border>
+                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                        <Button Classes="text" Content="{Binding Localization.ListingCopyOwnerFile}" Command="{Binding ListingEditor.CopyOwnerFileCommand}" />
+                                        <Button Classes="text" Content="{Binding Localization.ListingSaveOwnerFile}" Command="{Binding ListingEditor.SaveOwnerFileCommand}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                                <!-- no GitHub sign-in in this build, so the browser opens the pull request -->
                                 <StackPanel Spacing="12" IsVisible="{Binding ListingEditor.UsesBrowserOnly}">
                                     <TextBlock Classes="body-sm secondary" Text="{Binding ListingEditor.PullRequestText}" TextWrapping="Wrap" />
                                     <Button Classes="cta" Command="{Binding ListingEditor.OpenPullRequestCommand}" IsEnabled="{Binding ListingEditor.CanOpenPullRequest}" HorizontalAlignment="Left">

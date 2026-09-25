@@ -1917,6 +1917,15 @@
   <data name="ListingFileType" xml:space="preserve">
     <value>TOML file</value>
   </data>
+  <data name="ListingCopyOwnerFile" xml:space="preserve">
+    <value>Copy owner.json</value>
+  </data>
+  <data name="ListingSaveOwnerFile" xml:space="preserve">
+    <value>Save owner.json</value>
+  </data>
+  <data name="ListingOwnerFileType" xml:space="preserve">
+    <value>JSON file</value>
+  </data>
   <data name="ListingOpenPullRequest" xml:space="preserve">
     <value>Open pull request on GitHub</value>
   </data>
@@ -1924,7 +1933,13 @@
     <value>GitHub opens a new file in your own copy of content-index, and then the pull request form. GitHub fills in this text when it fits in the link. When it is too long, Borea copies it, and you paste it into the page. The pull request merges itself when you control the release host: the repository is yours, has the topic ksa-index-&lt;your GitHub name&gt;, or contains .github/ksa-content-index.toml. A SpaceDock mod proves this through the GitHub repository in its source code link.</value>
   </data>
   <data name="ListingPackPullRequestTextFormat" xml:space="preserve">
-    <value>GitHub opens the new file {0} in your own copy of content-index. A pack file is almost always too long for the link, so Borea copies it, and you paste it into the page and open the pull request. The first version of a new pack also needs an owner.json with your GitHub account in the same folder, and a steward accepts it. Later versions from that account merge themselves.</value>
+    <value>GitHub opens the new file {0} in your own copy of content-index. A pack file is almost always too long for the link, so Borea copies it, and you paste it into the page and open the pull request. A version from the account that owns the pack merges itself.</value>
+  </data>
+  <data name="ListingNewPackPullRequestTextFormat" xml:space="preserve">
+    <value>GitHub opens the new file {0} in your own copy of content-index. A pack file is almost always too long for the link, so Borea copies it, and you paste it into the page. The first version of a new pack also adds {1} to the same pull request. A steward accepts a first claim after the checks pass, and the checks of a new GitHub account can wait for a steward to start them.</value>
+  </data>
+  <data name="ListingOwnerFileTextFormat" xml:space="preserve">
+    <value>The first version of a new pack also adds {0}, which names your GitHub account as the owner of the pack. When Borea opens the pull request from your account, it writes this file itself. In the browser, add it to the branch of the same pull request with Add file, and put in your GitHub login and the numeric id that https://api.github.com/users/&lt;your GitHub name&gt; shows.</value>
   </data>
   <data name="ListingEditPullRequestText" xml:space="preserve">
     <value>GitHub opens the listed file for editing, and Borea copies the new text. Paste it over the old text and open the pull request. The checks prove that you control the release host the listing names now.</value>
@@ -1934,6 +1949,9 @@
   </data>
   <data name="ListingCopied" xml:space="preserve">
     <value>Copied the listing file.</value>
+  </data>
+  <data name="ListingOwnerFileCopied" xml:space="preserve">
+    <value>Copied owner.json.</value>
   </data>
   <data name="ListingSavedFormat" xml:space="preserve">
     <value>Saved {0}.</value>
@@ -1946,6 +1964,9 @@
   </data>
   <data name="ListingOpenedPaste" xml:space="preserve">
     <value>Borea copied the file. Paste it into the page that GitHub opened.</value>
+  </data>
+  <data name="ListingOpenedAddOwnerFormat" xml:space="preserve">
+    <value>Then add {0} to the branch of the same pull request with Add file on GitHub, and paste the owner file from Borea into it.</value>
   </data>
   <data name="ListingOpenFailedFormat" xml:space="preserve">
     <value>GitHub could not be opened: {0}</value>
@@ -1980,6 +2001,12 @@
   <data name="ListingOwnershipUnknown" xml:space="preserve">
     <value>Borea could not check who controls the release host. The checks decide after you open the pull request.</value>
   </data>
+  <data name="ListingOwnershipPackUnknown" xml:space="preserve">
+    <value>Borea could not read who owns the pack id. The checks decide after you open the pull request.</value>
+  </data>
+  <data name="ListingOwnershipFirstClaim" xml:space="preserve">
+    <value>The pack id is free. The pull request claims it for your account, and a steward accepts a first claim after the checks pass.</value>
+  </data>
   <data name="ListingProofOwnerFormat" xml:space="preserve">
     <value>You own {0}.</value>
   </data>
@@ -1988,6 +2015,9 @@
   </data>
   <data name="ListingProofMarkerFormat" xml:space="preserve">
     <value>{0} names you in .github/ksa-content-index.toml.</value>
+  </data>
+  <data name="ListingProofPackOwnerFormat" xml:space="preserve">
+    <value>{0} on main names your account.</value>
   </data>
   <data name="ListingFixTopicFormat" xml:space="preserve">
     <value>To let it merge itself, add the topic {1} to {0}.</value>
@@ -2012,6 +2042,15 @@
   </data>
   <data name="ListingFixOtherFilesFormat" xml:space="preserve">
     <value>Borea adds to your open pull request #{0}, which also changes other files. Take them out of it to let it merge itself.</value>
+  </data>
+  <data name="ListingFirstClaimDetailFormat" xml:space="preserve">
+    <value>Borea adds {0} with your account to the pull request. The checks of a new GitHub account can wait for a steward to start them.</value>
+  </data>
+  <data name="ListingFixPackOwnedByOtherFormat" xml:space="preserve">
+    <value>{0} on main names the account {1}. A steward decides whether the pack gets a new owner.</value>
+  </data>
+  <data name="ListingFixPackIdTakenFormat" xml:space="preserve">
+    <value>The index already has {0}, and ids that differ only in letter case are the same id. Choose another id.</value>
   </data>
   <data name="ListingOpenRepository" xml:space="preserve">
     <value>Open the repository</value>
@@ -2105,6 +2144,9 @@
   </data>
   <data name="ListingWhatFile" xml:space="preserve">
     <value>the listing file</value>
+  </data>
+  <data name="ListingWhatPackOwner" xml:space="preserve">
+    <value>the owner file of the pack</value>
   </data>
   <data name="ListingWhatPullRequest" xml:space="preserve">
     <value>the pull request</value>

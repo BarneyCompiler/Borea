@@ -298,6 +298,177 @@ public sealed class FileGameSaveStoreTests : IDisposable
         Assert.Equal(["saves"], Directory.GetDirectories(_paths.GetInstanceRoot(_otherInstanceId)).Select(Path.GetFileName));
     }
 
+    [Theory]
+    [InlineData(GameSaveKind.Save, "universe.xml")]
+    [InlineData(GameSaveKind.Vehicle, "vehicle.xml")]
+    public async Task RenameAsync_ChangesTheNameInMetaTomlAndTheFolderTogether(GameSaveKind kind, string dataFile)
+    {
+        var folder = kind == GameSaveKind.Save ? _paths.GetInstanceSavesFolder(_instanceId) : _paths.GetInstanceVehiclesFolder(_instanceId);
+        WriteItem(folder, "Orbit", "Orbit", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 100, dataFile);
+        var entry = Assert.Single(await _store.ListAsync(_instanceId, kind));
+        var before = File.ReadAllText(Path.Combine(entry.Path, "meta.toml"));
+
+        var outcome = await _store.RenameAsync(_instanceId, entry, "Mun landing 2");
+
+        Assert.Equal(GameSaveRenameOutcome.Renamed, outcome);
+        Assert.False(Directory.Exists(entry.Path));
+        var renamed = Path.Combine(folder, "Mun landing 2");
+        Assert.Equal(100, new FileInfo(Path.Combine(renamed, dataFile)).Length);
+        Assert.Equal(before.Replace("name = \"Orbit\"", "name = \"Mun landing 2\"", StringComparison.Ordinal), File.ReadAllText(Path.Combine(renamed, "meta.toml")));
+        Assert.Equal(["meta.toml", dataFile], Directory.GetFiles(renamed).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        var listed = Assert.Single(await _store.ListAsync(_instanceId, kind));
+        Assert.Equal("Mun landing 2", listed.Name);
+        Assert.Equal("Mun landing 2", listed.FolderName);
+        Assert.Equal(entry.UpdatedAt, listed.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task RenameAsync_FolderOfAnotherName_FollowsTheName()
+    {
+        var saves = _paths.GetInstanceSavesFolder(_instanceId);
+        WriteItem(saves, "orbit-test", "Orbit test", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 100);
+        var entry = Assert.Single(await _store.ListAsync(_instanceId, GameSaveKind.Save));
+
+        Assert.Equal(GameSaveRenameOutcome.Renamed, await _store.RenameAsync(_instanceId, entry, "Orbit test"));
+
+        Assert.Equal("Orbit test", Assert.Single(await _store.ListAsync(_instanceId, GameSaveKind.Save)).FolderName);
+    }
+
+    [Fact]
+    public async Task RenameAsync_OnlyTheLetterCase_RenamesTheFolderToo()
+    {
+        var entry = await AddSaveAsync(_instanceId, "Orbit");
+
+        Assert.Equal(GameSaveRenameOutcome.Renamed, await _store.RenameAsync(_instanceId, entry, "ORBIT"));
+
+        var listed = Assert.Single(await _store.ListAsync(_instanceId, GameSaveKind.Save));
+        Assert.Equal("ORBIT", listed.Name);
+        Assert.Equal("ORBIT", listed.FolderName);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" Orbit 2")]
+    [InlineData("Orbit  2")]
+    [InlineData("Orbit/2")]
+    [InlineData("Orbit.2")]
+    [InlineData("CON")]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    public async Task RenameAsync_NameTheGameWouldChange_RefusesAndLeavesTheFolder(string name)
+    {
+        var entry = await AddSaveAsync(_instanceId, "Orbit");
+        var before = File.ReadAllBytes(Path.Combine(entry.Path, "meta.toml"));
+
+        Assert.Equal(GameSaveRenameOutcome.InvalidName, await _store.RenameAsync(_instanceId, entry, name));
+
+        Assert.Equal(before, File.ReadAllBytes(Path.Combine(entry.Path, "meta.toml")));
+        Assert.Equal(["Orbit"], Directory.GetDirectories(_paths.GetInstanceSavesFolder(_instanceId)).Select(Path.GetFileName));
+    }
+
+    [Theory]
+    [InlineData("orbit")]
+    [InlineData("Mun Base")]
+    [InlineData("mun base")]
+    [InlineData("MUN-BASE")]
+    public async Task RenameAsync_NameOrFolderOfAnotherSave_RefusesAndLeavesTheFolder(string name)
+    {
+        var saves = _paths.GetInstanceSavesFolder(_instanceId);
+        await AddSaveAsync(_instanceId, "Orbit");
+        WriteItem(saves, "mun-base", "Mun Base", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 100);
+        var moon = await AddSaveAsync(_instanceId, "Moon");
+        var before = File.ReadAllBytes(Path.Combine(moon.Path, "meta.toml"));
+
+        Assert.Equal(GameSaveRenameOutcome.NameTaken, await _store.RenameAsync(_instanceId, moon, name));
+
+        Assert.Equal(before, File.ReadAllBytes(Path.Combine(moon.Path, "meta.toml")));
+        Assert.Equal(["Moon", "Orbit", "mun-base"], Directory.GetDirectories(saves).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task RenameAsync_NameOfAVehicle_RenamesTheSave()
+    {
+        WriteItem(_paths.GetInstanceVehiclesFolder(_instanceId), "Rocket", "Rocket", "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", 10, "vehicle.xml");
+        var entry = await AddSaveAsync(_instanceId, "Orbit");
+
+        Assert.Equal(GameSaveRenameOutcome.Renamed, await _store.RenameAsync(_instanceId, entry, "Rocket"));
+    }
+
+    [Fact]
+    public async Task RenameAsync_MoveFails_PutsTheOldNameBack()
+    {
+        var entry = await AddSaveAsync(_instanceId, "Orbit");
+        var metadata = Path.Combine(entry.Path, "meta.toml");
+        var before = File.ReadAllBytes(metadata);
+        File.WriteAllText(Path.Combine(_paths.GetInstanceSavesFolder(_instanceId), "Mun"), "not a save");
+
+        await Assert.ThrowsAnyAsync<IOException>(() => _store.RenameAsync(_instanceId, entry, "Mun"));
+
+        Assert.Equal(before, File.ReadAllBytes(metadata));
+        Assert.Equal(["meta.toml", "universe.xml"], Directory.GetFiles(entry.Path).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Equal("Orbit", Assert.Single(await _store.ListAsync(_instanceId, GameSaveKind.Save)).Name);
+    }
+
+    [WindowsFact("Only Windows refuses to move a folder while a handle below it is open.")]
+    public async Task RenameAsync_LockedFile_FailsAndPutsTheOldNameBack()
+    {
+        var entry = await AddSaveAsync(_instanceId, "Orbit");
+        var metadata = Path.Combine(entry.Path, "meta.toml");
+        var before = File.ReadAllBytes(metadata);
+
+        using (Lock(Path.Combine(entry.Path, "universe.xml")))
+            await Assert.ThrowsAnyAsync<IOException>(() => _store.RenameAsync(_instanceId, entry, "Mun"));
+
+        Assert.Equal(before, File.ReadAllBytes(metadata));
+        Assert.Equal(["Orbit"], Directory.GetDirectories(_paths.GetInstanceSavesFolder(_instanceId)).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public async Task RenameAsync_NoMetaToml_RefusesAndLeavesTheFolder()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(_paths.GetInstanceSavesFolder(_instanceId), "Orbit")).FullName;
+        var entry = Assert.Single(await _store.ListAsync(_instanceId, GameSaveKind.Save));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => _store.RenameAsync(_instanceId, entry, "Mun"));
+
+        Assert.Contains("meta.toml", exception.Message);
+        Assert.True(Directory.Exists(folder));
+        Assert.Empty(Directory.GetFileSystemEntries(folder));
+    }
+
+    [Fact]
+    public async Task RenameAsync_FolderOfAnotherInstance_RefusesAndKeepsIt()
+    {
+        var entry = await AddSaveAsync(_otherInstanceId, "Orbit");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _store.RenameAsync(_instanceId, entry, "Mun"));
+
+        Assert.True(Directory.Exists(entry.Path));
+    }
+
+    [Fact]
+    public void WithName_KeepsCommentsAndEveryOtherValue()
+    {
+        const string text = "# written by the game\r\nname = \"Orbit\" # the save\r\ncreated = 2026-07-03T09:15:02.1200000\r\nsystems = [ \"Sol\", ]\r\n";
+
+        Assert.Equal(text.Replace("\"Orbit\"", "\"Mun\"", StringComparison.Ordinal), FileGameSaveStore.WithName(text, "Mun"));
+    }
+
+    [Fact]
+    public void WithName_NoName_AddsItAtTheTop()
+    {
+        Assert.Equal("name = \"Mun\"\nversion = \"v2026.8.3.5117\"\n", FileGameSaveStore.WithName("version = \"v2026.8.3.5117\"\n", "Mun"));
+    }
+
+    [Theory]
+    [InlineData("name = [")]
+    [InlineData("name = \"Orbit\"\nname = \"Moon\"\n")]
+    [InlineData("name = \"\"\"Orbit\"\"\"\n")]
+    [InlineData("note = \"\"\"\nname = \"Orbit\"\n\"\"\"\nname = \"Mun\"\n")]
+    public void WithName_TextBoreaCannotEdit_ReturnsNull(string text)
+    {
+        Assert.Null(FileGameSaveStore.WithName(text, "Mun"));
+    }
+
     private async Task<GameSaveEntry> AddSaveAsync(Guid instanceId, string name, int universeBytes = 100)
     {
         WriteItem(_paths.GetInstanceSavesFolder(instanceId), name, name, "2026-08-01T14:34:32.4054896", "v2026.8.3.5117", universeBytes);

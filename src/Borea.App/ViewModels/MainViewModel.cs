@@ -35,9 +35,27 @@ public partial class MainViewModel : ViewModelBase
     private readonly SemaphoreSlim _preferenceSaveLock = new(1, 1);
     private AppPreferences _appPreferences;
 
+    // the culture of the last language change, because the service raises the same event when the marks change
+    private string _shownCultureName;
+
     public LocalizationService Localization { get; }
 
     public RegionalFormatService RegionalFormat { get; }
+
+    /// <summary>The switch under the language. It shows every text that falls back to English as "** English text **".</summary>
+    public bool MarkUntranslatedTexts
+    {
+        get => Localization.MarkUntranslatedTexts;
+        set
+        {
+            if (value == MarkUntranslatedTexts)
+                return;
+
+            Localization.MarkUntranslatedTexts = value;
+            OnPropertyChanged();
+            QueuePreferenceSave(preferences => preferences.WithMarkUntranslatedTexts(value));
+        }
+    }
 
     public RegionalFormatOption SelectedRegionalFormat
     {
@@ -313,6 +331,7 @@ public partial class MainViewModel : ViewModelBase
     {
         _rebuildServices = rebuildServices ?? (() => BoreaServices.BuildAsync());
         Localization = localization ?? throw new ArgumentNullException(nameof(localization));
+        _shownCultureName = Localization.SelectedCultureName;
         RegionalFormat = regionalFormat ?? throw new ArgumentNullException(nameof(regionalFormat));
         _appPreferencesRepository = appPreferencesRepository;
         _appPreferences = appPreferences ?? throw new ArgumentNullException(nameof(appPreferences));
@@ -819,6 +838,7 @@ public partial class MainViewModel : ViewModelBase
         => string.Equals(left.SelectedThemeName, right.SelectedThemeName, StringComparison.Ordinal)
             && string.Equals(left.RegionalCultureName, right.RegionalCultureName, StringComparison.Ordinal)
             && string.Equals(left.UiCultureName, right.UiCultureName, StringComparison.Ordinal)
+            && left.MarkUntranslatedTexts == right.MarkUntranslatedTexts
             && left.CheckForUpdatesAtStart == right.CheckForUpdatesAtStart
             && left.UpdateChannel == right.UpdateChannel
             && left.ForeignFolderDeletionConfirmed == right.ForeignFolderDeletionConfirmed
@@ -929,7 +949,11 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(ContentVersionsEmptyText));
         OnPropertyChanged(nameof(DiscoverSortText));
 
-        QueuePreferenceSave(preferences => preferences.WithUiCultureName(Localization.SelectedCultureName));
+        if (Localization.SelectedCultureName != _shownCultureName)
+        {
+            _shownCultureName = Localization.SelectedCultureName;
+            QueuePreferenceSave(preferences => preferences.WithUiCultureName(Localization.SelectedCultureName));
+        }
     }
 
     partial void OnCurrentThemeChanged(string value)

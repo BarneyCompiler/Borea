@@ -277,6 +277,10 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string SettingsLanguageLabel => Resources.SettingsLanguageLabel;
 
+    public string SettingsMarkUntranslatedTexts => Resources.SettingsMarkUntranslatedTexts;
+
+    public string SettingsMarkUntranslatedTextsHint => Resources.SettingsMarkUntranslatedTextsHint;
+
     public string SettingsRegionalFormatLabel => Resources.SettingsRegionalFormatLabel;
 
     public string SettingsThemeLabel => Resources.SettingsThemeLabel;
@@ -1303,6 +1307,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string AboutGame => Resources.AboutGame;
 
     public string AboutContentIndex => Resources.AboutContentIndex;
+
+    public string AboutTranslationFiles => Resources.AboutTranslationFiles;
 
     public string AboutIndexNotDownloaded => Resources.AboutIndexNotDownloaded;
 

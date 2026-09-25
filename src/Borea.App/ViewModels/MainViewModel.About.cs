@@ -89,6 +89,13 @@ public partial class MainViewModel
     public string? BoreaFolderText => BoreaFolder is null ? null : WithoutUserProfile(BoreaFolder);
 
     /// <summary>
+    /// The translation files whose texts show over the built ones, one per line, or null when there are none.
+    /// </summary>
+    public string? TranslationFilesText => Localization.TranslationFiles.Paths.Count == 0
+        ? null
+        : string.Join(Environment.NewLine, Localization.TranslationFiles.Paths.Select(WithoutUserProfile));
+
+    /// <summary>
     /// The lines a bug report needs, ready for the clipboard.
     /// </summary>
     public string DiagnosticsText
@@ -100,6 +107,9 @@ public partial class MainViewModel
                 .AppendLine(RuntimeText)
                 .AppendLine(SystemText)
                 .AppendLine($"KSA: {InstalledVersionText ?? "not set up"}");
+
+            foreach (var path in Localization.TranslationFiles.Paths)
+                text.AppendLine($"Translation file: {WithoutUserProfile(path)}");
 
             if (_services is not null)
             {

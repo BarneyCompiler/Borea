@@ -9,6 +9,11 @@
         <StackPanel Margin="32,32,44,24" Spacing="6">
             <TextBlock Classes="heading-md" Text="{Binding Localization.SettingsLanguageLabel}" />
             <ComboBox ItemsSource="{Binding Localization.SupportedCultures}" SelectedItem="{Binding Localization.SelectedCulture, Mode=TwoWay}" AutomationProperties.Name="{Binding Localization.SettingsLanguageLabel}" Width="340" Margin="0,4,0,0" />
+            <Grid ColumnDefinitions="*,16,Auto" Width="340" HorizontalAlignment="Left" Margin="0,8,0,0">
+                <TextBlock Classes="body-md" Text="{Binding Localization.SettingsMarkUntranslatedTexts}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <ToggleSwitch Grid.Column="2" Classes="switch" IsChecked="{Binding MarkUntranslatedTexts}" AutomationProperties.Name="{Binding Localization.SettingsMarkUntranslatedTexts}" />
+            </Grid>
+            <TextBlock Classes="body-sm secondary" Text="{Binding Localization.SettingsMarkUntranslatedTextsHint}" TextWrapping="Wrap" Width="340" HorizontalAlignment="Left" />
             <TextBlock Classes="heading-md" Text="{Binding Localization.SettingsRegionalFormatLabel}" Margin="0,18,0,0" />
             <ComboBox ItemsSource="{Binding RegionalFormat.SupportedFormats}" SelectedItem="{Binding SelectedRegionalFormat, Mode=TwoWay}" AutomationProperties.Name="{Binding Localization.SettingsRegionalFormatLabel}" MaxDropDownHeight="300" Width="340" Margin="0,4,0,0">
                 <ComboBox.ItemTemplate>

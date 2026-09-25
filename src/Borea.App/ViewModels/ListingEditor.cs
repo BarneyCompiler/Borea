@@ -148,17 +148,23 @@ public sealed partial class ListingEditor : ObservableObject
     private string _discussions = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NeedsAuthority))]
+    [NotifyPropertyChangedFor(nameof(NeedsAuthority), nameof(HasReleasesHost))]
     private string _releasesGitHub = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NeedsAuthority))]
+    [NotifyPropertyChangedFor(nameof(NeedsAuthority), nameof(HasReleasesHost))]
     private string _releasesSpaceDock = string.Empty;
 
     [ObservableProperty]
     private string? _releasesAuthority;
 
+    [ObservableProperty]
+    private string _releasesSince = string.Empty;
+
     public bool NeedsAuthority => ReleasesGitHub.Trim().Length > 0 && ReleasesSpaceDock.Trim().Length > 0;
+
+    /// <summary>Whether [releases] is written, which since needs.</summary>
+    public bool HasReleasesHost => ReleasesGitHub.Trim().Length > 0 || ReleasesSpaceDock.Trim().Length > 0;
 
     [ObservableProperty]
     private string _gameMin = string.Empty;
@@ -554,6 +560,7 @@ public sealed partial class ListingEditor : ObservableObject
             ReleasesGitHub = draft.Releases?.GitHub ?? string.Empty;
             ReleasesSpaceDock = draft.Releases?.SpaceDock?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
             ReleasesAuthority = draft.Releases?.Authority;
+            ReleasesSince = draft.Releases?.Since ?? string.Empty;
             GameMin = draft.GameMin;
             GameMax = draft.GameMax ?? string.Empty;
             UsesLoader = draft.Loader is not null;
@@ -677,7 +684,7 @@ public sealed partial class ListingEditor : ObservableObject
         }
 
         var releases = ReleasesGitHub.Trim().Length > 0 || spaceDock is not null
-            ? new ListingReleases(Empty(ReleasesGitHub), spaceDock, NeedsAuthority ? ReleasesAuthority : null)
+            ? new ListingReleases(Empty(ReleasesGitHub), spaceDock, NeedsAuthority ? ReleasesAuthority : null, Empty(ReleasesSince))
             : null;
 
         var free = FreeTags.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -791,6 +798,8 @@ public sealed partial class ListingEditor : ObservableObject
     partial void OnReleasesSpaceDockChanged(string value) => Refresh();
 
     partial void OnReleasesAuthorityChanged(string? value) => Refresh();
+
+    partial void OnReleasesSinceChanged(string value) => Refresh();
 
     partial void OnGameMinChanged(string value) => Refresh();
 

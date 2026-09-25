@@ -1042,6 +1042,10 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ListingReleasesAuthority => Resources.ListingReleasesAuthority;
 
+    public string ListingReleasesSince => Resources.ListingReleasesSince;
+
+    public string ListingReleasesSinceHint => Resources.ListingReleasesSinceHint;
+
     public string ListingReleasesHint => Resources.ListingReleasesHint;
 
     public string ListingGameMin => Resources.ListingGameMin;

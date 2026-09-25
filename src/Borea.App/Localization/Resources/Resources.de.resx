@@ -1590,6 +1590,12 @@
   <data name="ListingReleasesAuthority" xml:space="preserve">
     <value>Entscheidet, welche Releases es gibt</value>
   </data>
+  <data name="ListingReleasesSince" xml:space="preserve">
+    <value>Ältere Releases ab Version stempeln</value>
+  </data>
+  <data name="ListingReleasesSinceHint" xml:space="preserve">
+    <value>Lass das leer, damit nur neue Releases eingetragen werden. Mit einer Version stempelt der Index auch jedes ältere Release ab dieser Version. Diese Releases bekommen die Angaben des Listings von heute, zum Beispiel die Spielversionen und die Abhängigkeiten.</value>
+  </data>
   <data name="ListingReleasesHint" xml:space="preserve">
     <value>Neue Releases werden von hier aus automatisch eingetragen.</value>
   </data>

@@ -1590,6 +1590,12 @@
   <data name="ListingReleasesAuthority" xml:space="preserve">
     <value>Decides which releases exist</value>
   </data>
+  <data name="ListingReleasesSince" xml:space="preserve">
+    <value>Stamp older releases from version</value>
+  </data>
+  <data name="ListingReleasesSinceHint" xml:space="preserve">
+    <value>Leave this empty to list only new releases. With a version, the index also stamps every older release from that version on. Those releases get the listing facts of today, such as the game versions and the dependencies.</value>
+  </data>
   <data name="ListingReleasesHint" xml:space="preserve">
     <value>New releases are listed from here on their own.</value>
   </data>

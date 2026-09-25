@@ -29,6 +29,7 @@ internal static class AppPreferencesMapper
         SelectedTheme = preferences.SelectedThemeName,
         RegionalCulture = preferences.RegionalCultureName,
         UiCulture = preferences.UiCultureName,
+        MarkUntranslatedTexts = preferences.MarkUntranslatedTexts,
         CheckForUpdatesAtStart = preferences.CheckForUpdatesAtStart,
         UpdateChannel = preferences.UpdateChannel switch
         {
@@ -57,7 +58,7 @@ internal static class AppPreferencesMapper
     };
 
     public static AppPreferences FromDto(AppPreferencesDocumentDto dto)
-        => new(dto.SelectedTheme, dto.CustomThemes?.Select(FromDto), NormalizeRegionalCulture(dto.RegionalCulture), NormalizeUiCulture(dto.UiCulture), dto.CheckForUpdatesAtStart ?? true, ReadUpdateChannel(dto.UpdateChannel), dto.ForeignFolderDeletionConfirmed ?? false, dto.LoadImagesFromAuthorHosts ?? true, ReadHomeLaunch(dto.HomeLaunch), ReadDiscoverSortOrder(dto.DiscoverSortOrder), dto.SharedProfileBannerDismissed ?? false, dto.DismissedGameRevision is >= 0 ? dto.DismissedGameRevision : null, ReadFirstStartedAt(dto.FirstStartedAt), dto.FetchAnnouncements ?? true, dto.DismissedAnnouncements?.OfType<string>(), dto.OpenBoreaLinks ?? true, dto.BackupRetentionDays is > 0 ? dto.BackupRetentionDays : null, dto.DismissedUntestedGameRevision is >= 0 ? dto.DismissedUntestedGameRevision : null);
+        => new(dto.SelectedTheme, dto.CustomThemes?.Select(FromDto), NormalizeRegionalCulture(dto.RegionalCulture), NormalizeUiCulture(dto.UiCulture), dto.CheckForUpdatesAtStart ?? true, ReadUpdateChannel(dto.UpdateChannel), dto.ForeignFolderDeletionConfirmed ?? false, dto.LoadImagesFromAuthorHosts ?? true, ReadHomeLaunch(dto.HomeLaunch), ReadDiscoverSortOrder(dto.DiscoverSortOrder), dto.SharedProfileBannerDismissed ?? false, dto.DismissedGameRevision is >= 0 ? dto.DismissedGameRevision : null, ReadFirstStartedAt(dto.FirstStartedAt), dto.FetchAnnouncements ?? true, dto.DismissedAnnouncements?.OfType<string>(), dto.OpenBoreaLinks ?? true, dto.BackupRetentionDays is > 0 ? dto.BackupRetentionDays : null, dto.DismissedUntestedGameRevision is >= 0 ? dto.DismissedUntestedGameRevision : null, dto.MarkUntranslatedTexts ?? false);
 
     private static DateTimeOffset? ReadFirstStartedAt(string? text)
         => DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var at) ? at : null;

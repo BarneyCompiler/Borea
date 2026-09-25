@@ -12,6 +12,8 @@ internal sealed class AppPreferencesDocumentDto
 
     public string? UiCulture { get; set; }
 
+    public bool? MarkUntranslatedTexts { get; set; }
+
     /// <summary>Null in an older file, which reads as on.</summary>
     public bool? CheckForUpdatesAtStart { get; set; }
 

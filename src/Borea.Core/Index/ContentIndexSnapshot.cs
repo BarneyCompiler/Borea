@@ -146,7 +146,14 @@ public sealed class ContentIndexPack
 }
 
 /// <summary>One pack version. <see cref="Images"/> is null when the version document has no usable images.</summary>
-public sealed record ContentIndexPackVersion(ModPackMetadata Metadata, IndexStatus? IndexStatus, ContentImages? Images = null);
+public sealed record ContentIndexPackVersion(ModPackMetadata Metadata, IndexStatus? IndexStatus, ContentImages? Images = null)
+{
+    /// <summary>
+    /// The version as the document writes it, build metadata included, which is also the name of its file.
+    /// Null when it is not known, and then the version of <see cref="Metadata"/> names the file.
+    /// </summary>
+    public string? VersionText { get; init; }
+}
 
 internal static class ContentIndexDates
 {

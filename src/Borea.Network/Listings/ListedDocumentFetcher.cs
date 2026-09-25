@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using Borea.Core.Listings;
 
@@ -25,7 +26,30 @@ public sealed class ListedDocumentFetcher : IListedDocumentSource, IListingSchem
         return GetAsync($"{ListingDraft.ListingsFolder}/{Uri.EscapeDataString(id)}.toml", cancellationToken);
     }
 
+    public Task<string> GetPackVersionAsync(string id, string version, CancellationToken cancellationToken = default) =>
+        GetAsync(PackVersionPath(id, version), cancellationToken);
+
+    public async Task<bool> HasPackVersionAsync(string id, string version, CancellationToken cancellationToken = default)
+    {
+        var path = PackVersionPath(id, version);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(Timeout);
+        using var response = await _http.GetAsync(ContentIndexUrl + path, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
     public Task<string> FetchAsync(CancellationToken cancellationToken = default) => GetAsync("schemas/authored.schema.json", cancellationToken);
+
+    private static string PackVersionPath(string id, string version)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        ArgumentException.ThrowIfNullOrEmpty(version);
+        return $"{ListingDraft.PacksFolder}/{Uri.EscapeDataString(id)}/{Uri.EscapeDataString(version)}.toml";
+    }
 
     private async Task<string> GetAsync(string path, CancellationToken cancellationToken)
     {

@@ -233,6 +233,38 @@ public sealed class ListingHostClientTests
     }
 
     [Fact]
+    public async Task GetPackVersionAsync_ReadsTheFileOfThatVersion()
+    {
+        var fetcher = new ListedDocumentFetcher(FakeHttpMessageHandler.BuildClient(request => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(request.RequestUri!.AbsolutePath) }, out _));
+
+        Assert.Equal("/KSAModding/content-index/main/packs/my-pack/1.0.1.toml", await fetcher.GetPackVersionAsync("my-pack", "1.0.1"));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.OK, true)]
+    [InlineData(HttpStatusCode.NotFound, false)]
+    public async Task HasPackVersionAsync_ReadsTheRawFile(HttpStatusCode status, bool exists)
+    {
+        Uri? asked = null;
+        var fetcher = new ListedDocumentFetcher(FakeHttpMessageHandler.BuildClient(request =>
+        {
+            asked = request.RequestUri;
+            return new HttpResponseMessage(status);
+        }, out _));
+
+        Assert.Equal(exists, await fetcher.HasPackVersionAsync("my-pack", "1.0.2"));
+        Assert.Equal("https://raw.githubusercontent.com/KSAModding/content-index/main/packs/my-pack/1.0.2.toml", asked!.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task HasPackVersionAsync_ServerError_Throws()
+    {
+        var fetcher = new ListedDocumentFetcher(FakeHttpMessageHandler.BuildClient(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), out _));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => fetcher.HasPackVersionAsync("my-pack", "1.0.2"));
+    }
+
+    [Fact]
     public async Task GetListingAsync_LargeBodyWithoutLength_Throws()
     {
         var fetcher = new ListedDocumentFetcher(FakeHttpMessageHandler.BuildClient(_ =>

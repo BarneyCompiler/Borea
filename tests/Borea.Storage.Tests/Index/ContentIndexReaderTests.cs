@@ -341,6 +341,19 @@ public sealed class ContentIndexReaderTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadAsync_PackVersionWithBuildMetadata_KeepsTheVersionAsTheDocumentWritesIt()
+    {
+        var authored = ValidPackVersionJson.Replace("\"version\": \"1.0.0\",", "\"version\": \"1.0.0+b.2\",", StringComparison.Ordinal);
+        await WriteIndexAsync(SnapshotWithPacks($$"""{ "id": "test-pack", "versions": [{ "authored": {{authored}} }] }"""));
+
+        var result = await _reader.ReadAsync();
+
+        var version = Assert.Single(Assert.Single(result.Packs).Versions);
+        Assert.Equal("1.0.0", version.Metadata.Version.ToString());
+        Assert.Equal("1.0.0+b.2", version.VersionText);
+    }
+
+    [Fact]
     public async Task ReadAsync_EmptyInstanceTable_RejectsOnlyThatListing()
     {
         var loaderAuthored = """

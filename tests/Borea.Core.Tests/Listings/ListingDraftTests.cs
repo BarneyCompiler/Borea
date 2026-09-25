@@ -37,6 +37,7 @@ public sealed class ListingDraftTests
         var written = (draft with { Name = "Renamed" }).ToDocument();
 
         Assert.True(draft.IsEdit);
+        Assert.False(draft.IsNextVersion);
         Assert.Equal("mod-loader", written["type"]);
         Assert.Equal("Renamed", written["name"]);
         Assert.Equal("standalone", written.GetTable("install")!.GetString("target"));
@@ -179,6 +180,8 @@ public sealed class ListingDraftTests
         var written = (draft with { Version = "1.0.1", Mods = [draft.Mods[0] with { Version = "1.2.7" }] }).ToDocument();
 
         Assert.True(draft.IsPack);
+        Assert.False(draft.IsEdit);
+        Assert.True(draft.IsNextVersion);
         Assert.Equal("First version.", draft.Changelog);
         Assert.Equal("1.0.1", written["version"]);
         Assert.Equal("kept", written["x_future"]);

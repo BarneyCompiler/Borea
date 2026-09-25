@@ -55,6 +55,7 @@ public static class PackVersionParser
             return ParseOutcome<ParsedPackVersion>.Valid(new ParsedPackVersion(metadata, indexStatus, indexStatusError, images)
             {
                 ImagesErrors = imagesErrors,
+                VersionText = packVersion.Authored.Version,
             });
         }
         catch (Exception ex) when (IndexJsonHelpers.IsInputFailure(ex))

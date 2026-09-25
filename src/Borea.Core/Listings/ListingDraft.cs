@@ -18,10 +18,14 @@ public sealed record ListingDraft
 
     public const int SpecVersion = 1;
 
-    /// <summary>The listed document this draft changes, or null for a new listing.</summary>
+    /// <summary>The listed document this draft changes, or for a pack the listed version it follows. Null for a new document.</summary>
     public AuthoredTable? Original { get; init; }
 
-    public bool IsEdit => Original is not null;
+    /// <summary>Whether the draft changes a listed document in place. A pack version never changes, so a pack draft is never an edit.</summary>
+    public bool IsEdit => Original is not null && !IsPack;
+
+    /// <summary>Whether the draft is the next version of a listed pack: a new file that keeps what the listed version has.</summary>
+    public bool IsNextVersion => Original is not null && IsPack;
 
     public string Id { get; init; } = string.Empty;
 

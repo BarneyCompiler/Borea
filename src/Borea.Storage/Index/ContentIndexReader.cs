@@ -73,7 +73,7 @@ public sealed class ContentIndexReader : IContentIndexReader, IContentIndexCandi
         {
             cancellationToken.ThrowIfCancellationRequested();
             var versions = pack.ValidVersions
-                .Select(version => new ContentIndexPackVersion(version.Metadata, version.IndexStatus, version.Images))
+                .Select(version => new ContentIndexPackVersion(version.Metadata, version.IndexStatus, version.Images) { VersionText = version.VersionText })
                 .ToArray();
 
             packs.Add(new ContentIndexPack(pack.Id, versions, pack.IndexStatus, pack.PublishedAt, pack.UpdatedAt));

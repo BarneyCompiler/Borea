@@ -224,13 +224,16 @@ internal static partial class ListingRules
 
     private static void CheckIndex(AuthoredTable document, string? own, string? listedId, ContentIndexSnapshot snapshot, List<ListingIssue> issues)
     {
-        var holders = snapshot.Listings.Select(listing => (listing.Id, Type: listing.Authored?.Type, Forums: listing.Authored?.Links.GetValueOrDefault("forums")))
-            .Concat(snapshot.Packs.Select(pack => (pack.Id, Type: (ContentType?)ContentType.ModPack, Forums: (string?)null)))
+        // A pack holds its id through every version file, and each version names its own forums thread.
+        var holders = snapshot.Listings.Select(listing => new Holder(listing.Id, listing.Authored?.Type, listing.Authored?.Links.GetValueOrDefault("forums"), $"listings/{listing.Id}.toml"))
+            .Concat(snapshot.Packs.SelectMany(pack => pack.Versions.Count == 0
+                ? [new Holder(pack.Id, ContentType.ModPack, null, $"packs/{pack.Id}/")]
+                : pack.Versions.Select(version => new Holder(pack.Id, ContentType.ModPack, version.Metadata.Links.GetValueOrDefault("forums"), $"packs/{pack.Id}/{version.Metadata.Version}.toml"))))
             .Where(holder => listedId is null || !ModIds.Equals(holder.Id, listedId))
             .ToList();
 
-        if (own is not null && holders.FirstOrDefault(holder => ModIds.Equals(holder.Id, own)) is { Id: not null } taken)
-            issues.Add(Error("id", $"the id '{own}' is already held by {Where(taken.Id, taken.Type)}, and ids compare case-insensitively"));
+        if (own is not null && holders.FirstOrDefault(holder => ModIds.Equals(holder.Id, own)) is { } taken)
+            issues.Add(Error("id", $"the id '{own}' is already held by {taken.Where}, and ids compare case-insensitively"));
 
         var targets = holders.Where(holder => own is null || !ModIds.Equals(holder.Id, own)).ToList();
         Reference("superseded_by", document.GetString("superseded_by"), null, targets, issues);
@@ -253,15 +256,15 @@ internal static partial class ListingRules
 
         if (ForumsThreadLink.ThreadOf(document.GetTable("links")?.GetString("forums")) is { } thread)
         {
-            var others = holders.Where(holder => ForumsThreadLink.ThreadOf(holder.Forums) == thread).Select(holder => Where(holder.Id, holder.Type)).Order(StringComparer.Ordinal).ToList();
+            var others = holders.Where(holder => ForumsThreadLink.ThreadOf(holder.Forums) == thread).Select(holder => holder.Where).Distinct().Order(StringComparer.Ordinal).ToList();
             if (others.Count > 0)
                 issues.Add(Note("links.forums", $"thread {thread} is also the forums thread of {string.Join(", ", others)}, so the thread cannot settle an id dispute between them"));
         }
     }
 
-    private static void Reference(string where, string? value, ContentType? required, List<(string Id, ContentType? Type, string? Forums)> targets, List<ListingIssue> issues)
+    private static void Reference(string where, string? value, ContentType? required, List<Holder> targets, List<ListingIssue> issues)
     {
-        if (value is null || targets.FirstOrDefault(target => ModIds.Equals(target.Id, value)) is not { Id: not null } target)
+        if (value is null || targets.FirstOrDefault(target => ModIds.Equals(target.Id, value)) is not { } target)
             return;
 
         if (!string.Equals(value, target.Id, StringComparison.Ordinal))
@@ -324,7 +327,8 @@ internal static partial class ListingRules
         }
     }
 
-    private static string Where(string id, ContentType? type) => type == ContentType.ModPack ? $"packs/{id}" : $"listings/{id}.toml";
+    /// <param name="Where">The file that holds the id, as the checks of content-index name it.</param>
+    private sealed record Holder(string Id, ContentType? Type, string? Forums, string Where);
 
     private static string TypeName(ContentType type) => type switch
     {

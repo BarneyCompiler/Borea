@@ -1,7 +1,7 @@
 namespace Borea.Core.Listings;
 
 /// <summary>
-/// A listing of content-index as the author edits it. <see cref="ToDocument"/> writes it onto the listed
+/// A listing or a pack version of content-index as the author edits it. <see cref="ToDocument"/> writes it onto the listed
 /// document it came from, so every key and table this model does not name stays as it was.
 /// </summary>
 public sealed record ListingDraft
@@ -10,7 +10,11 @@ public sealed record ListingDraft
 
     public const string ModLoaderType = "mod-loader";
 
+    public const string ModPackType = "modpack";
+
     public const string ListingsFolder = "listings";
+
+    public const string PacksFolder = "packs";
 
     public const int SpecVersion = 1;
 
@@ -55,8 +59,21 @@ public sealed record ListingDraft
 
     public IReadOnlyList<ListingImageRecord> DescriptionImages { get; init; } = [];
 
-    /// <summary>Where the document lives in content-index.</summary>
-    public string Path => $"{ListingsFolder}/{Id}.toml";
+    public bool IsPack => Type == ModPackType;
+
+    /// <summary>The version of a pack. A pack document is its own release, so only a pack has one.</summary>
+    public string Version { get; init; } = string.Empty;
+
+    /// <summary>When the pack version is published, as ISO 8601 UTC.</summary>
+    public string? ReleasedAt { get; init; }
+
+    public string? Changelog { get; init; }
+
+    /// <summary>The mods of a pack, each pinned to one release.</summary>
+    public IReadOnlyList<ListingPackMember> Mods { get; init; } = [];
+
+    /// <summary>Where the document lives in content-index. Each pack version is a file of its own.</summary>
+    public string Path => IsPack ? $"{PacksFolder}/{Id}/{Version}.toml" : $"{ListingsFolder}/{Id}.toml";
 
     public string? LinkOf(string key) => Links.FirstOrDefault(link => string.Equals(link.Key, key, StringComparison.OrdinalIgnoreCase))?.Url;
 
@@ -94,6 +111,10 @@ public sealed record ListingDraft
             Dependencies = document.GetList("dependencies")?.OfType<AuthoredTable>().Select(ReadDependency).ToList() ?? [],
             Icon = images?.GetTable("icon") is { } icon ? ReadImage(icon) : null,
             DescriptionImages = images?.GetList("description")?.OfType<AuthoredTable>().Select(ReadImage).ToList() ?? [],
+            Version = document.GetString("version") ?? string.Empty,
+            ReleasedAt = document.GetString("released_at"),
+            Changelog = document.GetString("changelog"),
+            Mods = document.GetList("mods")?.OfType<AuthoredTable>().Select(ReadMember).ToList() ?? [],
         };
     }
 
@@ -135,6 +156,15 @@ public sealed record ListingDraft
         if (DescriptionImages.Count > 0)
             images.Set("description", DescriptionImages.Select(WriteImage).Cast<object>().ToList());
         SetOrRemove(document, "images", images.Count == 0 ? null : images);
+
+        // Only a pack names these keys, so a listing keeps them as they were.
+        if (IsPack)
+        {
+            SetOrRemove(document, "version", Version.Length == 0 ? null : Version);
+            SetOrRemove(document, "released_at", string.IsNullOrEmpty(ReleasedAt) ? null : ReleasedAt);
+            SetOrRemove(document, "changelog", string.IsNullOrEmpty(Changelog) ? null : Changelog);
+            SetOrRemove(document, "mods", Mods.Count == 0 ? null : Mods.Select(WriteMember).Cast<object>().ToList());
+        }
 
         return document;
     }
@@ -209,6 +239,17 @@ public sealed record ListingDraft
         return table;
     }
 
+    private static ListingPackMember ReadMember(AuthoredTable table) =>
+        new(table.GetString("id") ?? string.Empty, table.GetString("version") ?? string.Empty) { Original = table.Clone() };
+
+    private static AuthoredTable WriteMember(ListingPackMember member)
+    {
+        var table = member.Original?.Clone() ?? new AuthoredTable();
+        table.Set("id", member.Id);
+        table.Set("version", member.Version);
+        return table;
+    }
+
     private static ListingImageRecord ReadImage(AuthoredTable table) => new(table.GetString("url") ?? string.Empty)
     {
         Id = table.GetString("id"),
@@ -251,6 +292,12 @@ public sealed record ListingLoader(string Id, string Min, string? Max = null);
 public sealed record ListingDependency(string Id, string Kind, string? Min = null, string? Max = null)
 {
     public AuthoredTable? Preserved { get; init; }
+}
+
+/// <summary>One [[mods]] entry of a pack. <see cref="Original"/> holds the entry as it was read, so a key the page does not name stays.</summary>
+public sealed record ListingPackMember(string Id, string Version)
+{
+    public AuthoredTable? Original { get; init; }
 }
 
 /// <summary>An image record of RFC 0058. The facts stay null until the image is measured.</summary>

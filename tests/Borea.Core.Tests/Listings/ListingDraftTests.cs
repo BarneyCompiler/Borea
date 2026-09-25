@@ -130,6 +130,65 @@ public sealed class ListingDraftTests
     }
 
     [Fact]
+    public void ToDocument_PackDraft_WritesThePackKeysForItsOwnVersionFile()
+    {
+        var draft = new ListingDraft
+        {
+            Id = "my-pack",
+            Type = ListingDraft.ModPackType,
+            Name = "My Pack",
+            Version = "1.0.1",
+            ReleasedAt = "2026-09-25T12:00:00Z",
+            Mods = [new ListingPackMember("DeltaVMap", "1.2.6"), new ListingPackMember("Compendium", "0.9.13")],
+        };
+
+        var document = draft.ToDocument();
+
+        Assert.Equal("packs/my-pack/1.0.1.toml", draft.Path);
+        Assert.Equal("modpack", document["type"]);
+        Assert.Equal("1.0.1", document["version"]);
+        Assert.Equal("2026-09-25T12:00:00Z", document["released_at"]);
+        Assert.False(document.Contains("changelog"));
+        Assert.Equal(
+            [("DeltaVMap", "1.2.6"), ("Compendium", "0.9.13")],
+            document.GetList("mods")!.Cast<AuthoredTable>().Select(entry => (entry.GetString("id"), entry.GetString("version"))));
+    }
+
+    [Fact]
+    public void FromDocument_Pack_ThenToDocument_KeepsTheKeysItDoesNotName()
+    {
+        var document = new AuthoredTable();
+        document.Set("spec_version", 1L);
+        document.Set("id", "my-pack");
+        document.Set("type", "modpack");
+        document.Set("version", "1.0.0");
+        document.Set("released_at", "2026-09-23T20:00:00Z");
+        document.Set("changelog", "First version.");
+        document.Set("x_future", "kept");
+        var member = new AuthoredTable();
+        member.Set("id", "DeltaVMap");
+        member.Set("version", "1.2.6");
+        member.Set("x_note", "kept too");
+        document.Set("mods", new List<object> { member });
+        var vehicle = new AuthoredTable();
+        vehicle.Set("id", "Rocket");
+        vehicle.Set("version", "1.0.0");
+        document.Set("vehicles", new List<object> { vehicle });
+
+        var draft = ListingDraft.FromDocument(document);
+        var written = (draft with { Version = "1.0.1", Mods = [draft.Mods[0] with { Version = "1.2.7" }] }).ToDocument();
+
+        Assert.True(draft.IsPack);
+        Assert.Equal("First version.", draft.Changelog);
+        Assert.Equal("1.0.1", written["version"]);
+        Assert.Equal("kept", written["x_future"]);
+        Assert.Equal("Rocket", ((AuthoredTable)written.GetList("vehicles")![0]).GetString("id"));
+        var pin = (AuthoredTable)written.GetList("mods")![0];
+        Assert.Equal("1.2.7", pin.GetString("version"));
+        Assert.Equal("kept too", pin.GetString("x_note"));
+    }
+
+    [Fact]
     public void Set_ValueThatNoDocumentHolds_Throws()
     {
         var table = new AuthoredTable();

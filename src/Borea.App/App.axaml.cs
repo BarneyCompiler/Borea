@@ -60,15 +60,17 @@ public partial class App : Application
     public App(BoreaServices services)
     {
         Services = services ?? throw new ArgumentNullException(nameof(services));
-        Localization = new LocalizationService();
+        Localization = new LocalizationService(
+            System.Globalization.CultureInfo.CurrentUICulture,
+            TranslationFiles.Load(Services.Paths.GetLanguagesFolder(), Services.Log.Write));
         var loadResult = Services.AppPreferences
             .GetAsync(MainViewModel.BundledThemeNames)
             .GetAwaiter()
             .GetResult();
         _preferences = loadResult.Preferences;
         _preferencesLoadStatus = loadResult.Status;
-        if (_preferences.UiCultureName is not null)
-            Localization.TrySetCulture(_preferences.UiCultureName);
+        Localization.ApplySavedCulture(_preferences.UiCultureName);
+        Localization.MarkUntranslatedTexts = _preferences.MarkUntranslatedTexts;
 
         RegionalFormat = new RegionalFormatService(
             Localization,

@@ -1,11 +1,10 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Borea.App.Localization;
 
 namespace Borea.App.Tests.Localization;
 
-public sealed partial class ResourceParityTests : IDisposable
+public sealed class ResourceParityTests : IDisposable
 {
     private readonly CultureInfo _originalUiCulture = CultureInfo.CurrentUICulture;
 
@@ -43,8 +42,7 @@ public sealed partial class ResourceParityTests : IDisposable
 
         Assert.All(neutral.Keys.Where(translation.ContainsKey), key =>
             Assert.True(
-                Placeholders(neutral[key]).SequenceEqual(Placeholders(translation[key]))
-                    && Braces(neutral[key]) == Braces(translation[key]),
+                ResourcePlaceholders.Match(neutral[key], translation[key]),
                 $"{key}: \"{translation[key]}\" does not have the placeholders of \"{neutral[key]}\""));
     }
 
@@ -74,13 +72,4 @@ public sealed partial class ResourceParityTests : IDisposable
             .Root!
             .Elements("data")
             .ToDictionary(element => (string)element.Attribute("name")!, element => (string?)element.Element("value") ?? string.Empty);
-
-    private static string[] Placeholders(string text)
-        => PlaceholderPattern().Matches(text).Select(match => match.Value).Order(StringComparer.Ordinal).ToArray();
-
-    private static (int Open, int Close) Braces(string text)
-        => (text.Count(character => character == '{'), text.Count(character => character == '}'));
-
-    [GeneratedRegex(@"\{\d+(?:,-?\d+)?(?::[^}]*)?\}")]
-    private static partial Regex PlaceholderPattern();
 }

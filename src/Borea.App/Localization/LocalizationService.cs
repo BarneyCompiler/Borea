@@ -12,13 +12,18 @@ public sealed class LocalizationService : INotifyPropertyChanged
     private static readonly SupportedCulture English = new("en", "English");
     private static readonly SupportedCulture German = new("de", "Deutsch");
     private static readonly SupportedCulture Pirate = new("en-QP", "Pirate speak");
-    private static readonly IReadOnlyList<SupportedCulture> Cultures = [English, German, Pirate];
+    private static readonly IReadOnlyList<SupportedCulture> BuiltCultures = [English, German, Pirate];
+
+    private readonly IReadOnlyList<SupportedCulture> _cultures;
 
     private SupportedCulture _selectedCulture = English;
 
+    private bool _markUntranslatedTexts;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public IReadOnlyList<SupportedCulture> SupportedCultures => Cultures;
+    /// <summary>The languages Borea ships, then the cultures that only a translation file brings.</summary>
+    public IReadOnlyList<SupportedCulture> SupportedCultures => _cultures;
 
     public SupportedCulture SelectedCulture
     {
@@ -33,6 +38,24 @@ public sealed class LocalizationService : INotifyPropertyChanged
     }
 
     public string SelectedCultureName => SelectedCulture.Name;
+
+    /// <summary>The files of the Languages folder whose texts show over the built ones.</summary>
+    public TranslationFiles TranslationFiles { get; }
+
+    /// <summary>Whether every text that falls back to English shows as "** English text **", so a translator sees what is missing.</summary>
+    public bool MarkUntranslatedTexts
+    {
+        get => _markUntranslatedTexts;
+        set
+        {
+            if (value == _markUntranslatedTexts)
+                return;
+
+            _markUntranslatedTexts = value;
+            TranslationResourceManager.Current.MarkUntranslatedTexts = value;
+            OnPropertyChanged(string.Empty);
+        }
+    }
 
     public string NavigationHome => Resources.NavigationHome;
 
@@ -1728,28 +1751,45 @@ public sealed class LocalizationService : INotifyPropertyChanged
     }
 
     public LocalizationService(CultureInfo requestedCulture)
+        : this(requestedCulture, TranslationFiles.None)
+    {
+    }
+
+    /// <remarks>
+    /// Resources has one manager for the whole process, so the newest service decides which translation
+    /// files show, in the same way as it decides the culture.
+    /// </remarks>
+    public LocalizationService(CultureInfo requestedCulture, TranslationFiles translationFiles)
     {
         ArgumentNullException.ThrowIfNull(requestedCulture);
+        TranslationFiles = translationFiles ?? throw new ArgumentNullException(nameof(translationFiles));
+        _cultures =
+        [
+            .. BuiltCultures,
+            .. translationFiles.Cultures
+                .Where(culture => !BuiltCultures.Any(built => built.Name == culture.Name))
+                .Select(culture => new SupportedCulture(culture.Name, PreviewDisplayName(culture))),
+        ];
+        TranslationResourceManager.Current.Files = translationFiles;
+        TranslationResourceManager.Current.MarkUntranslatedTexts = false;
         SetCulture(ResolveSupportedCulture(requestedCulture));
     }
 
     public bool TrySetCulture(string? cultureName)
     {
-        SupportedCulture? supportedCulture = null;
-
-        if (!string.IsNullOrWhiteSpace(cultureName))
-        {
-            try
-            {
-                supportedCulture = ResolveSupportedCulture(CultureInfo.GetCultureInfo(cultureName));
-            }
-            catch (CultureNotFoundException)
-            {
-            }
-        }
-
+        var supportedCulture = ResolveSupportedCulture(cultureName);
         SetCulture(supportedCulture);
         return supportedCulture is not null;
+    }
+
+    /// <summary>
+    /// Shows the language the user chose earlier. When Borea does not have that language any more, for example
+    /// because its translation file was removed, the language that the service started with stays.
+    /// </summary>
+    public void ApplySavedCulture(string? cultureName)
+    {
+        if (ResolveSupportedCulture(cultureName) is { } supportedCulture)
+            SetCulture(supportedCulture);
     }
 
     public string FormatViewNotFound(string viewName)
@@ -2303,11 +2343,29 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string UnexpectedErrorCopyFailed => Resources.UnexpectedErrorCopyFailed;
 
-    private static SupportedCulture? ResolveSupportedCulture(CultureInfo culture)
+    private static string PreviewDisplayName(CultureInfo culture)
+        => culture.NativeName is { Length: > 0 } name ? culture.TextInfo.ToUpper(name[0]) + name[1..] : culture.Name;
+
+    private SupportedCulture? ResolveSupportedCulture(string? cultureName)
+    {
+        if (string.IsNullOrWhiteSpace(cultureName))
+            return null;
+
+        try
+        {
+            return ResolveSupportedCulture(CultureInfo.GetCultureInfo(cultureName));
+        }
+        catch (CultureNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    private SupportedCulture? ResolveSupportedCulture(CultureInfo culture)
     {
         for (var candidate = culture; candidate != CultureInfo.InvariantCulture; candidate = candidate.Parent)
         {
-            var match = Cultures.FirstOrDefault(item =>
+            var match = _cultures.FirstOrDefault(item =>
                 string.Equals(item.Name, candidate.Name, StringComparison.OrdinalIgnoreCase));
             if (match is not null)
                 return match;

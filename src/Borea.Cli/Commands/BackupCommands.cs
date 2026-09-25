@@ -132,7 +132,7 @@ internal static class BackupCommands
 
     private static string Timestamp(DateTimeOffset at) => at.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
 
-    private static string? KindName(GameSaveKind? kind) => kind switch
+    internal static string? KindName(GameSaveKind? kind) => kind switch
     {
         GameSaveKind.Save => "save",
         GameSaveKind.Vehicle => "vehicle",

@@ -25,6 +25,8 @@ public sealed class ListingPageTests
         var texts = await RenderAsync(harness);
 
         Assert.Contains(harness.Localization.ListingNewTitle, texts);
+        Assert.Contains(harness.Localization.ListingPackTitle, texts);
+        Assert.Contains(harness.Localization.ListingStartPack, texts);
         Assert.Contains(harness.Localization.ListingChangeTitle, texts);
         Assert.DoesNotContain(harness.Localization.ListingSteps, texts);
     }
@@ -204,6 +206,32 @@ public sealed class ListingPageTests
         Assert.Contains(localization.ListingOpenInBrowser, texts);
         Assert.DoesNotContain(localization.ListingSignIn, texts);
         Assert.DoesNotContain(localization.ListingNewPullRequestText, texts);
+    }
+
+    [Fact]
+    public async Task PackForm_ShowsThePackAndItsMembersAndOnlyTheBrowserPath()
+    {
+        var session = new ListingPullRequestViewModelTests.FakeSession();
+        session.SignIn();
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: session, listingPublisher: new ListingPullRequestViewModelTests.FakePublisher());
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        ListingEditorTests.FillPack(editor);
+
+        var texts = await RenderAsync(harness);
+
+        var localization = harness.Localization;
+        Assert.Contains(localization.ListingPackTitle, texts);
+        Assert.Contains(localization.ListingPack, texts);
+        Assert.Contains(localization.ListingMembers, texts);
+        Assert.Contains("AdvancedFlightComputer", texts);
+        Assert.Contains(localization.FormatListingPackPullRequestText("packs/my-pack/1.0.0.toml"), texts);
+        Assert.Contains(localization.ListingOpenPullRequest, texts);
+        Assert.DoesNotContain(localization.ListingReleases, texts);
+        Assert.DoesNotContain(localization.ListingDependencies, texts);
+        Assert.DoesNotContain(localization.ListingUsesLoader, texts);
+        Assert.DoesNotContain(localization.ListingPublish, texts);
+        Assert.DoesNotContain(localization.ListingOpenInBrowser, texts);
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO.Compression;
 using System.Net;
 using System.Text;
+using System.Text.Json.Nodes;
 using Borea.App.ViewModels;
 using Borea.Core.Listings;
 
@@ -590,6 +591,224 @@ public sealed class ListingEditorTests
         Assert.Null(icon.Width);
         Assert.Null(icon.Size);
         Assert.DoesNotContain("sha256", editor.DocumentText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StartPack_OpensThePackFormWithoutReleasesLoaderOrDependencies()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+
+        editor.StartPackCommand.Execute(null);
+
+        Assert.True(editor.IsFormStep);
+        Assert.True(editor.IsPack);
+        Assert.False(editor.CanUseLoader);
+        Assert.Equal("1.0.0", editor.PackVersion);
+        Assert.Matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", editor.ReleasedAt);
+        Assert.Equal(["about", "links", "pack", "members", "compatibility", "tags", "images"], editor.Steps.Select(step => step.Key));
+        Assert.Contains(harness.Localization.ListingMembers, editor.MissingText);
+        Assert.Empty(editor.VisibleErrors);
+    }
+
+    [Fact]
+    public async Task PackDraft_WritesADocumentTheSchemaAcceptsAtThePackPath()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+
+        FillPack(editor);
+
+        Assert.False(editor.HasErrors, string.Join("\n", editor.Errors));
+        Assert.True(editor.CanOpenPullRequest);
+        Assert.Equal("packs/my-pack/1.0.0.toml", editor.Draft.Path);
+        Assert.Contains("type = \"modpack\"\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.Contains("version = \"1.0.0\"\nreleased_at = \"", editor.DocumentText, StringComparison.Ordinal);
+        Assert.EndsWith("[[mods]]\nid = \"AdvancedFlightComputer\"\nversion = \"0.7.5\"\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.DoesNotContain("[loader]", editor.DocumentText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MemberPicker_OffersNoYankedReleaseNoDelistedListingAndNoLoader()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: YankAndDelist);
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        editor.StartPackCommand.Execute(null);
+        var offered = editor.MemberMatches.Select(listing => listing.Id).ToList();
+
+        editor.MemberQuery = "measure";
+        editor.AddMemberCommand.Execute(null);
+        editor.MemberQuery = string.Empty;
+
+        Assert.Equal(["AdvancedFlightComputer", "MeasureTools"], offered);
+        var row = Assert.Single(editor.Members);
+        Assert.Equal(["1.1.9", "1.1.8", "1.1.7"], row.Releases.Select(release => release.Version));
+        Assert.Equal(new ListingReleaseChoice("1.1.9", harness.Localization.ReleaseStable), row.Selected);
+        Assert.Null(row.Note);
+        Assert.Equal(["AdvancedFlightComputer"], editor.MemberMatches.Select(listing => listing.Id));
+    }
+
+    [Fact]
+    public async Task LoadedPinThatTheSnapshotDoesNotOffer_StaysInTheFileWithANote()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: YankAndDelist);
+        var editor = harness.ViewModel.ListingEditor;
+        var localization = harness.Localization;
+        await harness.ViewModel.OpenListingAsync();
+
+        editor.Load(new ListingDraft
+        {
+            Type = ListingDraft.ModPackType,
+            Id = "my-pack",
+            Version = "1.0.0",
+            Mods = [new ListingPackMember("Unlisted", "1.0.0"), new ListingPackMember("MeasureTools", "1.1.10"), new ListingPackMember("AdvancedFlightComputer", "0.7.5")],
+        });
+
+        Assert.Contains("[[mods]]\nid = \"Unlisted\"\nversion = \"1.0.0\"\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.Contains("[[mods]]\nid = \"MeasureTools\"\nversion = \"1.1.10\"\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.Equal(
+            [localization.FormatListingMemberNotListed("Unlisted"), localization.FormatListingMemberNotOffered("MeasureTools", "1.1.10"), null],
+            editor.Members.Select(row => row.Note));
+        Assert.Equal(new ListingReleaseChoice("1.1.10", string.Empty), editor.Members[1].Selected);
+        Assert.Contains($"{localization.ListingMembers}: {localization.FormatListingMemberNotListed("Unlisted")}", editor.VisibleNotes);
+        Assert.Contains($"{localization.ListingMembers}: {localization.FormatListingMemberNotOffered("MeasureTools", "1.1.10")}", editor.VisibleNotes);
+    }
+
+    [Fact]
+    public async Task PackGameMin_ProposesTheHighestGameMinOfThePinnedReleases()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        editor.Load(new ListingDraft
+        {
+            Type = ListingDraft.ModPackType,
+            Id = "my-pack",
+            GameMin = "2026.8.19.5261",
+            Mods = [new ListingPackMember("KSArmory", "0.8.44"), new ListingPackMember("AdvancedFlightComputer", "0.7.5")],
+        });
+        var proposal = harness.Localization.FormatListingGameMinProposal("2026.9.4.5400");
+
+        Assert.Equal("2026.9.4.5400", editor.GameMinProposal);
+        Assert.Contains(editor.Notes, note => note.Location == "compatibility" && note.Message == proposal);
+
+        editor.UseGameMinProposalCommand.Execute(null);
+
+        Assert.Equal("2026.9.4.5400", editor.GameMin);
+        Assert.Null(editor.GameMinProposal);
+        Assert.DoesNotContain(editor.Notes, note => note.Message == proposal);
+    }
+
+    [Fact]
+    public async Task PackGameMinProposal_FollowsALanguageChange()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        editor.Load(new ListingDraft
+        {
+            Type = ListingDraft.ModPackType,
+            Id = "my-pack",
+            GameMin = "2026.8.19.5261",
+            Mods = [new ListingPackMember("AdvancedFlightComputer", "0.7.5")],
+        });
+        var english = editor.GameMinProposalText;
+        var changed = new List<string?>();
+        editor.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        harness.Localization.TrySetCulture("de");
+
+        Assert.Contains(nameof(ListingEditor.GameMinProposalText), changed);
+        Assert.Equal(harness.Localization.FormatListingGameMinProposal("2026.9.4.5400"), editor.GameMinProposalText);
+        Assert.NotEqual(english, editor.GameMinProposalText);
+    }
+
+    [Fact]
+    public async Task PackChangelog_WithWindowsLineEnds_IsWrittenWithLineFeedsOnly()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        FillPack(editor);
+
+        editor.Changelog = "Fixed A.\r\nAdded B.\r\n";
+
+        Assert.Equal("Fixed A.\nAdded B.", editor.Draft.Changelog);
+        Assert.DoesNotContain("\\r", editor.DocumentText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OpenPullRequest_Pack_OpensTheNewFilePageOfThePackPath()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, opened, window) = await ValidPackAsync(harness);
+
+        await editor.OpenPullRequestCommand.ExecuteAsync(null);
+
+        Assert.StartsWith("https://github.com/KSAModding/content-index/new/main?filename=packs/my-pack/1.0.0.toml&value=spec_version%20%3D%201%0A", Assert.Single(opened), StringComparison.Ordinal);
+        Assert.True(editor.LastPullRequestPage!.CarriesText);
+        Assert.Null(window.CopiedText);
+    }
+
+    [Fact]
+    public async Task OpenPullRequest_PackLinkOverTwoThousandCharacters_IsCopiedInstead()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, opened, window) = await ValidPackAsync(harness);
+        editor.Description = new string('a', 1500);
+
+        await editor.OpenPullRequestCommand.ExecuteAsync(null);
+
+        Assert.Equal("https://github.com/KSAModding/content-index/new/main?filename=packs/my-pack/1.0.0.toml", Assert.Single(opened));
+        Assert.Equal(editor.DocumentText, window.CopiedText);
+        Assert.Equal(harness.Localization.ListingOpenedPaste, editor.OutputMessage);
+    }
+
+    /// <summary>A new pack that the checks accept, with AdvancedFlightComputer 0.7.5 as its one member.</summary>
+    internal static void FillPack(ListingEditor editor)
+    {
+        editor.StartPackCommand.Execute(null);
+        editor.Id = "my-pack";
+        editor.Name = "My Pack";
+        editor.Authors = "Maxi";
+        editor.Abstract = "Pins a few mods.";
+        editor.License = "MIT";
+        editor.Forums = "https://forums.ahwoo.com/threads/my-pack.77/";
+        editor.GameMin = "2026.9.4.5400";
+        editor.MemberQuery = "flight";
+        editor.AddMemberCommand.Execute(null);
+        editor.MemberQuery = string.Empty;
+    }
+
+    private static async Task<(ListingEditor Editor, List<string> Opened, FakeWindowServices Window)> ValidPackAsync(ViewModelHarness harness)
+    {
+        var opened = new List<string>();
+        harness.ViewModel.OpenWithSystem = opened.Add;
+        var window = new FakeWindowServices();
+        harness.ViewModel.WindowServices = window;
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        FillPack(editor);
+        Assert.True(editor.CanOpenPullRequest, string.Join("\n", editor.Errors));
+        return (editor, opened, window);
+    }
+
+    /// <summary>Yanks MeasureTools 1.1.10 and delists KSArmory.</summary>
+    private static string YankAndDelist(string json)
+    {
+        var root = JsonNode.Parse(json)!;
+        foreach (var listing in root["listings"]!.AsArray())
+        {
+            if ((string?)listing!["id"] == "KSArmory")
+                listing["index_status"] = new JsonObject { ["state"] = "delisted" };
+            if ((string?)listing["id"] == "MeasureTools")
+                listing["releases"]![0]!["yanked"] = true;
+        }
+
+        return root.ToJsonString();
     }
 
     private static async Task<(ListingEditor Editor, List<string> Opened, FakeWindowServices Window)> ValidNewListingAsync(ViewModelHarness harness)

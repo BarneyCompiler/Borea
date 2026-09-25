@@ -43,15 +43,20 @@ public sealed partial class ListingEditor
 
     public bool NeedsSignIn => CanSignIn && !IsSignedIn;
 
-    /// <summary>This build has no GitHub sign-in, so only the browser opens the pull request.</summary>
-    public bool UsesBrowserOnly => !CanSignIn;
+    /// <summary>
+    /// Only the browser opens the pull request: this build has no GitHub sign-in, or the draft is a pack version,
+    /// which the signed-in publish cannot write yet because it knows only the path of a listing.
+    /// </summary>
+    public bool UsesBrowserOnly => !CanSignIn || IsPack;
+
+    public bool OffersSignedInPublish => CanSignIn && !IsPack;
 
     public string? PublishText => _owner.GitHubLogin is { } login ? Localization.FormatListingPublishText(login) : CanSignIn ? Localization.ListingSignInText : null;
 
     public string PublishLabel => HasOpenPullRequest ? Localization.ListingUpdatePullRequest : Localization.ListingPublish;
 
     /// <summary>Signed out, publishing signs in first.</summary>
-    public bool CanPublish => CanSignIn && CanOpenPullRequest && !IsPublishing;
+    public bool CanPublish => OffersSignedInPublish && CanOpenPullRequest && !IsPublishing;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
@@ -349,7 +354,7 @@ public sealed partial class ListingEditor
     /// <summary>Runs the ownership pre-check again when the account, the id or a release host changed.</summary>
     private void ScheduleOwnershipCheck()
     {
-        if (!IsSignedIn || !IsFormStep || !_owner.CurrentWindowListing || _owner.Services is null)
+        if (!IsSignedIn || !IsFormStep || IsPack || !_owner.CurrentWindowListing || _owner.Services is null)
         {
             StopOwnershipCheck();
             return;
@@ -512,6 +517,7 @@ public sealed partial class ListingEditor
         OnPropertyChanged(nameof(NeedsSignIn));
         OnPropertyChanged(nameof(NeedsSignInToFollow));
         OnPropertyChanged(nameof(UsesBrowserOnly));
+        OnPropertyChanged(nameof(OffersSignedInPublish));
         OnPropertyChanged(nameof(CanPublish));
         OnPropertyChanged(nameof(PublishText));
         ScheduleOwnershipCheck();

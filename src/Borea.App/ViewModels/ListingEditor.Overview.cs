@@ -87,6 +87,14 @@ public sealed partial class ListingEditor
         Need("about", Localization.ListingAbstract, Abstract, "abstract", "abstract");
         Need("about", Localization.ListingLicense, License, "license", "license");
         Need("links", Localization.LinkForum, Forums, "links.forums", "forums", "links");
+        if (IsPack)
+        {
+            Need("pack", Localization.ListingPackVersion, PackVersion, "version", "version");
+            Need("pack", Localization.ListingReleasedAt, ReleasedAt, "released_at", "released_at");
+            if (Members.Count == 0)
+                missing.Add(("members", Localization.ListingMembers, "mods", ["mods"]));
+        }
+
         Need("compatibility", Localization.ListingGameMin, GameMin, "compatibility.game_min", "game_min", "compatibility");
         if (Icon is { } icon && IsEmpty(icon))
             missing.Add(("images", Localization.ListingIcon, "images.icon", []));
@@ -121,12 +129,22 @@ public sealed partial class ListingEditor
         {
             Step("about", Localization.ListingAbout, Filled(Id, Name, Authors, Abstract, Description, License)),
             Step("links", Localization.ListingLinks, Filled(Forums, Homepage, Repository, SpaceDockPage, BugTracker, Discussions)),
-            Step("releases", Localization.ListingReleases, Filled(ReleasesGitHub, ReleasesSpaceDock), recommended: true),
-            Step("compatibility", Localization.ListingCompatibility, Filled(GameMin, GameMax) || UsesLoader),
-            Step("dependencies", Localization.ListingDependencies, Dependencies.Count > 0),
-            Step("tags", Localization.ListingTags, PreviewTags.Count > 0),
-            Step("images", Localization.ListingImages, Icon is not null || DescriptionImages.Count > 0),
         };
+        if (IsPack)
+        {
+            steps.Add(Step("pack", Localization.ListingPack, Filled(PackVersion, ReleasedAt, Changelog)));
+            steps.Add(Step("members", Localization.ListingMembers, Members.Count > 0));
+            steps.Add(Step("compatibility", Localization.ListingCompatibility, Filled(GameMin, GameMax)));
+        }
+        else
+        {
+            steps.Add(Step("releases", Localization.ListingReleases, Filled(ReleasesGitHub, ReleasesSpaceDock), recommended: true));
+            steps.Add(Step("compatibility", Localization.ListingCompatibility, Filled(GameMin, GameMax) || UsesLoader));
+            steps.Add(Step("dependencies", Localization.ListingDependencies, Dependencies.Count > 0));
+        }
+
+        steps.Add(Step("tags", Localization.ListingTags, PreviewTags.Count > 0));
+        steps.Add(Step("images", Localization.ListingImages, Icon is not null || DescriptionImages.Count > 0));
         if (IsEdit)
             steps.Add(Step("status", Localization.ListingStatus, IsDeprecated));
         MainViewModel.Arrange(Steps, steps);
@@ -181,6 +199,8 @@ public sealed partial class ListingEditor
             "releases" => "releases",
             "compatibility" or "loader" or "game_min" or "game_max" => "compatibility",
             "dependencies" => "dependencies",
+            "version" or "released_at" or "changelog" => "pack",
+            "mods" => "members",
             "tags" => "tags",
             "images" => "images",
             "status" or "superseded_by" => "status",
@@ -198,6 +218,8 @@ public sealed partial class ListingEditor
             return Localization.FormatListingDescriptionImageNumber(image + 1);
         if (Number(location, "dependencies[") is { } dependency)
             return Localization.FormatListingDependencyNumber(dependency + 1);
+        if (location.StartsWith("mods[", StringComparison.Ordinal))
+            return Localization.ListingMembers;
 
         return location switch
         {
@@ -229,6 +251,10 @@ public sealed partial class ListingEditor
             "tags" => Localization.ListingTags,
             "status" => Localization.ListingStatus,
             "superseded_by" => Localization.ListingSupersededBy,
+            "version" => Localization.ListingPackVersion,
+            "released_at" => Localization.ListingReleasedAt,
+            "changelog" => Localization.ListingChangelog,
+            "mods" => Localization.ListingMembers,
             _ => location,
         };
     }

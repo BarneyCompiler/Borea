@@ -9,7 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Borea.App.ViewModels;
 
-/// <summary>A listed mod that the start step can load to change it.</summary>
+/// <summary>A listed mod that the start step can load to change it, or that a pack can pin.</summary>
 public sealed record ListedListing(string Id, string Name, string AuthorsText, bool IsOwn);
 
 /// <summary>
@@ -54,9 +54,7 @@ public sealed partial class ListingEditor
         var login = IsSignedIn ? _owner.GitHubLogin : null;
         var query = ListedQuery.Trim();
         var matches = _listedMods
-            .Where(listing => listing.Id.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || listing.Authored!.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || listing.Authored.Authors.Any(author => author.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            .Where(listing => Matches(listing, query))
             .Select(listing => new ListedListing(listing.Id, listing.Authored!.Name, AuthorsText(listing.Authored), login is not null && IsOwnedBy(listing.Authored, login)))
             .OrderByDescending(listing => listing.IsOwn)
             .ThenBy(listing => listing.Id, StringComparer.OrdinalIgnoreCase)
@@ -66,6 +64,12 @@ public sealed partial class ListingEditor
         SelectedListed = matches.FirstOrDefault(listing => listing.Id == SelectedListed?.Id) ?? (query.Length > 0 ? matches.FirstOrDefault() : null);
         OnPropertyChanged(nameof(HasNoListedMatch));
     }
+
+    /// <summary>Whether the id, the name or an author contains the query, in any letter case.</summary>
+    private static bool Matches(ContentIndexListing listing, string query) =>
+        listing.Id.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || listing.Authored!.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || listing.Authored.Authors.Any(author => author.Contains(query, StringComparison.OrdinalIgnoreCase));
 
     private string AuthorsText(ModMetadata listing) =>
         listing.Authors.Count == 0 ? string.Empty : _owner.Localization.FormatContentByAuthor(string.Join(", ", listing.Authors));

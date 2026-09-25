@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Borea.Core.Listings;
@@ -86,6 +87,50 @@ public sealed partial class ListingDependencyRow : ObservableObject
     partial void OnMaxChanged(string value) => _owner.Refresh();
 
     private static string? Empty(string value) => value.Trim().Length == 0 ? null : value.Trim();
+}
+
+/// <summary>One [[mods]] entry of a pack: a listed mod and the release it pins. A pin no client can install shows why.</summary>
+public sealed partial class ListingPackMemberRow : ObservableObject
+{
+    private readonly ListingEditor _owner;
+    private readonly ListingPackMember _member;
+
+    public ListingPackMemberRow(ListingEditor owner, ListingPackMember member, string name, IReadOnlyList<ListingReleaseChoice> releases)
+    {
+        _owner = owner;
+        _member = member;
+        Name = name;
+        Releases = releases;
+        _selected = releases.FirstOrDefault(release => release.Version == member.Version);
+    }
+
+    public string Id => _member.Id;
+
+    public string Name { get; }
+
+    /// <summary>Newest first.</summary>
+    public IReadOnlyList<ListingReleaseChoice> Releases { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Note), nameof(HasNote))]
+    private ListingReleaseChoice? _selected;
+
+    public string? Note => _owner.MemberNote(ToMember());
+
+    public bool HasNote => Note is not null;
+
+    internal ListingPackMember ToMember() => _member with { Version = Selected?.Version ?? _member.Version };
+
+    [RelayCommand]
+    private void Remove() => _owner.Remove(this);
+
+    partial void OnSelectedChanged(ListingReleaseChoice? value) => _owner.Refresh();
+}
+
+/// <param name="Status">The release status, or empty for a pinned release that the index does not offer.</param>
+public sealed record ListingReleaseChoice(string Version, string Status)
+{
+    public bool HasStatus => Status.Length > 0;
 }
 
 /// <summary>

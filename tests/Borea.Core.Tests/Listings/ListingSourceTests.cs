@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Reflection;
 using System.Text;
 using Borea.Core.Dependencies;
 using Borea.Core.Game;
@@ -162,6 +163,31 @@ public sealed class ListingSourceTests
         Assert.False(page.CarriesText);
         Assert.Equal("https://github.com/KSAModding/content-index/edit/main/listings/StarMap.toml", page.Url.AbsoluteUri);
     }
+
+    [Fact]
+    public void Branch_IsTheBranchThatTheBuildNames()
+    {
+        var named = typeof(ListingPullRequestLinks).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(metadata => metadata.Key == "Borea.ContentIndexBranch");
+
+        Assert.Equal(ListingPullRequestLinks.DefaultBranch, named.Value);
+        Assert.Equal(named.Value, ListingPullRequestLinks.Branch);
+    }
+
+    [Theory]
+    [InlineData("hand-test/steward-tools", "hand-test/steward-tools")]
+    [InlineData("", "main")]
+    [InlineData(null, "main")]
+    public void BranchOf_TakesTheNamedBranchOrMain(string? named, string expected)
+    {
+        AssemblyMetadataAttribute[] metadata = [new("Other", "x"), new("Borea.ContentIndexBranch", named)];
+
+        Assert.Equal(expected, ListingPullRequestLinks.BranchOf(metadata));
+    }
+
+    [Fact]
+    public void BranchOf_WithoutTheMetadata_IsMain() =>
+        Assert.Equal(ListingPullRequestLinks.DefaultBranch, ListingPullRequestLinks.BranchOf([new AssemblyMetadataAttribute("Other", "hand-test/x")]));
 
     [Fact]
     public void Scan_FindsImagesOutsideCode()

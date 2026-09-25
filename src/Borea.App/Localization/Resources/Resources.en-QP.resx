@@ -471,6 +471,9 @@
   <data name="LibraryCopyModList" xml:space="preserve">
     <value>Parrot list o' barrels o' fun</value>
   </data>
+  <data name="LibraryMakePack" xml:space="preserve">
+    <value>Make a pack o' barrels o' fun from this sea</value>
+  </data>
   <data name="ModListDuplicateTitle" xml:space="preserve">
     <value>Parrot sea</value>
   </data>
@@ -686,6 +689,12 @@
   </data>
   <data name="ToastCopyModListFailedFormat" xml:space="preserve">
     <value>Couldn't parrot the list o' barrels o' fun o' {0}</value>
+  </data>
+  <data name="ToastMakePackFailedFormat" xml:space="preserve">
+    <value>Couldn't make a pack o' barrels o' fun from {0}</value>
+  </data>
+  <data name="ToastMakePackNoIndex" xml:space="preserve">
+    <value>Borea couldn't read the content index, so it can't tell which barrels o' fun a pack may hold.</value>
   </data>
   <data name="ToastBackUpFailedFormat" xml:space="preserve">
     <value>Couldn't salvage {0}</value>

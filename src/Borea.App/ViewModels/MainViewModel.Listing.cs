@@ -40,6 +40,36 @@ public partial class MainViewModel
         return ListingEditor.OpenAsync();
     }
 
+    /// <summary>Opens the listing page with a new pack of the mods of an instance, for a pack author who tested that set.</summary>
+    internal async Task MakePackFromInstanceAsync(Guid instanceId)
+    {
+        if (_services is not { } services)
+            return;
+
+        try
+        {
+            // Only a scan updates the stored manual folders, and the author can add or remove one by hand after the last scan.
+            if (await services.Instances.GetByIdAsync(instanceId) is not null)
+                await services.ForeignModAdopter.ScanAsync(instanceId);
+
+            if (await services.Instances.GetByIdAsync(instanceId) is not { } instance)
+            {
+                await ReloadInstancesAsync();
+                return;
+            }
+
+            var manifest = await services.ModState.GetEntriesAsync(instanceId);
+            await OpenListingAsync();
+            if (!ListingEditor.StartPackFromInstance(instance, manifest, services.Settings.LoaderInstallations))
+                ShowErrorToast(() => Localization.FormatToastMakePackFailed(instance.Name), Localization.ToastMakePackNoIndex);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            var instanceName = InstanceName(instanceId);
+            ShowErrorToast(() => Localization.FormatToastMakePackFailed(instanceName), exception.Message);
+        }
+    }
+
     /// <summary>Opens a GitHub page, and returns why it could not, or null. The message leaves out the URL, which can carry the whole file.</summary>
     internal string? OpenListingPage(string url)
     {

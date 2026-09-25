@@ -10,9 +10,12 @@ using System.Threading.Tasks;
 using Borea.Composition;
 using Borea.Core.Game;
 using Borea.Core.Index;
+using Borea.Core.Instances;
 using Borea.Core.Listings;
+using Borea.Core.ModLoaders;
 using Borea.Core.ModPacks;
 using Borea.Core.Mods;
+using Borea.Core.State;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -25,6 +28,7 @@ namespace Borea.App.ViewModels;
 public sealed partial class ListingEditor
 {
     private IReadOnlyList<ContentIndexListing> _memberCandidates = [];
+    private (string InstanceName, IReadOnlyList<ListingLeftOutMod> Mods)? _fromInstance;
 
     [ObservableProperty]
     private string _packVersion = string.Empty;
@@ -56,18 +60,51 @@ public sealed partial class ListingEditor
 
     public string? GameMinProposalText => GameMinProposal is { } gameMin ? Localization.FormatListingGameMinProposal(gameMin) : null;
 
+    /// <summary>The mods of the instance a new pack was made from that are not members, each with its reason.</summary>
+    public ObservableCollection<string> LeftOut { get; } = [];
+
+    public bool HasLeftOut => LeftOut.Count > 0;
+
+    public string? LeftOutTitle => _fromInstance is { } from ? Localization.FormatListingLeftOut(from.InstanceName) : null;
+
     [RelayCommand]
-    private void StartPack()
+    private void StartPack() => StartNewPack(NewPack());
+
+    /// <summary>
+    /// Opens a new pack of the enabled mods that Borea installed from the index in an instance, at their installed versions,
+    /// named after the instance. Returns false, and opens nothing, when there is no snapshot to tell which mods a pack can pin.
+    /// </summary>
+    internal bool StartPackFromInstance(Instance instance, IReadOnlyList<ModManifestEntry> manifest, IReadOnlyDictionary<string, LoaderInstallation> loaderInstallations)
+    {
+        StartOver();
+        if (_snapshot is not { } snapshot)
+            return false;
+
+        var pack = ListingPackFromInstance.Of(snapshot, instance, manifest, loaderInstallations);
+        StartNewPack(
+            NewPack() with
+            {
+                Name = instance.Name,
+                GameMin = ListingPackMembers.HighestGameMin(snapshot, pack.Members)?.GameMin ?? string.Empty,
+                Mods = pack.Members,
+            },
+            (instance.Name, pack.LeftOut));
+        return true;
+    }
+
+    private static ListingDraft NewPack() => new()
+    {
+        Type = ListingDraft.ModPackType,
+        Version = "1.0.0",
+        ReleasedAt = Timestamp(DateTimeOffset.UtcNow),
+    };
+
+    private void StartNewPack(ListingDraft draft, (string InstanceName, IReadOnlyList<ListingLeftOutMod> Mods)? fromInstance = null)
     {
         _source = null;
         _archive = null;
         ArchiveText = null;
-        Load(new ListingDraft
-        {
-            Type = ListingDraft.ModPackType,
-            Version = "1.0.0",
-            ReleasedAt = Timestamp(DateTimeOffset.UtcNow),
-        });
+        Load(draft, fromInstance: fromInstance);
     }
 
     /// <summary>Opens the next version of a listed pack, as the pack page asks for it.</summary>
@@ -193,6 +230,7 @@ public sealed partial class ListingEditor
             issues.Add(new ListingIssue(ListingIssueSeverity.Note, "version", Localization.FormatListingPackRetracted(version.Metadata.Version.ToString(), version.IndexStatus!.Reason)));
         if (ListedPack() is { } pack)
             issues.AddRange(OrderIssues(pack));
+        FillLeftOut(mods);
 
         var needed = _snapshot is { } snapshot ? ListingPackMembers.HighestGameMin(snapshot, mods) : null;
         GameMinProposal = needed is not null && !(GameVersion.TryParse(GameMin.Trim(), out var gameMin) && gameMin.Revision >= needed.GameMinRevision)
@@ -292,6 +330,31 @@ public sealed partial class ListingEditor
             return (false, Localization.FormatListingPackCheckFailed(typed, exception.Message));
         }
     }
+
+    /// <summary>The left-out mods of the instance, without those the author has added as members since.</summary>
+    private void FillLeftOut(IReadOnlyList<ListingPackMember> mods)
+    {
+        var lines = (_fromInstance?.Mods ?? [])
+            .Where(mod => !mods.Any(member => ModIds.Equals(member.Id, mod.Id)))
+            .Select(LeftOutText)
+            .ToList();
+        MainViewModel.Arrange(LeftOut, lines);
+        OnPropertyChanged(nameof(HasLeftOut));
+        OnPropertyChanged(nameof(LeftOutTitle));
+    }
+
+    private string LeftOutText(ListingLeftOutMod mod) => mod.Reason switch
+    {
+        ListingLeftOutReason.NotInstalledByBorea => Localization.FormatListingLeftOutNotInstalledByBorea(mod.Id),
+        ListingLeftOutReason.ModLoader => mod.Version is { } version
+            ? Localization.FormatListingLeftOutModLoader(mod.Id, version)
+            : Localization.FormatListingLeftOutModLoaderUnknownVersion(mod.Id),
+        ListingLeftOutReason.Disabled => Localization.FormatListingLeftOutDisabled(mod.Id, mod.Version ?? string.Empty),
+        ListingLeftOutReason.NotListed => Localization.FormatListingLeftOutNotListed(mod.Id, mod.Version ?? string.Empty),
+        ListingLeftOutReason.Yanked => Localization.FormatListingLeftOutYanked(mod.Id, mod.Version ?? string.Empty),
+        ListingLeftOutReason.DownloadGone => Localization.FormatListingLeftOutDownloadGone(mod.Id, mod.Version ?? string.Empty, mod.GoneSince is { } since ? MainViewModel.DateText(since) : string.Empty),
+        _ => Localization.FormatListingLeftOutReleaseNotListed(mod.Id, mod.Version ?? string.Empty),
+    };
 
     private static string Timestamp(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 

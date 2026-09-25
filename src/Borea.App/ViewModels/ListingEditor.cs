@@ -589,7 +589,8 @@ public sealed partial class ListingEditor : ObservableObject
 
     /// <summary>Fills the form from a draft and goes to the form step.</summary>
     /// <param name="listedText">The listed file the draft came from, whose layout the written file keeps.</param>
-    internal void Load(ListingDraft draft, string? listedText = null)
+    /// <param name="fromInstance">For a new pack made from an instance, that instance and the mods the pack leaves out.</param>
+    internal void Load(ListingDraft draft, string? listedText = null, (string InstanceName, IReadOnlyList<ListingLeftOutMod> Mods)? fromInstance = null)
     {
         _tagProposal?.Cancel();
         _loading = true;
@@ -597,6 +598,7 @@ public sealed partial class ListingEditor : ObservableObject
         {
             _base = draft;
             _listedText = listedText;
+            _fromInstance = fromInstance;
             IsEdit = draft.IsEdit;
             IsNextVersion = draft.IsNextVersion;
             OnPropertyChanged(nameof(NextVersionText));

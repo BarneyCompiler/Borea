@@ -50,6 +50,7 @@ internal sealed class TestGamePathProvider : IGamePathProvider
     public string GetAppLockPath() => Path.Combine(_root, "app.lock");
     public string GetBackupsRoot() => Path.Combine(_root, "Backups");
     public string GetLogsFolder() => Path.Combine(_root, "Logs");
+    public string GetLanguagesFolder() => Path.Combine(_root, "Languages");
     public string GetSharedProfileRoot() => Path.Combine(_root, "GameProfile");
     public string? GetGameDirectoryPath() => _hasGameDirectory ? Path.Combine(_root, "Game") : null;
     public string? GetLoaderDirectoryPath(string loaderId)

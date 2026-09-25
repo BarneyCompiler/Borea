@@ -66,4 +66,24 @@ public sealed class ListingAuthorityTests
     {
         Assert.Equal("ksa-index-maximilian-nesslauer", ListingOwnership.TopicFor("Maximilian-Nesslauer"));
     }
+
+    [Theory]
+    [InlineData("Studio/MyMod", "https://github.com/Studio/MyMod")]
+    [InlineData("Studio/MyMod/extra", null)]
+    [InlineData("not a repository", null)]
+    [InlineData(null, null)]
+    public void RepositoryUrl_LinksOnlyARepositoryName(string? repository, string? url)
+    {
+        Assert.Equal(url, new ListingOwnership(ListingOwnershipState.NotVerified, Repository: repository).RepositoryUrl?.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("4253", "https://spacedock.info/mod/4253")]
+    [InlineData("-5", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void SpaceDockModUrl_LinksOnlyAModNumber(string? mod, string? url)
+    {
+        Assert.Equal(url, new ListingOwnership(ListingOwnershipState.NotVerified, SpaceDockMod: mod).SpaceDockModUrl?.AbsoluteUri);
+    }
 }

@@ -2,7 +2,7 @@ namespace Borea.Core.Listings;
 
 public enum ListingOwnershipState
 {
-    /// <summary>A validated pull request of the signed-in account merges itself.</summary>
+    /// <summary>A validated pull request of the account merges itself.</summary>
     Verified,
 
     /// <summary>A steward has to accept the pull request.</summary>
@@ -53,6 +53,7 @@ public enum ListingOwnershipProblem
 /// <param name="PackOwner">The login that the owner record of the pack on main names.</param>
 /// <param name="TakenBy">The id in the content index that already holds the pack id.</param>
 /// <param name="Claim">For a first claim, the owner record of the signed-in account that the pull request adds.</param>
+/// <param name="ForumsThread">The forums thread of the listing, as the listed document names it for an edit.</param>
 public sealed record ListingOwnership(
     ListingOwnershipState State,
     ListingOwnershipProof? Proof = null,
@@ -63,9 +64,20 @@ public sealed record ListingOwnership(
     int? PullRequest = null,
     string? PackOwner = null,
     string? TakenBy = null,
-    ListingPackOwner? Claim = null)
+    ListingPackOwner? Claim = null,
+    Uri? ForumsThread = null)
 {
     public const string MarkerPath = ".github/ksa-content-index.toml";
+
+    /// <summary>The GitHub page of <see cref="Repository"/>, or null when it names no repository.</summary>
+    public Uri? RepositoryUrl =>
+        ListingAuthority.GitHubRepositoryOf("https://github.com/" + Repository) is { } name && string.Equals(name, Repository, StringComparison.Ordinal)
+            ? new Uri("https://github.com/" + name)
+            : null;
+
+    /// <summary>The SpaceDock page of <see cref="SpaceDockMod"/>, or null when it names no mod.</summary>
+    public Uri? SpaceDockModUrl =>
+        SpaceDockMod is { Length: > 0 } mod && mod.All(char.IsAsciiDigit) ? new Uri("https://spacedock.info/mod/" + mod) : null;
 
     public static ListingOwnership Unknown { get; } = new(ListingOwnershipState.CouldNotEvaluate);
 

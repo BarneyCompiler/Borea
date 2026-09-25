@@ -251,6 +251,9 @@ public sealed class BoreaServices : IDisposable
     /// <summary>The steward changes of index-status.toml, each in a pull request of its own.</summary>
     public required IIndexStatusEditor IndexStatusEditor { get; init; }
 
+    /// <summary>The open pull requests of both index repositories that wait for a steward.</summary>
+    public required IStewardQueue StewardQueue { get; init; }
+
     /// <summary>The games this process started, which every graph built by a public overload shares.</summary>
     private static readonly RunningLaunches ProcessLaunches = new();
 
@@ -307,6 +310,7 @@ public sealed class BoreaServices : IDisposable
     /// <param name="gitHub">The GitHub session. Null builds one on this graph's client for <see cref="BoreaGitHubApp"/>.</param>
     /// <param name="listingPublisher">Opens the listing pull request. Null builds one on the GitHub session.</param>
     /// <param name="indexStatusEditor">Opens the steward pull requests of index-status.toml. Null builds one on the GitHub session.</param>
+    /// <param name="stewardQueue">Lists the pull requests that wait for a steward. Null builds one on the GitHub session.</param>
     /// <param name="selfUpdater">Replaces this Borea build. Null reads the build that runs.</param>
     internal static Task<BoreaServices> BuildAsync(
         string? boreaRoot,
@@ -322,12 +326,13 @@ public sealed class BoreaServices : IDisposable
         IGitHubSession? gitHub = null,
         IListingPublisher? listingPublisher = null,
         ISelfUpdater? selfUpdater = null,
-        IIndexStatusEditor? indexStatusEditor = null)
+        IIndexStatusEditor? indexStatusEditor = null,
+        IStewardQueue? stewardQueue = null)
     {
         ArgumentNullException.ThrowIfNull(httpHandler);
         ArgumentNullException.ThrowIfNull(fallbackRepository);
         ArgumentNullException.ThrowIfNull(installCandidates);
-        return BuildCoreAsync(boreaRoot, BoreaLogSource.App, httpHandler, fallbackRepository, installCandidates, new RunningLaunches(), cancellationToken, processStarter, images, sharedProfileRoot, isGameProcessRunning, isOtherBoreaRunning, gitHub, listingPublisher, selfUpdater, indexStatusEditor);
+        return BuildCoreAsync(boreaRoot, BoreaLogSource.App, httpHandler, fallbackRepository, installCandidates, new RunningLaunches(), cancellationToken, processStarter, images, sharedProfileRoot, isGameProcessRunning, isOtherBoreaRunning, gitHub, listingPublisher, selfUpdater, indexStatusEditor, stewardQueue);
     }
 
     private static async Task<BoreaServices> BuildCoreAsync(
@@ -346,7 +351,8 @@ public sealed class BoreaServices : IDisposable
         IGitHubSession? gitHub = null,
         IListingPublisher? listingPublisher = null,
         ISelfUpdater? selfUpdater = null,
-        IIndexStatusEditor? indexStatusEditor = null)
+        IIndexStatusEditor? indexStatusEditor = null,
+        IStewardQueue? stewardQueue = null)
     {
         // the settings file lives under Borea's own root and needs no
         // game path to be found, so a provider without one reads it.
@@ -503,6 +509,7 @@ public sealed class BoreaServices : IDisposable
             ListingOwnership = new ListingOwnershipCheck(gitHubSession, http, listingFormat),
             StewardRole = stewardRole,
             IndexStatusEditor = new LoggingIndexStatusEditor(indexStatusEditor ?? new GitHubIndexStatusEditor(gitHubSession, stewardRole, http, listingFormat), log),
+            StewardQueue = stewardQueue ?? new GitHubStewardQueue(gitHubSession, http),
         };
     }
 

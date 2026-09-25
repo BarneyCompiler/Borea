@@ -240,17 +240,7 @@ public sealed class GitHubIndexStatusEditor : IIndexStatusEditor
         }
         catch (GitHubApiException exception)
         {
-            var failure = exception.Failure switch
-            {
-                GitHubApiFailure.SignedOut => StewardFailure.SignedOut,
-                GitHubApiFailure.RateLimited => StewardFailure.RateLimited,
-                GitHubApiFailure.NotFound => StewardFailure.NotFound,
-                GitHubApiFailure.Refused or GitHubApiFailure.ProtectedBranch => StewardFailure.Refused,
-                GitHubApiFailure.Forbidden => StewardFailure.Forbidden,
-                GitHubApiFailure.NetworkError => StewardFailure.NetworkError,
-                _ => StewardFailure.UnexpectedResponse,
-            };
-            throw new StewardException(failure, exception.Detail, exception.RetryAt, exception);
+            throw exception.ToStewardException();
         }
     }
 

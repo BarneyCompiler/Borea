@@ -6,6 +6,7 @@ using Borea.Core.GitHub;
 using Borea.Core.Index;
 using Borea.Core.Listings;
 using Borea.Core.Mods;
+using Borea.Core.Stewardship;
 using Borea.Network.GitHub;
 
 namespace Borea.Network.Listings;
@@ -21,11 +22,9 @@ public sealed class ListingPublisher : IListingPublisher
 
     internal const string Upstream = ListingPullRequestLinks.Repository;
 
-    internal const string VerdictMarker = "<!-- content-index:verdict -->";
-
     internal const string StatusContext = "validate";
 
-    internal const string StewardLabel = "needs-steward";
+    internal const string StewardLabel = StewardQueueKinds.NeedsStewardLabel;
 
     internal const string MergingDescription = "validated, arming auto-merge";
 
@@ -158,10 +157,7 @@ public sealed class ListingPublisher : IListingPublisher
         var combined = await GetPublicAsync<CombinedStatusDto>($"{Api}/repos/{Upstream}/commits/{headSha}/status", step, cancellationToken).ConfigureAwait(false);
         var comments = await GetPublicAsync<List<CommentDto>>($"{Api}/repos/{Upstream}/issues/{number}/comments?per_page=100", step, cancellationToken).ConfigureAwait(false);
 
-        // Only the bot's own comment counts, because anybody can write the marker into a comment.
-        var verdict = comments
-            .FirstOrDefault(comment => comment.User?.Type == "Bot" && comment.Body?.Contains(VerdictMarker, StringComparison.Ordinal) == true)
-            ?.Body!.Replace(VerdictMarker, string.Empty, StringComparison.Ordinal).Trim();
+        var verdict = IndexVerdict.Find(Upstream, comments.Select(comment => ((string?)comment.User?.Login, comment.Body)));
 
         var validate = combined.Statuses.FirstOrDefault(status => status.Context == StatusContext);
         var state = validate is null ? ListingPullRequestState.ChecksRunning : validate.State switch
@@ -172,7 +168,7 @@ public sealed class ListingPublisher : IListingPublisher
             "success" => ListingPullRequestState.WaitingForSteward,
             _ => ListingPullRequestState.ChecksRunning,
         };
-        return new ListingPullRequestStatus(state, string.IsNullOrEmpty(verdict) ? null : verdict);
+        return new ListingPullRequestStatus(state, verdict);
     }
 
     private string Login(ListingPublishStep step) =>

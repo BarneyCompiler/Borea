@@ -185,6 +185,16 @@ public sealed class ListingValidatorTests
         Assert.Contains(errors, issue => issue.Location == "loader.min" && issue.Message.StartsWith($"'{min}' is not a version", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Validate_Since_PassesAsAVersionAndIsRefusedOtherwise()
+    {
+        Assert.Empty(Errors(Valid() with { Releases = new ListingReleases("owner/MyMod", null, Since: "1.2") }));
+
+        var errors = Errors(Valid() with { Releases = new ListingReleases("owner/MyMod", null, Since: "latest") });
+
+        Assert.Contains(errors, issue => issue.Location == "releases.since" && issue.Message.StartsWith("'latest' is not a version", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("2026.99999999999", "2026.99999999998")]
     [InlineData("2026.1.1.123456789012345678901", "2026.1.1.123456789012345678900")]

@@ -49,7 +49,8 @@ internal static class MetadataFixtures
         supersededBy: "successor-mod",
         releases: new ReleaseSource(
             new[] { new ReleaseHost("github", "owner/repo"), new ReleaseHost("spacedock", "4253") },
-            "github"),
+            "github",
+            ModVersion.Parse("1.2.0-rc.1")),
         gameMax: "2026.8.3.5117",
         os: new[] { "windows", "linux" },
         loader: new LoaderRequirement("StarMap", ModVersion.Parse("0.4.5"), ModVersion.Parse("0.5.0")),

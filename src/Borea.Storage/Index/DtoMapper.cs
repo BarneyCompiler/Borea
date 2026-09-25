@@ -220,24 +220,30 @@ public static class DtoMapper
         return links;
     }
 
+    // A key that a later RFC adds under [releases] need not be a host, so only a value that names a
+    // repository or a mod counts as one, and a listing with a new key keeps the hosts it had.
     private static ReleaseSource MapReleaseSource(ReleasesInfoDto dto)
     {
         var hosts = (dto.Hosts ?? new Dictionary<string, JsonElement>())
-            .Select(kvp => new ReleaseHost(kvp.Key, MapHostReference(kvp.Value)))
+            .Select(kvp => (kvp.Key, Reference: MapHostReference(kvp.Value)))
+            .Where(host => host.Reference is not null)
+            .Select(host => new ReleaseHost(host.Key, host.Reference!))
             .ToList();
 
-        return new ReleaseSource(hosts, dto.Authority);
+        return new ReleaseSource(hosts, dto.Authority, MapSince(dto.Since));
     }
 
-    // Not sure how to handle Hosts values so I just made handlers for strings (github)
-    // and integers (spacedock)
-    private static string MapHostReference(JsonElement value) => value.ValueKind switch
+    // "owner/repo" on GitHub and the numeric mod id on SpaceDock.
+    private static string? MapHostReference(JsonElement value) => value.ValueKind switch
     {
-        JsonValueKind.String => value.GetString()!,
-        JsonValueKind.Number => value.GetRawText(),
-        _ => throw new FormatException(
-            $"Host reference must be a string or number, but was {value.ValueKind}."),
+        JsonValueKind.String when value.GetString()!.Contains('/', StringComparison.Ordinal) => value.GetString(),
+        JsonValueKind.Number when value.TryGetInt64(out var id) && id > 0 => value.GetRawText(),
+        _ => null,
     };
+
+    // The watcher stamps as if since were absent when it is not a version, so Borea reads it the same way.
+    private static ModVersion? MapSince(JsonElement? value) =>
+        value is { ValueKind: JsonValueKind.String } text && ModVersion.TryParseAuthored(text.GetString(), out var since) ? since : null;
 
     // A release file carries its bounds in full, while an authored listing reaches Borea verbatim and may write them shorter.
     private static ModDependency MapDependency(DependencyEntryDto dto, Func<string, ModVersion> parseBound)

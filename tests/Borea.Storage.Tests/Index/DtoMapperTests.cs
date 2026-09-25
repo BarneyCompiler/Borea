@@ -211,19 +211,89 @@ public sealed class DtoMapperTests
         Assert.Equal(2, result.Releases.Hosts.Count);
     }
 
-    [Fact]
-    public void MapAuthored_ReleaseSource_ThrowsForNonStringNonNumberHost()
+    [Theory]
+    [InlineData("1.2", "1.2.0")]
+    [InlineData("2", "2.0.0")]
+    [InlineData("1.2.3-rc.1", "1.2.3-rc.1")]
+    public void MapAuthored_ReleaseSource_GitHubAndSince_HasOneHostAndReadsSinceAsAVersion(string since, string expected)
+    {
+        var dto = MinimalAuthoredDto();
+        dto.Releases = new ReleasesInfoDto
+        {
+            Since = JsonSerializer.SerializeToElement(since),
+            Hosts = new Dictionary<string, JsonElement>
+            {
+                ["github"] = JsonSerializer.SerializeToElement("owner/repo"),
+            },
+        };
+
+        var result = DtoMapper.MapAuthored(dto, "source");
+
+        Assert.Equal("github", Assert.Single(result.Releases!.Hosts).Host);
+        Assert.Equal(expected, result.Releases.Since.ToString());
+    }
+
+    [Theory]
+    [InlineData("\"latest\"")]
+    [InlineData("1.2")]
+    [InlineData("[\"1.2\"]")]
+    public void MapAuthored_ReleaseSource_SinceNotAVersion_IsIgnored(string since)
+    {
+        var dto = MinimalAuthoredDto();
+        dto.Releases = new ReleasesInfoDto
+        {
+            Since = JsonDocument.Parse(since).RootElement.Clone(),
+            Hosts = new Dictionary<string, JsonElement>
+            {
+                ["github"] = JsonSerializer.SerializeToElement("owner/repo"),
+            },
+        };
+
+        var result = DtoMapper.MapAuthored(dto, "source");
+
+        Assert.Null(result.Releases!.Since);
+        Assert.Single(result.Releases.Hosts);
+    }
+
+    [Theory]
+    [InlineData("\"2.0\"")]
+    [InlineData("true")]
+    [InlineData("1.5")]
+    [InlineData("0")]
+    [InlineData("{ \"nested\": true }")]
+    [InlineData("[\"owner/other\"]")]
+    public void MapAuthored_ReleaseSource_UnknownKeyThatNamesNoHost_KeepsTheHosts(string value)
     {
         var dto = MinimalAuthoredDto();
         dto.Releases = new ReleasesInfoDto
         {
             Hosts = new Dictionary<string, JsonElement>
             {
+                ["github"] = JsonSerializer.SerializeToElement("owner/repo"),
+                ["until"] = JsonDocument.Parse(value).RootElement.Clone(),
+            },
+        };
+
+        var result = DtoMapper.MapAuthored(dto, "source");
+
+        Assert.Equal("github", result.Releases!.Authority);
+        Assert.Equal("owner/repo", Assert.Single(result.Releases.Hosts).Reference);
+    }
+
+    [Fact]
+    public void MapAuthored_ReleaseSource_NoKeyNamesAHost_Throws()
+    {
+        var dto = MinimalAuthoredDto();
+        dto.Releases = new ReleasesInfoDto
+        {
+            Since = JsonSerializer.SerializeToElement("1.2"),
+            Hosts = new Dictionary<string, JsonElement>
+            {
                 ["weird"] = JsonSerializer.SerializeToElement(new { nested = true }),
             },
         };
 
-        Assert.Throws<FormatException>(() => DtoMapper.MapAuthored(dto, "source"));
+        Assert.ThrowsAny<ArgumentException>(() => DtoMapper.MapAuthored(dto, "source"));
     }
 
     [Theory]

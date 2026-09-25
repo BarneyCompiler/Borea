@@ -10,7 +10,7 @@ namespace Borea.App.ViewModels;
 
 /// <summary>
 /// The GitHub account in Settings and the sign-in modal with the device code.
-/// The listing page signs out only a session that it started itself.
+/// The steward role is checked after every sign-in, and the listing page signs out only a session that it started itself.
 /// </summary>
 public partial class MainViewModel
 {
@@ -21,6 +21,7 @@ public partial class MainViewModel
     private string? _gitHubVerificationUri;
     private bool _gitHubSignInForListing;
     private bool _isGitHubSessionFromListing;
+    private Task? _stewardRoleCheck;
 
     /// <summary>False hides the GitHub account, because this build has no GitHub App to sign in with.</summary>
     public bool IsGitHubAccountAvailable => _services?.GitHub.IsAvailable == true;
@@ -32,6 +33,9 @@ public partial class MainViewModel
     public string? GitHubSignedInText => GitHubLogin is { } login ? Localization.FormatSettingsGitHubSignedInAs(login) : null;
 
     public string? GitHubManageAccessUrl => _services?.GitHub.ManageAccessUrl;
+
+    /// <summary>GitHub lets the signed-in account bypass the ruleset of main in content-index or content-index-releases.</summary>
+    public bool IsGitHubSteward => IsGitHubSignedIn && _services?.StewardRole.Current?.IsSteward == true;
 
     [ObservableProperty]
     private bool _isGitHubSignInOpen;
@@ -61,26 +65,38 @@ public partial class MainViewModel
 
     internal Task WhenGitHubSignInDoneAsync() => _gitHubSignInRun ?? Task.CompletedTask;
 
+    internal Task WhenStewardRoleCheckedAsync() => _stewardRoleCheck ?? Task.CompletedTask;
+
     /// <summary>Follows the session of <paramref name="services"/> instead of the one of <paramref name="previous"/>.</summary>
     private void AttachGitHubSession(BoreaServices? previous, BoreaServices? services)
     {
         _gitHubContext ??= SynchronizationContext.Current;
         if (previous is not null)
+        {
             previous.GitHub.StateChanged -= OnGitHubStateChanged;
+            previous.StewardRole.Changed -= OnStewardRoleChanged;
+        }
 
         if (services is not null)
+        {
             services.GitHub.StateChanged += OnGitHubStateChanged;
+            services.StewardRole.Changed += OnStewardRoleChanged;
+        }
 
         RefreshGitHubAccount();
     }
 
     // a request of another page can sign the session out on any thread
-    private void OnGitHubStateChanged(object? sender, EventArgs e)
+    private void OnGitHubStateChanged(object? sender, EventArgs e) => OnGitHubContext(RefreshGitHubAccount);
+
+    private void OnStewardRoleChanged(object? sender, EventArgs e) => OnGitHubContext(RefreshStewardRole);
+
+    private void OnGitHubContext(Action refresh)
     {
         if (_gitHubContext is { } context)
-            context.Post(_ => RefreshGitHubAccount(), null);
+            context.Post(_ => refresh(), null);
         else
-            RefreshGitHubAccount();
+            refresh();
     }
 
     private void RefreshGitHubAccount()
@@ -90,6 +106,18 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(GitHubLogin));
         OnPropertyChanged(nameof(GitHubSignedInText));
         OnPropertyChanged(nameof(GitHubManageAccessUrl));
+        RefreshStewardRole();
+    }
+
+    /// <summary>
+    /// Checks a new sign-in, because the role drops its result on every change of the session and a rebuilt graph starts without one.
+    /// The role lets a call during a check share it.
+    /// </summary>
+    private void RefreshStewardRole()
+    {
+        OnPropertyChanged(nameof(IsGitHubSteward));
+        if (_services is { } services && IsGitHubSignedIn && services.StewardRole.Current is null)
+            _stewardRoleCheck = services.StewardRole.CheckAsync();
     }
 
     [RelayCommand]

@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Net;
+using System.Text;
 using Borea.App.ViewModels;
 using Borea.Core.GitHub;
 using Borea.Network.GitHub;
@@ -224,6 +226,104 @@ public sealed class GitHubAccountViewModelTests
             Assert.Single(changes, name => name == nameof(MainViewModel.IsGitHubSignedIn));
     }
 
+    [Theory]
+    [InlineData("always", "always", true)]
+    [InlineData("never", "pull_requests_only", true)]
+    [InlineData("never", "never", false)]
+    [InlineData(null, null, false)]
+    public async Task SignedIn_ShowsTheStewardRoleOfEitherIndexRepository(string? index, string? releases, bool steward)
+    {
+        _session.Bypass["KSAModding/content-index"] = index;
+        _session.Bypass["KSAModding/content-index-releases"] = releases;
+        _session.SignInDirectly();
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+
+        await viewModel.WhenStewardRoleCheckedAsync();
+
+        Assert.Equal(steward, viewModel.IsGitHubSteward);
+        Assert.Equal("Steward of the content index", harness.Localization.SettingsGitHubSteward);
+        Assert.Contains("https://api.github.com/repos/KSAModding/content-index/rulesets/1", _session.Sent);
+        Assert.Contains("https://api.github.com/repos/KSAModding/content-index-releases/rulesets/1", _session.Sent);
+    }
+
+    [Fact]
+    public async Task SignIn_ShowsTheStewardRoleWhenItsCheckEnds()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+        var shown = new List<bool>();
+        ((INotifyPropertyChanged)viewModel).PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.IsGitHubSteward))
+            {
+                lock (shown)
+                    shown.Add(viewModel.IsGitHubSteward);
+            }
+        };
+        var hold = _session.Hold = new TaskCompletionSource();
+
+        viewModel.SignInToGitHubCommand.Execute(null);
+        _session.Finish(GitHubSignInOutcome.SignedIn);
+        await viewModel.WhenGitHubSignInDoneAsync();
+        Assert.False(viewModel.IsGitHubSteward);
+        hold.SetResult();
+        await viewModel.WhenStewardRoleCheckedAsync();
+
+        Assert.True(viewModel.IsGitHubSteward);
+        await WaitUntilAsync(() =>
+        {
+            lock (shown)
+                return shown[^1];
+        });
+    }
+
+    [Fact]
+    public async Task SignOut_HidesTheStewardRoleAndTheNextSignInChecksAgain()
+    {
+        _session.SignInDirectly();
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+        await viewModel.WhenStewardRoleCheckedAsync();
+        Assert.True(viewModel.IsGitHubSteward);
+
+        viewModel.SignOutOfGitHubCommand.Execute(null);
+
+        Assert.False(viewModel.IsGitHubSteward);
+        Assert.Null(harness.Services.StewardRole.Current);
+
+        _session.Bypass["KSAModding/content-index"] = "never";
+        _session.Bypass["KSAModding/content-index-releases"] = "never";
+        _session.Login = "alice";
+        viewModel.SignInToGitHubCommand.Execute(null);
+        _session.Finish(GitHubSignInOutcome.SignedIn);
+        await viewModel.WhenGitHubSignInDoneAsync();
+        await viewModel.WhenStewardRoleCheckedAsync();
+
+        Assert.Equal("alice", viewModel.GitHubLogin);
+        Assert.Equal("alice", harness.Services.StewardRole.Current?.Login);
+        Assert.False(viewModel.IsGitHubSteward);
+    }
+
+    [Fact]
+    public async Task Rebuild_ChecksTheStewardRoleAgain()
+    {
+        _session.SignInDirectly();
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+        await viewModel.WhenStewardRoleCheckedAsync();
+        var before = harness.Services;
+
+        await viewModel.ShowGameSettingsCommand.ExecuteAsync(null);
+        viewModel.GameDirectoryInput = Directory.CreateDirectory(Path.Combine(harness.Root, "game")).FullName;
+        await viewModel.SaveGameDirectoryCommand.ExecuteAsync(null);
+        await viewModel.WhenStewardRoleCheckedAsync();
+
+        Assert.NotSame(before, harness.Services);
+        Assert.True(viewModel.IsGitHubSteward);
+        Assert.Null(before.StewardRole.Current);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var timeout = new CancellationTokenSource(Timeout);
@@ -248,7 +348,7 @@ public sealed class GitHubAccountViewModelTests
         }
     }
 
-    /// <summary>A session whose sign-in waits until the test reports the code and finishes it.</summary>
+    /// <summary>A session whose sign-in waits until the test reports the code and finishes it. It answers the rulesets of the index repositories.</summary>
     private sealed class FakeGitHubSession : IGitHubSession
     {
         public const string AccessUrl = "https://github.com/settings/apps/authorizations";
@@ -274,6 +374,20 @@ public sealed class GitHubAccountViewModelTests
 
         /// <summary>True keeps a cancelled sign-in running until <see cref="EndCancel"/>.</summary>
         public bool HoldCancel { get; set; }
+
+        public string Login { get; set; } = "octocat";
+
+        /// <summary>current_user_can_bypass of the main ruleset per repository, which the ruleset leaves out for null.</summary>
+        public Dictionary<string, string?> Bypass { get; } = new()
+        {
+            ["KSAModding/content-index"] = "always",
+            ["KSAModding/content-index-releases"] = "always",
+        };
+
+        public System.Collections.Concurrent.ConcurrentQueue<string> Sent { get; } = new();
+
+        /// <summary>Holds every answer until it is set.</summary>
+        public TaskCompletionSource? Hold { get; set; }
 
         public event EventHandler? StateChanged;
 
@@ -307,11 +421,11 @@ public sealed class GitHubAccountViewModelTests
         public void EndCancel() => _heldCancel?.TrySetCanceled();
 
         public void Finish(GitHubSignInOutcome outcome) =>
-            _signIn!.SetResult(new GitHubSignInResult(outcome, outcome == GitHubSignInOutcome.SignedIn ? "octocat" : null));
+            _signIn!.SetResult(new GitHubSignInResult(outcome, outcome == GitHubSignInOutcome.SignedIn ? Login : null));
 
         public void SignInDirectly()
         {
-            State = GitHubSessionState.SignedInAs("octocat");
+            State = GitHubSessionState.SignedInAs(Login);
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -321,7 +435,23 @@ public sealed class GitHubAccountViewModelTests
             StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        public Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+        public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
+        {
+            if (Hold is { } hold)
+                await hold.Task.WaitAsync(cancellationToken);
+
+            var url = request.RequestUri!.AbsoluteUri;
+            Sent.Enqueue(url);
+            var repository = Bypass.Keys.FirstOrDefault(name => url.StartsWith($"https://api.github.com/repos/{name}/rulesets", StringComparison.Ordinal));
+            var body = repository is null ? null
+                : url.EndsWith("/rulesets?per_page=100&page=1", StringComparison.Ordinal) ? """[{"id":1,"target":"branch","enforcement":"active"}]"""
+                : url.EndsWith("/rulesets/1", StringComparison.Ordinal) ? """{"id":1,"target":"branch","enforcement":"active","conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}}"""
+                    + (Bypass[repository] is { } bypass ? $$""","current_user_can_bypass":"{{bypass}}"}""" : "}")
+                : null;
+            return new HttpResponseMessage(body is null ? HttpStatusCode.NotFound : HttpStatusCode.OK)
+            {
+                Content = new StringContent(body ?? """{"message":"Not Found"}""", Encoding.UTF8, "application/json"),
+            };
+        }
     }
 }

@@ -1,3 +1,4 @@
+using System.Net;
 using Borea.App.ViewModels;
 using Borea.Core.GitHub;
 using Borea.Core.Index;
@@ -894,7 +895,7 @@ public sealed class ListingPullRequestViewModelTests
         }
 
         public Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent("""{"message":"Not Found"}""") });
     }
 
     internal sealed class FakePublisher : IListingPublisher

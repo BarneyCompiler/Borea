@@ -433,7 +433,7 @@ public partial class MainViewModel
         => url is null ? Task.CompletedTask : CopyTextAsync(() => Task.FromResult(url), () => url, () => Localization.ContentLinkCopied);
 
     /// <param name="name">What the failure toast says could not be copied.</param>
-    private async Task CopyTextAsync(Func<Task<string>> text, Func<string> name, Func<string> copied)
+    internal async Task CopyTextAsync(Func<Task<string>> text, Func<string> name, Func<string> copied)
     {
         if (WindowServices is not { } window)
             return;

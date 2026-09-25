@@ -1486,10 +1486,10 @@
     <value>Modpack beginnen</value>
   </data>
   <data name="ListingChangeTitle" xml:space="preserve">
-    <value>Eingetragene Mod ändern</value>
+    <value>Eingetragene Mod oder Pack ändern</value>
   </data>
   <data name="ListingChangeHint" xml:space="preserve">
-    <value>Lade einen Eintrag des Inhaltsindex, zum Beispiel um ein Icon hinzuzufügen.</value>
+    <value>Lade einen Eintrag des Inhaltsindex, zum Beispiel um ein Icon hinzuzufügen, oder ein Pack, um seine nächste Version zu erstellen.</value>
   </data>
   <data name="ListingSearchListed" xml:space="preserve">
     <value>Nach Name, ID oder Autor suchen</value>
@@ -1499,6 +1499,9 @@
   </data>
   <data name="ListingNoListedMatch" xml:space="preserve">
     <value>Keine eingetragene Mod passt.</value>
+  </data>
+  <data name="ListingNoListedOrPackMatch" xml:space="preserve">
+    <value>Keine eingetragene Mod und kein Pack passt.</value>
   </data>
   <data name="ListingLoad" xml:space="preserve">
     <value>Laden</value>
@@ -1694,6 +1697,42 @@
   </data>
   <data name="ListingMemberGoneFormat" xml:space="preserve">
     <value>{0} {1} ist seit {2} nicht mehr herunterladbar, deshalb installiert ein Client diese Festlegung nur von einem Spiegel oder aus einer Kopie, die er schon hat.</value>
+  </data>
+  <data name="ListingMemberNamedInRetractionFormat" xml:space="preserve">
+    <value>Der Grund für das Zurückziehen von Version {0} nennt {1}: {2}</value>
+  </data>
+  <data name="ListingMemberUseNewerFormat" xml:space="preserve">
+    <value>{0} verwenden</value>
+  </data>
+  <data name="ListingCopyForumList" xml:space="preserve">
+    <value>Mitgliederliste für deinen Forenthread kopieren</value>
+  </data>
+  <data name="ListingNextVersionFormat" xml:space="preserve">
+    <value>Die nächste Version des Packs {0} nach Version {1}. Sie ist eine neue Datei, und die ID kann sich nicht ändern.</value>
+  </data>
+  <data name="ListingPackNotListedFormat" xml:space="preserve">
+    <value>Der Inhaltsindex hat keine Version des Packs {0}.</value>
+  </data>
+  <data name="ListingPackVersionTakenFormat" xml:space="preserve">
+    <value>content-index hat schon Version {0} dieses Packs, deshalb ist diese Version jetzt {1}.</value>
+  </data>
+  <data name="ListingPackNoFreeVersionFormat" xml:space="preserve">
+    <value>content-index hat schon Version {0} und jede Version danach, die Borea geprüft hat. Gib eine höhere Version ein.</value>
+  </data>
+  <data name="ListingPackCheckFailedFormat" xml:space="preserve">
+    <value>Borea konnte nicht prüfen, ob content-index schon Version {0} hat: {1}</value>
+  </data>
+  <data name="ListingPackVersionNotHigherFormat" xml:space="preserve">
+    <value>{0} ist nicht höher als {1}, die höchste Version dieses Packs, zurückgezogene Versionen eingeschlossen.</value>
+  </data>
+  <data name="ListingPackReleasedAtNotLaterFormat" xml:space="preserve">
+    <value>{0} ist nicht später als {1}, der Veröffentlichungszeitpunkt von Version {2}.</value>
+  </data>
+  <data name="ListingPackRetractedFormat" xml:space="preserve">
+    <value>Version {0} dieses Packs ist zurückgezogen: {1}</value>
+  </data>
+  <data name="ListingPackRetractedNoReasonFormat" xml:space="preserve">
+    <value>Version {0} dieses Packs ist zurückgezogen.</value>
   </data>
   <data name="ListingDependenciesHint" xml:space="preserve">
     <value>Nur, was die mod.toml deines Archivs nicht sagen kann, zum Beispiel Versionsgrenzen oder einen Konflikt.</value>
@@ -2546,6 +2585,9 @@
   </data>
   <data name="PackCopyForumList" xml:space="preserve">
     <value>Forenliste kopieren</value>
+  </data>
+  <data name="PackMakeNextVersion" xml:space="preserve">
+    <value>Nächste Version erstellen</value>
   </data>
   <data name="PackForumListCopied" xml:space="preserve">
     <value>Die Forenliste wurde in die Zwischenablage kopiert.</value>

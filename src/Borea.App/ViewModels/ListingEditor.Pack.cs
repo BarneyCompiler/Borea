@@ -2,10 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using Borea.Composition;
 using Borea.Core.Game;
 using Borea.Core.Index;
 using Borea.Core.Listings;
+using Borea.Core.ModPacks;
 using Borea.Core.Mods;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -60,8 +66,15 @@ public sealed partial class ListingEditor
         {
             Type = ListingDraft.ModPackType,
             Version = "1.0.0",
-            ReleasedAt = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            ReleasedAt = Timestamp(DateTimeOffset.UtcNow),
         });
+    }
+
+    /// <summary>Opens the next version of a listed pack, as the pack page asks for it.</summary>
+    internal Task MakeNextVersionAsync(string packId)
+    {
+        StartOver();
+        return LoadListedCoreAsync(packId, isPack: true);
     }
 
     /// <summary>Pins the chosen mod at its newest stable release, or at its newest release when none is stable.</summary>
@@ -89,6 +102,23 @@ public sealed partial class ListingEditor
             GameMin = gameMin;
     }
 
+    /// <summary>Copies the lines that forum rule 4.3 asks a pack thread for, for the members of the draft.</summary>
+    [RelayCommand]
+    private Task CopyForumListAsync()
+    {
+        if (_owner.Services is not { } services)
+            return Task.CompletedTask;
+
+        var pins = Members.Select(row => row.ToMember())
+            .Where(member => ModIds.IsValid(member.Id) && ModVersion.TryParse(member.Version, out _))
+            .Select(member => new ModPackEntry(member.Id, ModVersion.Parse(member.Version)))
+            .ToList();
+        return _owner.CopyTextAsync(
+            async () => string.Join(Environment.NewLine, await ModPackForumList.WriteAsync(pins, services.ContentIndex)),
+            () => Localization.PackForumListName,
+            () => Localization.PackForumListCopied);
+    }
+
     internal void Remove(ListingPackMemberRow row)
     {
         if (!Members.Remove(row))
@@ -114,7 +144,40 @@ public sealed partial class ListingEditor
             : Localization.FormatListingMemberNotOffered(member.Id, member.Version);
     }
 
-    /// <summary>A note for each pin no client can install, and the game_min the pins need when the form has a lower one.</summary>
+    /// <summary>The newer release in the list of a row, by the "Newer releases" rule of RFC 0080, or null.</summary>
+    internal ListingReleaseChoice? NewerChoice(string id, string pinned, IReadOnlyList<ListingReleaseChoice> releases)
+    {
+        if (_snapshot is not { } snapshot || !ModVersion.TryParse(pinned, out var version)
+            || ModPackMemberReleases.NewerRelease(snapshot, id, version) is not { } newer)
+            return null;
+
+        var text = newer.Version.ToString();
+        return releases.FirstOrDefault(release => release.Version == text);
+    }
+
+    internal string NewerText(string version) => Localization.FormatPackMemberNewer(version);
+
+    internal string UseNewerText(string version) => Localization.FormatListingMemberUseNewer(version);
+
+    /// <summary>What the retractions of the listed pack say about a mod whose id their reasons name.</summary>
+    internal IReadOnlyList<string> RetractionNotes(string id) => Retracted()
+        .Where(version => ListingPackVersions.Names(version.IndexStatus!.Reason, id))
+        .Select(version => Localization.FormatListingMemberNamedInRetraction(version.Metadata.Version.ToString(), id, version.IndexStatus!.Reason!))
+        .ToList();
+
+    /// <summary>The pack whose next version the draft is, as the snapshot lists it.</summary>
+    private ContentIndexPack? ListedPack() => IsNextVersion && _snapshot is { } snapshot ? ListingPackVersions.Pack(snapshot, _base.Id) : null;
+
+    /// <summary>The retracted versions of the listed pack, newest first.</summary>
+    private IEnumerable<ContentIndexPackVersion> Retracted() => (ListedPack()?.Versions ?? [])
+        .Where(version => version.IndexStatus?.State == IndexStatusState.Retracted)
+        .OrderByDescending(version => version.Metadata.Version);
+
+    /// <summary>
+    /// A note for each pin no client can install, and the game_min the pins need when the form has a lower one.
+    /// For the next version of a listed pack also each retracted version with its reason, each pin that a reason names,
+    /// and an error for a version or a release time that does not come after the listed versions.
+    /// </summary>
     private List<ListingIssue> PackIssues(IReadOnlyList<ListingPackMember> mods)
     {
         var issues = new List<ListingIssue>();
@@ -122,7 +185,14 @@ public sealed partial class ListingEditor
         {
             if (MemberNote(mods[index]) is { } note)
                 issues.Add(new ListingIssue(ListingIssueSeverity.Note, $"mods[{index}]", note));
+            foreach (var retraction in RetractionNotes(mods[index].Id))
+                issues.Add(new ListingIssue(ListingIssueSeverity.Note, $"mods[{index}]", retraction));
         }
+
+        foreach (var version in Retracted())
+            issues.Add(new ListingIssue(ListingIssueSeverity.Note, "version", Localization.FormatListingPackRetracted(version.Metadata.Version.ToString(), version.IndexStatus!.Reason)));
+        if (ListedPack() is { } pack)
+            issues.AddRange(OrderIssues(pack));
 
         var needed = _snapshot is { } snapshot ? ListingPackMembers.HighestGameMin(snapshot, mods) : null;
         GameMinProposal = needed is not null && !(GameVersion.TryParse(GameMin.Trim(), out var gameMin) && gameMin.Revision >= needed.GameMinRevision)
@@ -132,6 +202,98 @@ public sealed partial class ListingEditor
             issues.Add(new ListingIssue(ListingIssueSeverity.Note, "compatibility", proposal));
         return issues;
     }
+
+    /// <summary>A version that is not above every listed version, and a release time that is not after the newest listed one.</summary>
+    private IEnumerable<ListingIssue> OrderIssues(ContentIndexPack pack)
+    {
+        if (ModVersion.TryParse(PackVersion.Trim(), out var version) && ListingPackVersions.Highest(pack) is { } highest && version <= highest.Metadata.Version)
+            yield return new ListingIssue(ListingIssueSeverity.Error, "version", Localization.FormatListingPackVersionNotHigher(PackVersion.Trim(), highest.Metadata.Version.ToString()));
+
+        if (DateTimeOffset.TryParse(ReleasedAt.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var releasedAt)
+            && pack.Versions.OrderByDescending(listed => listed.Metadata.ReleasedAt).ThenByDescending(listed => listed.Metadata.Version).FirstOrDefault() is { } newest
+            && releasedAt <= newest.Metadata.ReleasedAt)
+        {
+            yield return new ListingIssue(ListingIssueSeverity.Error, "released_at", Localization.FormatListingPackReleasedAtNotLater(
+                ReleasedAt.Trim(), Timestamp(newest.Metadata.ReleasedAt), newest.Metadata.Version.ToString()));
+        }
+    }
+
+    /// <summary>
+    /// The newest version file of a listed pack as its next version: the version raised above every listed version and every
+    /// file that main already has, released now, and without the changelog of the version before. When main has a newer file
+    /// than the snapshot knows, that file is the newest version, so the draft starts from it.
+    /// </summary>
+    private async Task<(ListingDraft Draft, string Text, string? Message)> ReadNextVersionAsync(BoreaServices services, ContentIndexPack pack, CancellationToken cancellationToken)
+    {
+        var highest = ListingPackVersions.Highest(pack)!;
+        var loaded = ListingPackVersions.FileVersion(highest);
+        var proposed = ListingPackVersions.Raise(highest.Metadata.Version);
+        string? message = null;
+        string? taken = null;
+        try
+        {
+            if (proposed is { } first
+                && await ListingPackVersions.FreeAsync(first, (version, token) => ExistsAsync(version.ToString(), token), cancellationToken) is { } free
+                && free != first)
+            {
+                message = Localization.FormatListingPackVersionTaken(first.ToString(), free.ToString());
+                proposed = free;
+                loaded = taken!;
+            }
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException || (exception is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            // Opening the pull request reads main again.
+        }
+
+        var text = await services.ListedDocuments.GetPackVersionAsync(pack.Id, loaded, cancellationToken);
+        var draft = ListingDraft.FromDocument(services.ListingFormat.Read(text)) with
+        {
+            Type = ListingDraft.ModPackType,
+            ReleasedAt = Timestamp(DateTimeOffset.UtcNow),
+            Changelog = null,
+        };
+        return (proposed is { } next ? draft with { Version = next.ToString() } : draft, text, message);
+
+        async Task<bool> ExistsAsync(string version, CancellationToken token)
+        {
+            var exists = await services.ListedDocuments.HasPackVersionAsync(pack.Id, version, token);
+            if (exists)
+                taken = version;
+            return exists;
+        }
+    }
+
+    /// <summary>
+    /// Raises the version while main already has a file of it, because the snapshot follows main with a delay.
+    /// Returns whether the pull request can open, and what the author reads: the raised version, or why it cannot open.
+    /// </summary>
+    private async Task<(bool Free, string? Message)> FreeVersionAsync()
+    {
+        var typed = PackVersion.Trim();
+        if (_owner.Services is not { } services || !ModVersion.TryParse(typed, out var proposed))
+            return (true, null);
+
+        // The file name keeps build metadata, so the typed version is the first path to read, and the raised ones follow.
+        var id = Draft.Id;
+        try
+        {
+            if (!await services.ListedDocuments.HasPackVersionAsync(id, typed))
+                return (true, null);
+            if (ListingPackVersions.Raise(proposed) is not { } next
+                || await ListingPackVersions.FreeAsync(next, (version, token) => services.ListedDocuments.HasPackVersionAsync(id, version.ToString(), token)) is not { } free)
+                return (false, Localization.FormatListingPackNoFreeVersion(typed));
+
+            PackVersion = free.ToString();
+            return (true, Localization.FormatListingPackVersionTaken(typed, free.ToString()));
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or TaskCanceledException)
+        {
+            return (false, Localization.FormatListingPackCheckFailed(typed, exception.Message));
+        }
+    }
+
+    private static string Timestamp(DateTimeOffset time) => time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
     /// <summary>Builds the member rows again, for a new draft, a new snapshot or a new display language.</summary>
     private void FillMembers(IReadOnlyList<ListingPackMember> members)
@@ -162,7 +324,7 @@ public sealed partial class ListingEditor
         var query = MemberQuery.Trim();
         var matches = _memberCandidates
             .Where(listing => !Members.Any(row => ModIds.Equals(row.Id, listing.Id)) && Matches(listing, query))
-            .Select(listing => new ListedListing(listing.Id, listing.Authored!.Name, AuthorsText(listing.Authored), IsOwn: false))
+            .Select(listing => new ListedListing(listing.Id, listing.Authored!.Name, AuthorsText(listing.Authored.Authors), IsOwn: false))
             .OrderBy(listing => listing.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 

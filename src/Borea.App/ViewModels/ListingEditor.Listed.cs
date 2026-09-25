@@ -4,20 +4,24 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Borea.Core.Index;
 using Borea.Core.Listings;
+using Borea.Core.ModPacks;
 using Borea.Core.Mods;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Borea.App.ViewModels;
 
-/// <summary>A listed mod that the start step can load to change it, or that a pack can pin.</summary>
-public sealed record ListedListing(string Id, string Name, string AuthorsText, bool IsOwn);
+/// <summary>A listed mod that the start step can load to change it or that a pack can pin, or a listed pack to make its next version.</summary>
+public sealed record ListedListing(string Id, string Name, string AuthorsText, bool IsOwn, bool IsPack = false);
 
 /// <summary>
-/// The search for a listed mod on the start step. The listings of the signed-in GitHub account come first.
+/// The search for a listed mod or pack on the start step. The listings of the signed-in GitHub account come first.
 /// </summary>
 public sealed partial class ListingEditor
 {
     private IReadOnlyList<ContentIndexListing> _listedMods = [];
+
+    /// <summary>The newest version of each listed pack, which names the pack in the search.</summary>
+    private IReadOnlyList<ModPackMetadata> _listedPacks = [];
 
     [ObservableProperty]
     private string _listedQuery = string.Empty;
@@ -29,7 +33,7 @@ public sealed partial class ListingEditor
     [NotifyCanExecuteChangedFor(nameof(LoadListedCommand))]
     private ListedListing? _selectedListed;
 
-    public bool HasNoListedMatch => ListedMatches.Count == 0 && _listedMods.Count > 0;
+    public bool HasNoListedMatch => ListedMatches.Count == 0 && (_listedMods.Count > 0 || _listedPacks.Count > 0);
 
     /// <summary>Moves the selection through the matches, as the arrow keys in the search field do.</summary>
     internal void MoveListedSelection(int step)
@@ -46,6 +50,10 @@ public sealed partial class ListingEditor
         _listedMods = snapshot?.Listings
             .Where(listing => listing.Authored?.Type is ContentType.Mod or ContentType.ModLoader)
             .ToList() ?? [];
+        _listedPacks = snapshot?.Packs
+            .Select(pack => ListingPackVersions.Highest(pack)?.Metadata)
+            .OfType<ModPackMetadata>()
+            .ToList() ?? [];
         FindListed();
     }
 
@@ -53,26 +61,33 @@ public sealed partial class ListingEditor
     {
         var login = IsSignedIn ? _owner.GitHubLogin : null;
         var query = ListedQuery.Trim();
+        var packs = _listedPacks
+            .Where(pack => Matches(pack.ModPackId, pack.Name, pack.Authors, query))
+            .Select(pack => new ListedListing(pack.ModPackId, pack.Name, AuthorsText(pack.Authors), IsOwn: false, IsPack: true));
         var matches = _listedMods
             .Where(listing => Matches(listing, query))
-            .Select(listing => new ListedListing(listing.Id, listing.Authored!.Name, AuthorsText(listing.Authored), login is not null && IsOwnedBy(listing.Authored, login)))
+            .Select(listing => new ListedListing(listing.Id, listing.Authored!.Name, AuthorsText(listing.Authored.Authors), login is not null && IsOwnedBy(listing.Authored, login)))
+            .Concat(packs)
             .OrderByDescending(listing => listing.IsOwn)
             .ThenBy(listing => listing.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         MainViewModel.Arrange(ListedMatches, matches);
-        SelectedListed = matches.FirstOrDefault(listing => listing.Id == SelectedListed?.Id) ?? (query.Length > 0 ? matches.FirstOrDefault() : null);
+        SelectedListed = matches.FirstOrDefault(listing => listing.Id == SelectedListed?.Id && listing.IsPack == SelectedListed.IsPack)
+            ?? (query.Length > 0 ? matches.FirstOrDefault() : null);
         OnPropertyChanged(nameof(HasNoListedMatch));
     }
 
     /// <summary>Whether the id, the name or an author contains the query, in any letter case.</summary>
-    private static bool Matches(ContentIndexListing listing, string query) =>
-        listing.Id.Contains(query, StringComparison.OrdinalIgnoreCase)
-        || listing.Authored!.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-        || listing.Authored.Authors.Any(author => author.Contains(query, StringComparison.OrdinalIgnoreCase));
+    private static bool Matches(ContentIndexListing listing, string query) => Matches(listing.Id, listing.Authored!.Name, listing.Authored.Authors, query);
 
-    private string AuthorsText(ModMetadata listing) =>
-        listing.Authors.Count == 0 ? string.Empty : _owner.Localization.FormatContentByAuthor(string.Join(", ", listing.Authors));
+    private static bool Matches(string id, string name, IReadOnlyList<string> authors, string query) =>
+        id.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || name.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || authors.Any(author => author.Contains(query, StringComparison.OrdinalIgnoreCase));
+
+    private string AuthorsText(IReadOnlyList<string> authors) =>
+        authors.Count == 0 ? string.Empty : _owner.Localization.FormatContentByAuthor(string.Join(", ", authors));
 
     /// <summary>
     /// A listing is your own when the owner of a GitHub repository in its [releases] is the signed-in login.

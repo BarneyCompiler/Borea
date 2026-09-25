@@ -261,6 +261,17 @@ public partial class MainViewModel
             () => Localization.PackForumListCopied);
     }
 
+    /// <summary>Opens the listing page with the next version of the open pack, for its author.</summary>
+    [RelayCommand]
+    private async Task MakeNextPackVersionAsync()
+    {
+        if (SelectedPack is not { } pack)
+            return;
+
+        await OpenListingAsync();
+        await ListingEditor.MakeNextVersionAsync(pack.PackId);
+    }
+
     [RelayCommand]
     private void OpenPackLink(ContentLink link)
     {

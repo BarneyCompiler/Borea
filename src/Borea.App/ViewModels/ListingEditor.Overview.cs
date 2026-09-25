@@ -145,7 +145,7 @@ public sealed partial class ListingEditor
 
         steps.Add(Step("tags", Localization.ListingTags, PreviewTags.Count > 0));
         steps.Add(Step("images", Localization.ListingImages, Icon is not null || DescriptionImages.Count > 0));
-        if (IsEdit)
+        if (HasFixedId)
             steps.Add(Step("status", Localization.ListingStatus, IsDeprecated));
         MainViewModel.Arrange(Steps, steps);
 

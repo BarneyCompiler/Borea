@@ -1554,6 +1554,9 @@
   <data name="PackCopyForumList" xml:space="preserve">
     <value>Copy the tavern list</value>
   </data>
+  <data name="PackMakeNextVersion" xml:space="preserve">
+    <value>Chart the next voyage</value>
+  </data>
   <data name="PackForumListCopied" xml:space="preserve">
     <value>The tavern list be stowed in yer clipboard.</value>
   </data>

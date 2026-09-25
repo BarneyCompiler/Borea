@@ -7,6 +7,8 @@ using System.Text;
 using System.Text.Json.Nodes;
 using Borea.App.ViewModels;
 using Borea.Core.Listings;
+using Borea.Core.ModPacks;
+using Borea.Core.Mods;
 
 namespace Borea.App.Tests.ViewModels;
 
@@ -856,6 +858,354 @@ public sealed class ListingEditorTests
                 listing["releases"]![0]!["yanked"] = true;
         }
 
+        return root.ToJsonString();
+    }
+
+    [Fact]
+    public async Task LoadListedPack_ThePackOfContentIndex117_ProposesTheNextVersionWithThePinsOfTheNewestOne()
+    {
+        var main = new Dictionary<string, string> { [$"{Pack117Id}/1.0.1.toml"] = Pack117 };
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(Pack117Entry()));
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+        editor.ListedQuery = "flight planning";
+
+        Assert.Equal(new ListedListing(Pack117Id, "Flight Planning Essentials", harness.Localization.FormatContentByAuthor("Maxi"), IsOwn: false, IsPack: true), editor.SelectedListed);
+        await editor.LoadListedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.IsNextVersion);
+        Assert.False(editor.IsEdit);
+        Assert.True(editor.HasFixedId);
+        Assert.Equal("1.0.2", editor.PackVersion);
+        Assert.Equal($"packs/{Pack117Id}/1.0.2.toml", editor.Draft.Path);
+        Assert.Equal([("DeltaVMap", "1.2.6"), ("AdvancedFlightComputer", "0.8.0"), ("Compendium", "0.9.13")], editor.Draft.Mods.Select(pin => (pin.Id, pin.Version)));
+        Assert.NotEqual("2026-09-23T20:00:00Z", editor.ReleasedAt);
+        Assert.True(DateTimeOffset.Parse(editor.ReleasedAt, System.Globalization.CultureInfo.InvariantCulture) >= before);
+        Assert.Contains("[images.icon]\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.Contains("repository = \"https://github.com/renancamm/ksa-beiks-flight-planning-essentials-pack/\"\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.Equal(harness.Localization.FormatListingNextVersion(Pack117Id, "1.0.1"), editor.NextVersionText);
+        Assert.Null(editor.OutputMessage);
+    }
+
+    [Fact]
+    public async Task LoadListedPack_OwnId_GivesNoIdError()
+    {
+        var main = new Dictionary<string, string> { [$"{Pack117Id}/1.0.1.toml"] = Pack117 };
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(Pack117Entry()));
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+
+        await editor.MakeNextVersionAsync(Pack117Id);
+
+        Assert.True(editor.IsNextVersion);
+        Assert.DoesNotContain(editor.Errors, issue => issue.Location == "id");
+        Assert.DoesNotContain(editor.Notes, issue => issue.Location == "links.forums");
+    }
+
+    [Fact]
+    public async Task LoadListedPack_HighestVersionRetracted_ProposesAVersionAboveItAndShowsTheReason()
+    {
+        const string reason = "Removed at the request of the author of KSArmory.";
+        var pins = new[] { PackViewModelTests.Pin("MeasureTools", "1.1.9"), PackViewModelTests.Pin("KSArmory", "0.8.44") };
+        var main = new Dictionary<string, string> { ["armory-pack/1.0.1.toml"] = PackToml("armory-pack", "1.0.1", ("MeasureTools", "1.1.9"), ("KSArmory", "0.8.44")) };
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(
+            PackViewModelTests.Pack("armory-pack", "Armory Pack", PackViewModelTests.Version("1.0.0", pins), Retracted(PackViewModelTests.Version("1.0.1", pins), reason))));
+        var editor = harness.ViewModel.ListingEditor;
+        var localization = harness.Localization;
+        await harness.ViewModel.OpenListingAsync();
+
+        await editor.MakeNextVersionAsync("armory-pack");
+
+        Assert.Equal("1.0.2", editor.PackVersion);
+        Assert.Null(editor.OutputMessage);
+        Assert.Contains(editor.Notes, issue => issue.Location == "version" && issue.Message == localization.FormatListingPackRetracted("1.0.1", reason));
+        var named = localization.FormatListingMemberNamedInRetraction("1.0.1", "KSArmory", reason);
+        Assert.Contains(editor.Notes, issue => issue.Location == "mods[1]" && issue.Message == named);
+        Assert.Equal([null, named], editor.Members.Select(row => row.RetractionNote));
+        Assert.Contains($"{localization.ListingMembers}: {named}", editor.VisibleNotes);
+    }
+
+    [Fact]
+    public async Task LoadListedPack_ProposedPathThatMainHas_IsRaisedAgainAndStartsFromThatFile()
+    {
+        var newer = Pack117.Replace("version = \"1.0.1\"", "version = \"1.0.2\"", StringComparison.Ordinal).Replace("\"0.9.13\"", "\"0.9.14\"", StringComparison.Ordinal);
+        var main = new Dictionary<string, string> { [$"{Pack117Id}/1.0.1.toml"] = Pack117, [$"{Pack117Id}/1.0.2.toml"] = newer };
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(Pack117Entry()));
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+
+        await editor.MakeNextVersionAsync(Pack117Id);
+
+        Assert.Equal("1.0.3", editor.PackVersion);
+        Assert.Equal(harness.Localization.FormatListingPackVersionTaken("1.0.2", "1.0.3"), editor.OutputMessage);
+        Assert.Equal([("DeltaVMap", "1.2.6"), ("AdvancedFlightComputer", "0.8.0"), ("Compendium", "0.9.14")], editor.Draft.Mods.Select(pin => (pin.Id, pin.Version)));
+        Assert.Equal(harness.Localization.FormatListingNextVersion(Pack117Id, "1.0.2"), editor.NextVersionText);
+        Assert.Contains(harness.Requests, uri => uri.AbsoluteUri == $"{RawPacks}{Pack117Id}/1.0.2.toml");
+        Assert.DoesNotContain(harness.Requests, uri => uri.AbsolutePath.Contains("/contents/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task OpenPullRequest_NextVersionThatMainGainedAfterTheLoad_IsRaisedAgain()
+    {
+        var main = new Dictionary<string, string> { [$"{Pack117Id}/1.0.1.toml"] = Pack117 };
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(Pack117Entry()));
+        var editor = harness.ViewModel.ListingEditor;
+        var opened = new List<string>();
+        harness.ViewModel.OpenWithSystem = opened.Add;
+        harness.ViewModel.WindowServices = new FakeWindowServices();
+        await harness.ViewModel.OpenListingAsync();
+        await editor.MakeNextVersionAsync(Pack117Id);
+        Assert.True(editor.CanOpenPullRequest, string.Join("\n", editor.Errors));
+        main[$"{Pack117Id}/1.0.2.toml"] = Pack117;
+
+        await editor.OpenPullRequestCommand.ExecuteAsync(null);
+
+        Assert.Equal("1.0.3", editor.PackVersion);
+        Assert.StartsWith($"https://github.com/KSAModding/content-index/new/main?filename=packs/{Pack117Id}/1.0.3.toml", Assert.Single(opened), StringComparison.Ordinal);
+        Assert.StartsWith(harness.Localization.FormatListingPackVersionTaken("1.0.2", "1.0.3"), editor.OutputMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NextVersion_VersionWithBuildMetadata_IsReadAndCheckedAtItsExactPath()
+    {
+        var main = new Dictionary<string, string>
+        {
+            ["armory-pack/1.0.1%2Bb.2.toml"] = PackToml("armory-pack", "1.0.1+b.2", ("KSArmory", "0.8.44")),
+            ["armory-pack/1.0.2%2Bb.1.toml"] = PackToml("armory-pack", "1.0.2+b.1", ("KSArmory", "0.8.44")),
+        };
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(
+            PackViewModelTests.Pack("armory-pack", "Armory Pack", PackViewModelTests.Version("1.0.1+b.2", PackViewModelTests.Pin("KSArmory", "0.8.44")))));
+        var editor = harness.ViewModel.ListingEditor;
+        var opened = new List<string>();
+        harness.ViewModel.OpenWithSystem = opened.Add;
+        harness.ViewModel.WindowServices = new FakeWindowServices();
+        await harness.ViewModel.OpenListingAsync();
+
+        await editor.MakeNextVersionAsync("armory-pack");
+
+        Assert.Equal("1.0.2", editor.PackVersion);
+        Assert.Equal(harness.Localization.FormatListingNextVersion("armory-pack", "1.0.1+b.2"), editor.NextVersionText);
+
+        editor.PackVersion = "1.0.2+b.1";
+        editor.Forums = "https://forums.ahwoo.com/threads/armory-pack.42/";
+        Assert.True(editor.CanOpenPullRequest, string.Join("\n", editor.Errors));
+        await editor.OpenPullRequestCommand.ExecuteAsync(null);
+
+        Assert.Equal("1.0.3", editor.PackVersion);
+        Assert.StartsWith("https://github.com/KSAModding/content-index/new/main?filename=packs/armory-pack/1.0.3.toml", Assert.Single(opened), StringComparison.Ordinal);
+        Assert.StartsWith(harness.Localization.FormatListingPackVersionTaken("1.0.2+b.1", "1.0.3"), editor.OutputMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OpenPullRequest_NextVersionThatMainCannotAnswerFor_OpensNothing()
+    {
+        var main = new Dictionary<string, string> { [$"{Pack117Id}/1.0.1.toml"] = Pack117 };
+        var down = false;
+        var serve = MainBranch(main);
+        using var harness = await ViewModelHarness.CreateAsync(
+            respond: request => down && request.RequestUri!.AbsoluteUri.StartsWith(RawPacks, StringComparison.Ordinal) ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) : serve(request),
+            editSnapshot: PackViewModelTests.WithPacks(Pack117Entry()));
+        var editor = harness.ViewModel.ListingEditor;
+        var opened = new List<string>();
+        harness.ViewModel.OpenWithSystem = opened.Add;
+        await harness.ViewModel.OpenListingAsync();
+        await editor.MakeNextVersionAsync(Pack117Id);
+        down = true;
+
+        await editor.OpenPullRequestCommand.ExecuteAsync(null);
+
+        Assert.Empty(opened);
+        Assert.StartsWith(harness.Localization.FormatListingPackCheckFailed("1.0.2", string.Empty), editor.OutputMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NextVersion_VersionOrReleaseTimeNotAfterTheListedOnes_IsAnError()
+    {
+        var main = new Dictionary<string, string> { [$"{Pack117Id}/1.0.1.toml"] = Pack117 };
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(Pack117Entry()));
+        var editor = harness.ViewModel.ListingEditor;
+        var localization = harness.Localization;
+        await harness.ViewModel.OpenListingAsync();
+        await editor.MakeNextVersionAsync(Pack117Id);
+
+        editor.PackVersion = "1.0.1";
+        editor.ReleasedAt = "2026-09-01T12:00:00Z";
+
+        Assert.Contains(editor.Errors, issue => issue.Location == "version" && issue.Message == localization.FormatListingPackVersionNotHigher("1.0.1", "1.0.1"));
+        Assert.Contains(editor.Errors, issue => issue.Location == "released_at" && issue.Message == localization.FormatListingPackReleasedAtNotLater("2026-09-01T12:00:00Z", "2026-09-01T12:00:00Z", "1.0.1"));
+        Assert.False(editor.CanOpenPullRequest);
+    }
+
+    [Theory]
+    [InlineData(ReleaseChannel.Stable)]
+    [InlineData(ReleaseChannel.Testing)]
+    [InlineData(ReleaseChannel.Dev)]
+    public async Task PackMembers_NewerStableReleaseIsMarked_ANewerTestingReleaseIsNot_WhateverTheChannel(ReleaseChannel channel)
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: snapshot => Testing(snapshot, "MeasureTools", "1.1.10"));
+        var editor = harness.ViewModel.ListingEditor;
+        harness.ViewModel.SelectedReleaseChannel = harness.ViewModel.OptionFor(channel);
+        await harness.ViewModel.OpenListingAsync();
+
+        editor.Load(new ListingDraft
+        {
+            Type = ListingDraft.ModPackType,
+            Id = "my-pack",
+            Version = "1.0.0",
+            Mods = [new ListingPackMember("AdvancedFlightComputer", "0.7.4"), new ListingPackMember("MeasureTools", "1.1.9")],
+        });
+        var (flight, measure) = (editor.Members[0], editor.Members[1]);
+
+        Assert.Equal("0.7.5", flight.Newer?.Version);
+        Assert.Equal(harness.Localization.FormatPackMemberNewer("0.7.5"), flight.NewerText);
+        Assert.False(measure.HasNewer);
+
+        flight.UseNewerCommand.Execute(null);
+
+        Assert.Equal("0.7.5", flight.Selected?.Version);
+        Assert.False(flight.HasNewer);
+        Assert.Equal("0.7.5", editor.Draft.Mods[0].Version);
+    }
+
+    [Fact]
+    public async Task CopyForumList_CopiesTheLinesOfTheMembersOfTheDraft()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        var window = new FakeWindowServices();
+        harness.ViewModel.WindowServices = window;
+        await harness.ViewModel.OpenListingAsync();
+        FillPack(editor);
+
+        await editor.CopyForumListCommand.ExecuteAsync(null);
+
+        var lines = await ModPackForumList.WriteAsync([new ModPackEntry("AdvancedFlightComputer", ModVersion.Parse("0.7.5"))], harness.ViewModel.Services!.ContentIndex);
+        Assert.Equal(Assert.Single(lines), window.CopiedText);
+        Assert.StartsWith($"{editor.Members[0].Name} 0.7.5 - Author: ", window.CopiedText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MakeNextPackVersion_OnThePackPage_OpensTheListingPageWithThatPack()
+    {
+        var main = new Dictionary<string, string> { [$"{Pack117Id}/1.0.1.toml"] = Pack117 };
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(Pack117Entry()));
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        viewModel.ShowDiscoverModpacksCommand.Execute(null);
+        await viewModel.OpenPackAsync(Assert.Single(viewModel.DiscoverPacks));
+
+        await viewModel.MakeNextPackVersionCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.CurrentWindowListing);
+        Assert.False(viewModel.CurrentWindowPack);
+        Assert.True(viewModel.ListingEditor.IsFormStep);
+        Assert.True(viewModel.ListingEditor.IsNextVersion);
+        Assert.Equal("1.0.2", viewModel.ListingEditor.PackVersion);
+    }
+
+    private const string Pack117Id = "beiks-flight-planning-essentials-pack";
+
+    private const string RawPacks = "https://raw.githubusercontent.com/KSAModding/content-index/main/packs/";
+
+    /// <summary>Version 1.0.1 of the pack of content-index #117, with a shorter description.</summary>
+    private const string Pack117 = """"
+        spec_version = 1
+        id = "beiks-flight-planning-essentials-pack"
+        type = "modpack"
+        name = "Flight Planning Essentials"
+        authors = ["Beik"]
+        version = "1.0.1"
+        released_at = "2026-09-23T20:00:00Z"
+        abstract = "This is a small pack of three mods for mission planning: one for looking up bodies in the solar system, one for delta-v budgets and transfer windows, and one for executing maneuvers."
+        description = """
+        Included mods:
+
+        Compendium, DeltaVMap and Advanced Flight Computer.
+        """
+
+        license = "MIT"
+        tags = ["user-interface"]
+
+        [links]
+        forums = "https://forums.ahwoo.com/forums/kitten-space-agency/mod-releases/flight-planning-essentials.1281/"
+        repository = "https://github.com/renancamm/ksa-beiks-flight-planning-essentials-pack/"
+
+        [compatibility]
+        game_min = "2026.9.10.5438"
+
+        [images.icon]
+        url = "https://raw.githubusercontent.com/renancamm/ksa-beiks-skycharts-modpack/refs/heads/main/listing/pack-icon.png"
+        sha256 = "66114162c33d8ad7c43ab5521bb62b174e865e199385051410980eff7d82f802"
+        width = 500
+        height = 500
+        size = 237977
+
+        [[mods]]
+        id = "DeltaVMap"
+        version = "1.2.6"
+
+        [[mods]]
+        id = "AdvancedFlightComputer"
+        version = "0.8.0"
+
+        [[mods]]
+        id = "Compendium"
+        version = "0.9.13"
+        """";
+
+    /// <summary>The snapshot entry of that pack, with its versions 1.0.0 and 1.0.1.</summary>
+    private static string Pack117Entry()
+    {
+        var pins = new[] { PackViewModelTests.Pin("DeltaVMap", "1.2.6"), PackViewModelTests.Pin("AdvancedFlightComputer", "0.8.0"), PackViewModelTests.Pin("Compendium", "0.9.13") };
+        return PackViewModelTests.Pack(Pack117Id, "Flight Planning Essentials", PackViewModelTests.Version("1.0.0", pins), PackViewModelTests.Version("1.0.1", pins));
+    }
+
+    /// <summary>A pack version file as content-index holds it.</summary>
+    private static string PackToml(string id, string version, params (string Id, string Version)[] pins) => $$"""
+        spec_version = 1
+        id = "{{id}}"
+        type = "modpack"
+        name = "Armory Pack"
+        authors = ["Maxi"]
+        version = "{{version}}"
+        released_at = "2026-09-01T12:00:00Z"
+        abstract = "Armory Pack abstract."
+        license = "MIT"
+
+        [links]
+        forums = "https://forums.example.com/{{id}}"
+
+        [compatibility]
+        game_min = "2026.8.19.5261"
+        {{string.Concat(pins.Select(pin => $"\n[[mods]]\nid = \"{pin.Id}\"\nversion = \"{pin.Version}\"\n"))}}
+        """;
+
+    /// <summary>Serves the pack files of main from <paramref name="files"/>, and not found for every other pack path.</summary>
+    private static Func<HttpRequestMessage, HttpResponseMessage?> MainBranch(Dictionary<string, string> files) => request =>
+    {
+        var url = request.RequestUri!.AbsoluteUri;
+        if (!url.StartsWith(RawPacks, StringComparison.Ordinal))
+            return null;
+
+        return files.TryGetValue(url[RawPacks.Length..], out var text)
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(text) }
+            : new HttpResponseMessage(HttpStatusCode.NotFound);
+    };
+
+    private static Func<string, string, string> Retracted(Func<string, string, string> version, string reason) => (id, name) =>
+    {
+        var entry = JsonNode.Parse(version(id, name))!;
+        entry["index_status"] = new JsonObject { ["state"] = "retracted", ["since"] = "2026-09-24T10:00:00Z", ["reason"] = reason };
+        return entry.ToJsonString();
+    };
+
+    /// <summary>Marks one release of the snapshot as testing.</summary>
+    private static string Testing(string json, string id, string version)
+    {
+        var root = JsonNode.Parse(json)!;
+        var listing = root["listings"]!.AsArray().Single(node => (string?)node!["id"] == id)!;
+        listing["releases"]!.AsArray().Single(node => (string?)node!["version"] == version)!["release_status"] = "testing";
         return root.ToJsonString();
     }
 

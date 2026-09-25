@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Borea.App.Localization;
+using Borea.Composition;
 using Borea.Core.Index;
 using Borea.Core.Listings;
 using Borea.Core.Mods;
@@ -99,10 +100,19 @@ public sealed partial class ListingEditor : ObservableObject
     private string? _archiveText;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsNew), nameof(PullRequestText), nameof(CanUseLoader))]
+    [NotifyPropertyChangedFor(nameof(IsNew), nameof(HasFixedId), nameof(PullRequestText), nameof(CanUseLoader))]
     private bool _isEdit;
 
-    public bool IsNew => !IsEdit;
+    /// <summary>The draft is the next version of a listed pack, a new file whose id is the id of that pack.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNew), nameof(HasFixedId), nameof(NextVersionText))]
+    private bool _isNextVersion;
+
+    public bool HasFixedId => IsEdit || IsNextVersion;
+
+    public bool IsNew => !HasFixedId;
+
+    public string? NextVersionText => IsNextVersion ? Localization.FormatListingNextVersion(_base.Id, _base.Original?.GetString("version") ?? string.Empty) : null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanUseLoader), nameof(IsPack), nameof(NewTitle), nameof(PullRequestText), nameof(UsesBrowserOnly), nameof(OffersSignedInPublish))]
@@ -358,24 +368,36 @@ public sealed partial class ListingEditor : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanLoadListed))]
-    private async Task LoadListedAsync()
+    private Task LoadListedAsync() => SelectedListed is { } listed ? LoadListedCoreAsync(listed.Id, listed.IsPack) : Task.CompletedTask;
+
+    /// <summary>Loads a listed mod to change it, or the newest version of a listed pack as its next version.</summary>
+    private async Task LoadListedCoreAsync(string id, bool isPack)
     {
-        if (_owner.Services is not { } services || SelectedListed?.Id is not { } id || IsBusy)
+        if (_owner.Services is not { } services || IsBusy)
             return;
 
         ListedError = null;
+        var pack = isPack && _snapshot is { } snapshot ? ListingPackVersions.Pack(snapshot, id) : null;
+        if (isPack && (pack is null || pack.Versions.Count == 0))
+        {
+            ListedError = Localization.FormatListingPackNotListed(id);
+            return;
+        }
+
         IsLoadingListed = true;
         using var cancel = new CancellationTokenSource();
         _busy = cancel;
         try
         {
-            var text = await services.ListedDocuments.GetListingAsync(id, cancel.Token);
+            var (draft, text, message) = pack is not null
+                ? await ReadNextVersionAsync(services, pack, cancel.Token)
+                : await ReadListingAsync(services, id, cancel.Token);
             cancel.Token.ThrowIfCancellationRequested();
-            var draft = ListingDraft.FromDocument(services.ListingFormat.Read(text));
             _source = null;
             _archive = null;
             ArchiveText = null;
             Load(draft, text);
+            OutputMessage = message;
         }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested)
         {
@@ -392,6 +414,12 @@ public sealed partial class ListingEditor : ObservableObject
     }
 
     private bool CanLoadListed() => SelectedListed is not null;
+
+    private static async Task<(ListingDraft Draft, string Text, string? Message)> ReadListingAsync(BoreaServices services, string id, CancellationToken cancellationToken)
+    {
+        var text = await services.ListedDocuments.GetListingAsync(id, cancellationToken);
+        return (ListingDraft.FromDocument(services.ListingFormat.Read(text)), text, null);
+    }
 
     /// <summary>Stops reading a source or a listed file, and drops what it would have loaded.</summary>
     [RelayCommand]
@@ -495,6 +523,19 @@ public sealed partial class ListingEditor : ObservableObject
             return;
         }
 
+        string? raised = null;
+        if (IsNextVersion)
+        {
+            var (free, message) = await FreeVersionAsync();
+            if (!free)
+            {
+                OutputMessage = message;
+                return;
+            }
+
+            raised = message;
+        }
+
         var page = IsEdit
             ? ListingPullRequestLinks.Edit(_base.Path)
             : ListingPullRequestLinks.NewFile(Draft.Path, DocumentText);
@@ -509,9 +550,10 @@ public sealed partial class ListingEditor : ObservableObject
             await window.CopyTextAsync(DocumentText);
 
         LastPullRequestPage = page;
-        OutputMessage = error is not null
+        var opened = error is not null
             ? Localization.FormatListingOpenFailed(error)
             : page.CarriesText ? Localization.ListingOpenedWithText : Localization.ListingOpenedPaste;
+        OutputMessage = raised is null ? opened : $"{raised} {opened}";
     }
 
     internal async Task PickImageFileAsync(ListingImageRow row)
@@ -556,6 +598,8 @@ public sealed partial class ListingEditor : ObservableObject
             _base = draft;
             _listedText = listedText;
             IsEdit = draft.IsEdit;
+            IsNextVersion = draft.IsNextVersion;
+            OnPropertyChanged(nameof(NextVersionText));
             Type = draft.Type;
             Id = draft.Id;
             Name = draft.Name;
@@ -632,7 +676,7 @@ public sealed partial class ListingEditor : ObservableObject
 
         var document = draft.ToDocument();
         DocumentText = services.ListingFormat.Write(document, _listedText);
-        var result = services.ListingValidator.Validate(document, new ListingCheckContext(_snapshot, IsEdit ? _base.Id : null, _archive));
+        var result = services.ListingValidator.Validate(document, new ListingCheckContext(_snapshot, HasFixedId ? _base.Id : null, _archive));
         var issues = pageIssues.Concat(result.Issues).Distinct().ToList();
 
         MainViewModel.Arrange(Errors, issues.Where(issue => issue.Severity == ListingIssueSeverity.Error).ToList());
@@ -674,6 +718,7 @@ public sealed partial class ListingEditor : ObservableObject
             FillCuratedTags([]);
         OnPropertyChanged(nameof(PullRequestText));
         OnPropertyChanged(nameof(NewTitle));
+        OnPropertyChanged(nameof(NextVersionText));
         // the proposal keeps its value, so its setter does not raise the text again
         OnPropertyChanged(nameof(GameMinProposalText));
         RefreshPullRequestText();

@@ -140,11 +140,14 @@
                                                 <Border Grid.Column="4" Classes="chip positive" VerticalAlignment="Center" IsVisible="{Binding IsOwn}">
                                                     <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingYourMod}" />
                                                 </Border>
+                                                <Border Grid.Column="4" Classes="chip" VerticalAlignment="Center" IsVisible="{Binding IsPack}">
+                                                    <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentTypeModPack}" />
+                                                </Border>
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
-                                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingNoListedMatch}" IsVisible="{Binding ListingEditor.HasNoListedMatch}" />
+                                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingNoListedOrPackMatch}" IsVisible="{Binding ListingEditor.HasNoListedMatch}" />
                                 <TextBlock Classes="body-sm danger" Text="{Binding ListingEditor.ListedError}" TextWrapping="Wrap" IsVisible="{Binding ListingEditor.ListedError, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             </StackPanel>
                         </Border>
@@ -155,10 +158,11 @@
                         <Grid ColumnDefinitions="*,16,Auto">
                             <Panel VerticalAlignment="Center">
                                 <TextBlock Classes="heading-lg" Text="{Binding ListingEditor.NewTitle}" IsVisible="{Binding ListingEditor.IsNew}" />
-                                <TextBlock Classes="heading-lg" Text="{Binding ListingEditor.Id}" TextTrimming="CharacterEllipsis" IsVisible="{Binding ListingEditor.IsEdit}" />
+                                <TextBlock Classes="heading-lg" Text="{Binding ListingEditor.Id}" TextTrimming="CharacterEllipsis" IsVisible="{Binding ListingEditor.HasFixedId}" />
                             </Panel>
                             <Button Grid.Column="2" Classes="text" Content="{Binding Localization.ListingStartOver}" Command="{Binding ListingEditor.StartOverCommand}" />
                         </Grid>
+                        <TextBlock Classes="body-sm secondary" Text="{Binding ListingEditor.NextVersionText}" TextWrapping="Wrap" IsVisible="{Binding ListingEditor.IsNextVersion}" />
                         <TextBlock Classes="body-sm secondary" Text="{Binding ListingEditor.ArchiveText}" TextWrapping="Wrap" IsVisible="{Binding ListingEditor.ArchiveText, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
                         <Border Classes="card" Padding="24" Tag="about">
@@ -167,7 +171,7 @@
                                 <TextBlock Classes="heading-sm" Text="{Binding Localization.ListingId}" />
                                 <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingIdHint}" TextWrapping="Wrap" IsVisible="{Binding !ListingEditor.IsPack}" />
                                 <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingPackIdHint}" TextWrapping="Wrap" IsVisible="{Binding ListingEditor.IsPack}" />
-                                <TextBox Classes="field" Text="{Binding ListingEditor.Id}" IsReadOnly="{Binding ListingEditor.IsEdit}" AutomationProperties.Name="{Binding Localization.ListingId}" />
+                                <TextBox Classes="field" Text="{Binding ListingEditor.Id}" IsReadOnly="{Binding ListingEditor.HasFixedId}" AutomationProperties.Name="{Binding Localization.ListingId}" />
                                 <TextBlock Classes="heading-sm" Text="{Binding Localization.ListingName}" Margin="0,10,0,0" />
                                 <TextBox Classes="field" Text="{Binding ListingEditor.Name}" AutomationProperties.Name="{Binding Localization.ListingName}" />
                                 <TextBlock Classes="heading-sm" Text="{Binding Localization.ListingAuthors}" Margin="0,10,0,0" />
@@ -275,6 +279,15 @@
                                                         </Button>
                                                     </Grid>
                                                     <TextBlock Classes="body-sm secondary" Text="{Binding Note}" TextWrapping="Wrap" IsVisible="{Binding HasNote}" />
+                                                    <TextBlock Classes="body-sm danger" Text="{Binding RetractionNote}" TextWrapping="Wrap" IsVisible="{Binding IsNamedInRetraction}" />
+                                                    <WrapPanel ItemSpacing="8" LineSpacing="4" IsVisible="{Binding HasNewer}">
+                                                        <Border Classes="chip" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding NewerText}" />
+                                                        </Border>
+                                                        <Button Classes="link" Command="{Binding UseNewerCommand}" VerticalAlignment="Center">
+                                                            <TextBlock Classes="action-md" Text="{Binding UseNewerText}" />
+                                                        </Button>
+                                                    </WrapPanel>
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
@@ -302,6 +315,12 @@
                                     </ListBox.ItemTemplate>
                                 </ListBox>
                                 <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingNoListedMatch}" IsVisible="{Binding ListingEditor.HasNoMemberMatch}" />
+                                <Button Classes="link" Command="{Binding ListingEditor.CopyForumListCommand}" HorizontalAlignment="Left" IsVisible="{Binding !!ListingEditor.Members.Count}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Path Classes="icon size-16" Data="{StaticResource Icon.Copy}" />
+                                        <TextBlock Classes="action-md" Text="{Binding Localization.ListingCopyForumList}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </Border>
 
@@ -429,7 +448,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Classes="card" Padding="24" Tag="status" IsVisible="{Binding ListingEditor.IsEdit}">
+                        <Border Classes="card" Padding="24" Tag="status" IsVisible="{Binding ListingEditor.HasFixedId}">
                             <StackPanel Spacing="6">
                                 <TextBlock Classes="heading-md" Text="{Binding Localization.ListingStatus}" Margin="0,0,0,6" />
                                 <Grid ColumnDefinitions="*,16,Auto">

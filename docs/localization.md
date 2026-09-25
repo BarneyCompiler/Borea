@@ -62,7 +62,26 @@ Adding a new language needs a resource file and one small code change that regis
 6. Submit one pull request for the new language.
 7. Ask a fluent speaker to review the translation when possible.
 
+You can try the new file in Borea before a maintainer registers the language, see [Preview a translation in Borea](#preview-a-translation-in-borea).
+
 A maintainer will add the language to [`LocalizationService`](../src/Borea.App/Localization/LocalizationService.cs) and to `SatelliteResourceLanguages` in [`Borea.App.csproj`](../src/Borea.App/Borea.App.csproj). A culture name that .NET does not know, such as `en-QP`, also needs `Culture` and `LogicalName` metadata on its file in that project. The resource parity tests check that the new file has no key that the English source does not have, and that its texts have the placeholders of the English ones. A text that the file does not have shows in English.
+
+## Preview a translation in Borea
+
+You can see a translation in Borea without git, the .NET SDK, or a build. Borea reads translation files from a folder when it starts, and a text in such a file shows instead of the text that Borea ships.
+
+1. In Borea, open Settings, About, and select Open Borea folder.
+2. In that folder, create a folder named `Languages` if it does not exist.
+3. Put the translation file into `Languages`. Keep the name `Resources.<language>.resx`, for example `Resources.fr.resx`.
+4. Close Borea and start it again, because Borea reads the folder only when it starts.
+5. In Settings, General, select the language. A language that Borea does not ship yet, such as French, shows in the list when its file is in the folder.
+6. Turn on Mark untranslated texts to find the texts that the file does not translate yet. Borea shows each of them in English between two stars, for example `** Home **`.
+
+Settings, About names the translation files that Borea uses, and so does the text that Copy diagnostics puts on the clipboard for a bug report.
+
+Borea does not use a text whose placeholders differ from the English text, or whose key the English source does not have. It shows that text in English, or in the translation that Borea ships, and writes one line about it to the Borea log (Settings, About, Open Borea log). Borea does not use a file that is not valid XML, or a file that has an entry with a `type` or `mimetype` attribute, because a translation file holds only text.
+
+To see the texts that Borea ships again, remove the file from `Languages` and start Borea again. When the language of the removed file was selected, Borea shows the language of the system, or English when Borea does not ship that language.
 
 ## Translation guidance
 

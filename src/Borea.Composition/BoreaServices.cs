@@ -18,6 +18,7 @@ using Borea.Core.Planning;
 using Borea.Core.Preferences;
 using Borea.Core.Settings;
 using Borea.Core.State;
+using Borea.Core.Stewardship;
 using Borea.Core.Updates;
 using Borea.Network.Announcements;
 using Borea.Network.Downloads;
@@ -243,6 +244,9 @@ public sealed class BoreaServices : IDisposable
 
     /// <summary>Checks the ownership proof of any account, such as the author of a pull request that a steward reviews.</summary>
     public required IListingOwnershipCheck ListingOwnership { get; init; }
+
+    /// <summary>Whether the signed-in account is a steward, which the App checks after every sign-in.</summary>
+    public required IStewardRole StewardRole { get; init; }
 
     /// <summary>The games this process started, which every graph built by a public overload shares.</summary>
     private static readonly RunningLaunches ProcessLaunches = new();
@@ -490,6 +494,7 @@ public sealed class BoreaServices : IDisposable
             ListingValidator = new ListingValidator(new ListingSchemaStore(listedDocuments, paths)),
             ListingPublisher = new LoggingListingPublisher(listingPublisher ?? new ListingPublisher(gitHubSession, http, listingFormat), log),
             ListingOwnership = new ListingOwnershipCheck(gitHubSession, http, listingFormat),
+            StewardRole = new GitHubStewardRole(gitHubSession, http),
         };
     }
 
@@ -523,6 +528,9 @@ public sealed class BoreaServices : IDisposable
 
         if (ListingImages is IDisposable listingImages)
             listingImages.Dispose();
+
+        if (StewardRole is IDisposable stewardRole)
+            stewardRole.Dispose();
 
         _http.Dispose();
     }

@@ -103,6 +103,7 @@ public sealed class BoreaServicesTests : IDisposable
         Assert.Equal(BoreaGitHubApp.ClientId.Length > 0 && BoreaGitHubApp.Slug.Length > 0, first.GitHub.IsAvailable);
         Assert.IsType<ListingPublisher>(Assert.IsType<LoggingListingPublisher>(first.ListingPublisher).Inner);
         Assert.IsType<ListingOwnershipCheck>(first.ListingOwnership);
+        Assert.IsType<GitHubStewardRole>(first.StewardRole);
     }
 
     [Fact]

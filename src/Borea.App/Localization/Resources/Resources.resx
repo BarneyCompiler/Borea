@@ -1092,6 +1092,9 @@
   <data name="ContentRemoveConfirm" xml:space="preserve">
     <value>Remove this content from the instance?</value>
   </data>
+  <data name="ContentRemoveSteps" xml:space="preserve">
+    <value>Borea removes the files that it installed. The author also asks you to do these steps:</value>
+  </data>
   <data name="ContentRemoveNotOwnedFormat" xml:space="preserve">
     <value>Borea did not install {0}, so it does not delete its files.</value>
   </data>
@@ -1965,6 +1968,12 @@
   <data name="InstallAlsoAddsMoreFormat" xml:space="preserve">
     <value>Also adds {0} and {1} more</value>
   </data>
+  <data name="InstallStepsForFormat" xml:space="preserve">
+    <value>Before you play with {0}</value>
+  </data>
+  <data name="InstallStepsDismiss" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
   <data name="InstallReleaseChannelFormat" xml:space="preserve">
     <value>Release {0} has the status {1}, which your release channel does not offer.</value>
   </data>
@@ -2342,6 +2351,12 @@
   </data>
   <data name="ContentNoDescription" xml:space="preserve">
     <value>No description provided.</value>
+  </data>
+  <data name="ContentInstallSteps" xml:space="preserve">
+    <value>Before you play</value>
+  </data>
+  <data name="ContentUninstallSteps" xml:space="preserve">
+    <value>When you remove it</value>
   </data>
   <data name="ContentLoadingVersions" xml:space="preserve">
     <value>Loading versions...</value>

@@ -414,7 +414,7 @@ public partial class MainViewModel
             {
                 stopped = StoppedText(pack);
             }
-            else if (confirm || reasons.Count > 0 || choices is not null || (plan is { IsReady: true } && PackPlanWarnings(plan).Count > 0))
+            else if (confirm || reasons.Count > 0 || choices is not null || (plan is { IsReady: true } && (PackPlanWarnings(plan).Count > 0 || InstallStepsOf(plan).Count > 0)))
             {
                 pack.PendingInstall = request;
                 pack.PendingInstanceName = newInstanceName;
@@ -586,6 +586,7 @@ public partial class MainViewModel
         if (newInstanceName is not null && result.InstanceId != Guid.Empty)
             run.TaskItem.SetInstance(result.InstanceId, newInstanceName);
         pack.ShowResults(result.Members.Select(member => new PackResultItem(this, member)));
+        LeavePackInstallStepsNotice(pack, result);
         if (result.IsStopped)
         {
             var installed = result.Members.Count(member => member.Status is ModPackMemberStatus.Installed or ModPackMemberStatus.Replaced);
@@ -771,9 +772,18 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
     [NotifyPropertyChangedFor(nameof(ConfirmInstallText))]
     private InstallChoices? _choices;
 
-    public bool IsConfirmingInstall => InstallWarning is not null || Choices is not null || _linkRequest is not null;
+    /// <summary>A plan whose members state install steps waits too, so that its confirmation can show them.</summary>
+    public bool IsConfirmingInstall => InstallWarning is not null || Choices is not null || _linkRequest is not null || PlanSteps.Count > 0;
 
     public string ConfirmInstallText => _owner.ConfirmInstallText(InstallWarning, PendingPlan);
+
+    /// <summary>The install steps of every listing the waiting plan installs, which the confirmation shows.</summary>
+    public IReadOnlyList<StepList> PlanSteps => _owner.InstallStepsOf(PendingPlan);
+
+    /// <summary>The install steps a finished install left on the row, until the player dismisses them.</summary>
+    public IReadOnlyList<StepList> InstallStepsNotice => _owner.PackInstallStepsNotice(PackId);
+
+    public bool HasInstallStepsNotice => InstallStepsNotice.Count > 0;
 
     private Func<string>? _linkRequest;
 
@@ -793,6 +803,8 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ConfirmInstallText))]
+    [NotifyPropertyChangedFor(nameof(PlanSteps))]
+    [NotifyPropertyChangedFor(nameof(IsConfirmingInstall))]
     private InstallPlan? _pendingPlan;
 
     public ObservableCollection<PackResultItem> Results { get; } = [];
@@ -871,6 +883,8 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
         OnPropertyChanged(nameof(ModCountText));
         OnPropertyChanged(nameof(NewerReleasesText));
         OnPropertyChanged(nameof(ConfirmInstallText));
+        OnPropertyChanged(nameof(PlanSteps));
+        OnPropertyChanged(nameof(InstallStepsNotice));
         OnPropertyChanged(nameof(ReleasedText));
         OnPropertyChanged(nameof(ReleasedDateText));
         OnPropertyChanged(nameof(PublishedText));
@@ -886,6 +900,12 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
         _linkRequest = request;
         OnPropertyChanged(nameof(LinkRequestText));
         OnPropertyChanged(nameof(IsConfirmingInstall));
+    }
+
+    internal void RefreshInstallStepsNotice()
+    {
+        OnPropertyChanged(nameof(InstallStepsNotice));
+        OnPropertyChanged(nameof(HasInstallStepsNotice));
     }
 
     /// <summary>
@@ -915,6 +935,9 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
 
     [RelayCommand]
     private Task ConfirmInstallAsync() => _owner.ConfirmPackInstallAsync(this);
+
+    [RelayCommand]
+    private void DismissInstallStepsNotice() => _owner.DismissPackInstallStepsNotice(PackId);
 
     [RelayCommand]
     private void NewInstance() => _owner.BeginPackInstance(this);

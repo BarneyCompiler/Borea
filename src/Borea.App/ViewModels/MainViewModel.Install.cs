@@ -113,8 +113,9 @@ public partial class MainViewModel
 
     /// <summary>
     /// Plans the install of one release into the active instance. A ready plan
-    /// that installs only that release and has no warnings or choices runs at
-    /// once. Any other plan waits on the row until the user confirms or cancels it.
+    /// that installs only that release and has no warnings, choices or install
+    /// steps runs at once. Any other plan waits on the row until the user confirms
+    /// or cancels it.
     /// </summary>
     /// <param name="exactVersion">The version the request pins. Null plans the newest release.</param>
     /// <param name="instanceId">The instance a Try again of the Tasks page installs into. Null installs into the active instance.</param>
@@ -139,7 +140,7 @@ public partial class MainViewModel
                 var release = await findRelease() ?? throw new InvalidOperationException(Localization.DiscoverNoRelease);
                 return [new RequestedMod(release, InstallReason.Manual, exactVersion is not null)];
             },
-            (_, plan) => Task.FromResult(confirm || AddedMods(plan, null).Any()));
+            (_, plan) => Task.FromResult(confirm || AddedMods(plan, null).Any() || InstallStepsOf(plan).Count > 0));
 
         if (executed)
             await ReloadInstancesAsync();
@@ -209,6 +210,7 @@ public partial class MainViewModel
                 run.TaskItem.MarkRunning(plan);
                 await services.PlanExecutor.ExecuteAsync(plan, enable: true, ProgressOf(row), run.InstallStop);
                 completed = true;
+                LeaveInstallStepsNotice(row, plan);
             }
         }
         catch (InstallStoppedException exception)
@@ -490,6 +492,7 @@ public partial class MainViewModel
             run.TaskItem.MarkRunning(plan!);
             await services.PlanExecutor.ExecuteAsync(plan!, enable: true, ProgressOf(row), run.InstallStop);
             completed = true;
+            LeaveInstallStepsNotice(row, plan!);
         }
         catch (InstallStoppedException exception)
         {

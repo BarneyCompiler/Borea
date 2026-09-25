@@ -97,6 +97,7 @@
                                     <TextBlock Classes="heading-lg" Text="{Binding SelectedContent.Name}" TextWrapping="Wrap" />
                                     <TextBlock Classes="body-md secondary" Text="{Binding SelectedContent.Abstract}" TextWrapping="Wrap" LineHeight="18" />
                                     <ContentControl Margin="0,8,0,0" Content="{Binding SelectedContent.Choices}" IsVisible="{Binding SelectedContent.Choices, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedContent.PlanSteps}" ItemTemplate="{StaticResource StepList}" ItemsPanel="{StaticResource StepListsPanel}" IsVisible="{Binding !!SelectedContent.PlanSteps.Count, FallbackValue={x:False}}" />
                                     <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,8,0,0" IsVisible="{Binding SelectedContent.IsConfirmingInstall}">
                                         <TextBlock Classes="body-sm" Text="{Binding SelectedContent.LinkRequestText}" IsVisible="{Binding SelectedContent.LinkRequestText, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" VerticalAlignment="Center" />
                                         <TextBlock Classes="body-sm secondary" Text="{Binding SelectedContent.AddedModsText}" ToolTip.Tip="{Binding SelectedContent.AddedModsToolTip}" IsVisible="{Binding SelectedContent.AddedModsText, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -109,11 +110,24 @@
                                         <Button Classes="text danger" Content="{Binding Localization.ContentRemove}" Command="{Binding SelectedContent.ConfirmRemoveCommand}" />
                                         <Button Classes="text" Content="{Binding Localization.LibraryCancel}" Command="{Binding SelectedContent.CancelRemoveCommand}" />
                                     </WrapPanel>
+                                    <ContentControl Margin="0,8,0,0" Content="{Binding SelectedContent.RemoveSteps}" ContentTemplate="{StaticResource StepList}">
+                                        <ContentControl.IsVisible>
+                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                <Binding Path="SelectedContent.IsConfirmingRemove" FallbackValue="{x:False}" />
+                                                <Binding Path="SelectedContent.RemoveSteps" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                                            </MultiBinding>
+                                        </ContentControl.IsVisible>
+                                    </ContentControl>
                                     <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,8,0,0" IsVisible="{Binding SelectedContent.ProgressStatus, Converter={x:Static ObjectConverters.IsNotNull}}">
                                         <TextBlock Classes="body-sm secondary" Text="{Binding SelectedContent.ProgressStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
                                         <TextBlock Classes="label-md" Text="{Binding SelectedContent.ProgressDetail}" VerticalAlignment="Center" IsVisible="{Binding SelectedContent.ProgressDetail, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                     </WrapPanel>
                                     <TextBlock Classes="body-sm danger" Text="{Binding SelectedContent.InstallError}" TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding SelectedContent.InstallError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    <!-- what the author still asks for after an install, until the player dismisses it -->
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,8,0,0" IsVisible="{Binding SelectedContent.HasInstallStepsNotice, FallbackValue={x:False}}">
+                                        <ItemsControl ItemsSource="{Binding SelectedContent.InstallStepsNotice}" ItemTemplate="{StaticResource StepList}" ItemsPanel="{StaticResource StepListsPanel}" />
+                                        <Button Grid.Column="1" Classes="text" VerticalAlignment="Top" Content="{Binding Localization.InstallStepsDismiss}" Command="{Binding SelectedContent.DismissInstallStepsNoticeCommand}" />
+                                    </Grid>
                                 </StackPanel>
                                 <StackPanel Classes="content-actions" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
                                     <!-- Add and Remove act on the active instance, so a page from another instance does not offer them -->
@@ -234,12 +248,16 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- c/block-text: the CommonMark description -->
+                    <!-- c/block-text: the CommonMark description, after the steps before play and before the steps for a removal -->
                     <Border Classes="card" Padding="36,32" Margin="0,16,0,0" IsVisible="{Binding IsDescriptionTab}">
-                        <Panel>
-                            <views:MarkdownView Markdown="{Binding SelectedContent.Description}" Images="{Binding ContentDescriptionImages}" IsVisible="{Binding SelectedContent.Description, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                            <TextBlock Classes="body-md muted" Text="{Binding Localization.ContentNoDescription}" IsVisible="{Binding SelectedContent.Description, Converter={x:Static ObjectConverters.IsNull}}" />
-                        </Panel>
+                        <StackPanel Spacing="24">
+                            <ContentControl Content="{Binding SelectedContent.InstallSteps}" ContentTemplate="{StaticResource StepList}" IsVisible="{Binding SelectedContent.InstallSteps, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <Panel>
+                                <views:MarkdownView Markdown="{Binding SelectedContent.Description}" Images="{Binding ContentDescriptionImages}" IsVisible="{Binding SelectedContent.Description, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <TextBlock Classes="body-md muted" Text="{Binding Localization.ContentNoDescription}" IsVisible="{Binding SelectedContent.Description, Converter={x:Static ObjectConverters.IsNull}}" />
+                            </Panel>
+                            <ContentControl Content="{Binding SelectedContent.UninstallSteps}" ContentTemplate="{StaticResource StepList}" IsVisible="{Binding SelectedContent.UninstallSteps, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </StackPanel>
                     </Border>
 
                     <!-- the dependencies of the release in the header, grouped by kind -->
@@ -363,6 +381,7 @@
                                                     </Grid>
                                                     <StackPanel Grid.Row="1" Grid.ColumnSpan="7" Spacing="6" Margin="0,6,0,0" IsVisible="{Binding IsConfirmingInstall}">
                                                         <ContentControl Content="{Binding Choices}" IsVisible="{Binding Choices, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                        <ItemsControl ItemsSource="{Binding PlanSteps}" ItemTemplate="{StaticResource StepList}" ItemsPanel="{StaticResource StepListsPanel}" IsVisible="{Binding !!PlanSteps.Count}" />
                                                         <WrapPanel ItemSpacing="8" LineSpacing="8">
                                                             <TextBlock Classes="body-sm secondary" Text="{Binding AddedModsText}" ToolTip.Tip="{Binding AddedModsToolTip}" IsVisible="{Binding AddedModsText, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" VerticalAlignment="Center" />
                                                             <TextBlock Classes="body-sm secondary" Text="{Binding InstallWarning}" IsVisible="{Binding InstallWarning, Converter={x:Static ObjectConverters.IsNotNull}}" TextWrapping="Wrap" VerticalAlignment="Center" />

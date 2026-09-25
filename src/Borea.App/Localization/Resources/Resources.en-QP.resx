@@ -918,6 +918,9 @@
   <data name="ContentRemoveConfirm" xml:space="preserve">
     <value>Toss the booty from this sea overboard?</value>
   </data>
+  <data name="ContentRemoveSteps" xml:space="preserve">
+    <value>The Borea tosses overboard the planks it hauled aboard. The cap'n who made this booty also bids ye do these deeds:</value>
+  </data>
   <data name="ContentRemoveNotOwnedFormat" xml:space="preserve">
     <value>The Borea ain't hauled {0} onboard, so it ain't be makin' the doubloons walk the plank.</value>
   </data>
@@ -1224,6 +1227,12 @@
   <data name="InstallAlsoAddsMoreFormat" xml:space="preserve">
     <value>Also hauls {0} and {1} more onboard</value>
   </data>
+  <data name="InstallStepsForFormat" xml:space="preserve">
+    <value>Afore ye set sail with {0}</value>
+  </data>
+  <data name="InstallStepsDismiss" xml:space="preserve">
+    <value>Belay that</value>
+  </data>
   <data name="InstallReleaseChannelFormat" xml:space="preserve">
     <value>Bounty {0} has a status o' {1}, which yer bounty deck ain't floatin'.</value>
   </data>
@@ -1460,6 +1469,12 @@
   </data>
   <data name="ContentNoDescription" xml:space="preserve">
     <value>Nary a blather fer ye.</value>
+  </data>
+  <data name="ContentInstallSteps" xml:space="preserve">
+    <value>Afore ye set sail</value>
+  </data>
+  <data name="ContentUninstallSteps" xml:space="preserve">
+    <value>When ye toss it overboard</value>
   </data>
   <data name="ContentLoadingVersions" xml:space="preserve">
     <value>Heavin' ho versions...</value>

@@ -1087,6 +1087,9 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
 
     public string RemoveActionText => IsMissing ? _owner.Localization.ContentRemoveFromList : _owner.Localization.ContentRemove;
 
+    /// <summary>The uninstall steps of the listing for the remove confirmation. A mod without a folder has no files for Borea to remove.</summary>
+    public StepList? RemoveSteps => IsMissing ? null : _page?.RemoveSteps;
+
     /// <summary>Whether the row links to the mod page, which every mod in the content index does.</summary>
     public bool CanOpen => _page is not null;
 
@@ -1138,6 +1141,7 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
     [NotifyPropertyChangedFor(nameof(CanRemove))]
     [NotifyPropertyChangedFor(nameof(RemoveConfirmText))]
     [NotifyPropertyChangedFor(nameof(RemoveActionText))]
+    [NotifyPropertyChangedFor(nameof(RemoveSteps))]
     private bool _isMissing;
 
     private bool _isOpening;
@@ -1259,6 +1263,7 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
         OnPropertyChanged(nameof(RemoveBlockedText));
         OnPropertyChanged(nameof(RemoveConfirmText));
         OnPropertyChanged(nameof(RemoveActionText));
+        OnPropertyChanged(nameof(RemoveSteps));
         OnPropertyChanged(nameof(UpdateText));
         OnPropertyChanged(nameof(ManageConfirmText));
         OnPropertyChanged(nameof(ManageMissingText));

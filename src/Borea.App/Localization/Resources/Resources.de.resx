@@ -1092,6 +1092,9 @@
   <data name="ContentRemoveConfirm" xml:space="preserve">
     <value>Diesen Inhalt aus der Instanz entfernen?</value>
   </data>
+  <data name="ContentRemoveSteps" xml:space="preserve">
+    <value>Borea entfernt die Dateien, die es installiert hat. Der Autor bittet dich, auch diese Schritte zu machen:</value>
+  </data>
   <data name="ContentRemoveNotOwnedFormat" xml:space="preserve">
     <value>Borea hat {0} nicht installiert und entfernt die Dateien daher nicht.</value>
   </data>
@@ -1965,6 +1968,12 @@
   <data name="InstallAlsoAddsMoreFormat" xml:space="preserve">
     <value>Fügt auch {0} und {1} weitere hinzu</value>
   </data>
+  <data name="InstallStepsForFormat" xml:space="preserve">
+    <value>Bevor du mit {0} spielst</value>
+  </data>
+  <data name="InstallStepsDismiss" xml:space="preserve">
+    <value>Ausblenden</value>
+  </data>
   <data name="InstallReleaseChannelFormat" xml:space="preserve">
     <value>Version {0} hat den Status {1}, den dein Release-Kanal nicht anbietet.</value>
   </data>
@@ -2342,6 +2351,12 @@
   </data>
   <data name="ContentNoDescription" xml:space="preserve">
     <value>Keine Beschreibung vorhanden.</value>
+  </data>
+  <data name="ContentInstallSteps" xml:space="preserve">
+    <value>Bevor du spielst</value>
+  </data>
+  <data name="ContentUninstallSteps" xml:space="preserve">
+    <value>Beim Entfernen</value>
   </data>
   <data name="ContentLoadingVersions" xml:space="preserve">
     <value>Versionen werden geladen...</value>

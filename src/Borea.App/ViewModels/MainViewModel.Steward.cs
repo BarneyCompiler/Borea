@@ -160,6 +160,20 @@ public partial class MainViewModel
             _ => StewardErrorText(failure.Error),
         });
 
+    /// <summary>Why one repository of the Watcher tab could not be read. The issues are read without the token, so a refusal is no missing App.</summary>
+    internal string StewardWatcherFailureText(WatcherIssuesFailure failure) => Localization.FormatStewardWatcherFailed(
+        failure.Repository,
+        failure.Error.Failure switch
+        {
+            StewardFailure.Forbidden => Localization.StewardWatcherForbidden,
+            StewardFailure.NotFound => Localization.StewardQueueNotFound,
+            _ => StewardErrorText(failure.Error),
+        });
+
+    /// <summary>The repository without its owner and the number, such as "content-index #5".</summary>
+    internal static string RepositoryNumberText(string repository, int number) =>
+        $"{repository[(repository.IndexOf('/', StringComparison.Ordinal) + 1)..]} #{number.ToString(CultureInfo.InvariantCulture)}";
+
     internal string StewardErrorText(StewardException exception) => exception.Failure switch
     {
         StewardFailure.SignedOut => Localization.StewardErrorSignedOut,

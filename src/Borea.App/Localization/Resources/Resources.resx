@@ -279,6 +279,48 @@
   <data name="StewardQueueNotFound" xml:space="preserve">
     <value>GitHub did not find the repository.</value>
   </data>
+  <data name="StewardTabWatcher" xml:space="preserve">
+    <value>Watcher</value>
+  </data>
+  <data name="StewardWatcherHint" xml:space="preserve">
+    <value>Issues that the watcher of KSAModding/content-index-releases and its watchdog keep open. The watcher ticks every 10 minutes and after every change of the index. Each issue closes by itself when the problem is gone.</value>
+  </data>
+  <data name="StewardWatcherBackfill" xml:space="preserve">
+    <value>A backfill of older releases runs on GitHub, from the watcher workflow.</value>
+  </data>
+  <data name="StewardWatcherWorkflow" xml:space="preserve">
+    <value>Open the watcher workflow</value>
+  </data>
+  <data name="StewardWatcherLoading" xml:space="preserve">
+    <value>Reading the issues from GitHub...</value>
+  </data>
+  <data name="StewardWatcherTicking" xml:space="preserve">
+    <value>The watcher ticks. The watchdog has no open issue.</value>
+  </data>
+  <data name="StewardWatcherNotTicking" xml:space="preserve">
+    <value>The watchdog says that the watcher does not tick, so new releases are not stamped.</value>
+  </data>
+  <data name="StewardWatcherListings" xml:space="preserve">
+    <value>Listings that the watcher reports</value>
+  </data>
+  <data name="StewardWatcherListingsEmpty" xml:space="preserve">
+    <value>The watcher reports no listing.</value>
+  </data>
+  <data name="StewardWatcherNoListing" xml:space="preserve">
+    <value>The issue names no listing.</value>
+  </data>
+  <data name="StewardWatcherUnknownListing" xml:space="preserve">
+    <value>Not in the content index that Borea read.</value>
+  </data>
+  <data name="StewardWatcherUpdatedFormat" xml:space="preserve">
+    <value>updated {0}</value>
+  </data>
+  <data name="StewardWatcherFailedFormat" xml:space="preserve">
+    <value>Cannot read the issues of {0}. {1}</value>
+  </data>
+  <data name="StewardWatcherForbidden" xml:space="preserve">
+    <value>GitHub refused access.</value>
+  </data>
   <data name="StewardTabStatus" xml:space="preserve">
     <value>Status</value>
   </data>

@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Borea.Core.Stewardship;
@@ -154,8 +152,7 @@ public sealed partial class StewardQueueEntry(MainViewModel owner, StewardQueueI
 
     public bool ShowsWaiting => allOpen && Item.NeedsSteward;
 
-    /// <summary>The repository without its owner and the number, such as "content-index #5".</summary>
-    public string NumberText => $"{Item.Repository[(Item.Repository.IndexOf('/', StringComparison.Ordinal) + 1)..]} #{Item.Number.ToString(CultureInfo.InvariantCulture)}";
+    public string NumberText => MainViewModel.RepositoryNumberText(Item.Repository, Item.Number);
 
     public string Title => Item.Title;
 

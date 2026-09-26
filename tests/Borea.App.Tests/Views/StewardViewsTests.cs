@@ -16,6 +16,7 @@ public sealed class StewardViewsTests
     private readonly StewardSession _session = new();
     private readonly FakeIndexStatusEditor _editor = new();
     private readonly FakeStewardQueue _queue = new();
+    private readonly FakeWatcherIssues _watcher = new();
 
     [Fact]
     public async Task StewardPage_ShowsEachStateWithLiftAndTheOpenPullRequests()
@@ -101,6 +102,55 @@ public sealed class StewardViewsTests
     }
 
     [Fact]
+    public async Task WatcherTab_ShowsTheWatchdogIssue_EachListingIssue_AndTheFailures()
+    {
+        _watcher.Watchdog.Add(FakeWatcherIssues.WatchdogIssue(81));
+        _watcher.Listings.Add(FakeWatcherIssues.Listing(102, "MeasureTools"));
+        _watcher.Listings.Add(FakeWatcherIssues.Listing(103, null));
+        _watcher.Listings.Add(FakeWatcherIssues.Listing(104, "GoneMod"));
+        _watcher.Failures.Add(new WatcherIssuesFailure("KSAModding/content-index", new StewardException(StewardFailure.RateLimited, retryAt: DateTimeOffset.Now.AddMinutes(20))));
+        using var harness = await CreateAsync();
+        var viewModel = harness.ViewModel;
+        viewModel.OpenStewardPageCommand.Execute(null);
+        await viewModel.StewardPage.Queue.WhenLoadedAsync();
+        await viewModel.StewardPage.ShowWatcherCommand.ExecuteAsync(null);
+        var name = viewModel.DiscoverItems.First(item => item.ModId == "MeasureTools").Name;
+
+        var (texts, buttons) = await HeadlessApp.RunAsync(harness, () =>
+        {
+            var window = new Window { Width = 1280, Height = 832, Content = new StewardPageView(), DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                var shown = window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+                var visible = window.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible).Select(button => button.Content as string).ToList();
+                return Task.FromResult((shown, visible));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Contains(harness.Localization.StewardTabWatcher, buttons);
+        Assert.Contains(harness.Localization.StewardWatcherHint, texts);
+        Assert.Contains(harness.Localization.StewardWatcherWorkflow, texts);
+        Assert.Contains(harness.Localization.StewardWatcherNotTicking, texts);
+        Assert.Contains("content-index-releases #81", texts);
+        Assert.Contains("The watcher is not ticking", texts);
+        Assert.DoesNotContain(harness.Localization.StewardWatcherTicking, texts);
+        Assert.Contains(name, texts);
+        Assert.Contains("MeasureTools: the watcher found a problem", texts);
+        Assert.Contains(harness.Localization.StewardWatcherNoListing, texts);
+        Assert.Contains("GoneMod", texts);
+        Assert.Contains(harness.Localization.StewardWatcherUnknownListing, texts);
+        Assert.Contains(viewModel.StewardWatcherFailureText(_watcher.Failures[0]), texts);
+        Assert.DoesNotContain(harness.Localization.StewardWatcherListingsEmpty, texts);
+        Assert.DoesNotContain(harness.Localization.StewardQueueHint, texts);
+    }
+
+    [Fact]
     public async Task IndexStatusModal_NamesTheChangeAndOpensThePullRequestOnAClick()
     {
         _editor.Check = _ => new IndexStatusCheck(null, [new IndexStatusPullRequest(4, new Uri("https://github.com/KSAModding/content-index/pull/4"), "Dispute Other", "bob")], ["alice"], IsOwner: false);
@@ -150,7 +200,7 @@ public sealed class StewardViewsTests
     private async Task<ViewModelHarness> CreateAsync()
     {
         _session.SignInDirectly();
-        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue);
+        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher);
         await harness.ViewModel.WhenStewardRoleCheckedAsync();
         return harness;
     }

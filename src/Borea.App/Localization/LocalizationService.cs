@@ -438,6 +438,36 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string StewardQueueNotFound => Resources.StewardQueueNotFound;
 
+    public string StewardTabWatcher => Resources.StewardTabWatcher;
+
+    public string StewardWatcherHint => Resources.StewardWatcherHint;
+
+    public string StewardWatcherBackfill => Resources.StewardWatcherBackfill;
+
+    public string StewardWatcherWorkflow => Resources.StewardWatcherWorkflow;
+
+    public string StewardWatcherLoading => Resources.StewardWatcherLoading;
+
+    public string StewardWatcherTicking => Resources.StewardWatcherTicking;
+
+    public string StewardWatcherNotTicking => Resources.StewardWatcherNotTicking;
+
+    public string StewardWatcherListings => Resources.StewardWatcherListings;
+
+    public string StewardWatcherListingsEmpty => Resources.StewardWatcherListingsEmpty;
+
+    public string StewardWatcherNoListing => Resources.StewardWatcherNoListing;
+
+    public string StewardWatcherUnknownListing => Resources.StewardWatcherUnknownListing;
+
+    public string FormatStewardWatcherUpdated(string age)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardWatcherUpdatedFormat, age);
+
+    public string FormatStewardWatcherFailed(string repository, string reason)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardWatcherFailedFormat, repository, reason);
+
+    public string StewardWatcherForbidden => Resources.StewardWatcherForbidden;
+
     public string StewardTabStatus => Resources.StewardTabStatus;
 
     public string StewardStatusHint => Resources.StewardStatusHint;

@@ -27,6 +27,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="16">
                         <Button Classes="tab quiet" Classes.active="{Binding IsQueueTab}" Content="{Binding QueueTabText}" Command="{Binding ShowQueueCommand}" />
                         <Button Classes="tab quiet" Classes.active="{Binding IsStatusTab}" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardTabStatus}" Command="{Binding ShowStatusCommand}" />
+                        <Button Classes="tab quiet" Classes.active="{Binding IsWatcherTab}" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardTabWatcher}" Command="{Binding ShowWatcherCommand}" />
                     </StackPanel>
                 </Border>
 
@@ -179,6 +180,91 @@
                         </ItemsControl>
                     </StackPanel>
                 </StackPanel>
+
+                <!-- Watcher: the listing issues of the watcher in content-index and the watchdog issue in content-index-releases -->
+                <Panel IsVisible="{Binding IsWatcherTab}">
+                    <StackPanel DataContext="{Binding Watcher}" x:DataType="vm:StewardWatcherTab">
+                        <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherHint}" TextWrapping="Wrap" Margin="0,16,0,0" />
+                        <WrapPanel ItemSpacing="12" LineSpacing="4" Margin="0,8,0,0">
+                            <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherBackfill}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Classes="link" Command="{Binding OpenWorkflowCommand}" ToolTip.Tip="{Binding WorkflowUrl}">
+                                <TextBlock Classes="action-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherWorkflow}" />
+                            </Button>
+                        </WrapPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,16,0,0" IsVisible="{Binding IsLoading}">
+                            <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                            <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherLoading}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Classes="body-md danger" Text="{Binding Error}" TextWrapping="Wrap" Margin="0,16,0,0" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <ItemsControl ItemsSource="{Binding Failures}" Margin="0,16,0,0" IsVisible="{Binding !!Failures.Count}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Classes="body-md danger" Text="{Binding}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- the watchdog issue, or that the watcher ticks -->
+                        <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherTicking}" TextWrapping="Wrap" Margin="0,16,0,0" IsVisible="{Binding IsTicking}" />
+                        <ItemsControl ItemsSource="{Binding Watchdog}" Margin="0,16,0,0" IsVisible="{Binding !!Watchdog.Count}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StewardWatcherIssue">
+                                    <Border Classes="card" Padding="24,16">
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="body-md danger" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherNotTicking}" TextWrapping="Wrap" />
+                                            <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                                <TextBlock Classes="body-sm secondary" Text="{Binding NumberText}" VerticalAlignment="Center" />
+                                                <Button Classes="link" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding Issue.Url}">
+                                                    <TextBlock Classes="action-md" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                </Button>
+                                            </WrapPanel>
+                                            <TextBlock Classes="body-sm secondary" Text="{Binding UpdatedText}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- the listing issues, each with the content page of its listing -->
+                        <TextBlock Classes="heading-sm heading" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherListings}" Margin="0,32,0,0" />
+                        <TextBlock Classes="body-md muted" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherListingsEmpty}" Margin="0,16,0,0" IsVisible="{Binding IsListingsEmpty}" />
+                        <ItemsControl ItemsSource="{Binding Listings}" Margin="0,16,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StewardWatcherIssue">
+                                    <Border Classes="card" Padding="24,16">
+                                        <StackPanel Spacing="6">
+                                            <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                                <Button Classes="link" Command="{Binding OpenListingCommand}" IsVisible="{Binding CanOpenListing}">
+                                                    <TextBlock Classes="heading-md" Text="{Binding ListingName}" />
+                                                </Button>
+                                                <TextBlock Classes="heading-md" Text="{Binding Issue.ListingId}" VerticalAlignment="Center" IsVisible="{Binding IsListingUnknown}" />
+                                                <TextBlock Classes="body-sm muted" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherUnknownListing}" VerticalAlignment="Center" IsVisible="{Binding IsListingUnknown}" />
+                                                <TextBlock Classes="body-md muted" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherNoListing}" VerticalAlignment="Center" IsVisible="{Binding HasNoListing}" />
+                                            </WrapPanel>
+                                            <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                                <TextBlock Classes="body-sm secondary" Text="{Binding NumberText}" VerticalAlignment="Center" />
+                                                <Button Classes="link" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding Issue.Url}">
+                                                    <TextBlock Classes="action-md" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                </Button>
+                                            </WrapPanel>
+                                            <TextBlock Classes="body-sm secondary" Text="{Binding UpdatedText}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Panel>
             </StackPanel>
         </views:PageBodyPanel>
     </ScrollViewer>

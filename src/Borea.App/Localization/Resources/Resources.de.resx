@@ -279,6 +279,48 @@
   <data name="StewardQueueNotFound" xml:space="preserve">
     <value>GitHub hat das Repository nicht gefunden.</value>
   </data>
+  <data name="StewardTabWatcher" xml:space="preserve">
+    <value>Watcher</value>
+  </data>
+  <data name="StewardWatcherHint" xml:space="preserve">
+    <value>Issues, die der Watcher von KSAModding/content-index-releases und sein Watchdog offen halten. Der Watcher läuft alle 10 Minuten und nach jeder Änderung des Index. Jedes Issue schließt sich selbst, sobald das Problem weg ist.</value>
+  </data>
+  <data name="StewardWatcherBackfill" xml:space="preserve">
+    <value>Ein Backfill älterer Releases läuft auf GitHub, über den Watcher-Workflow.</value>
+  </data>
+  <data name="StewardWatcherWorkflow" xml:space="preserve">
+    <value>Watcher-Workflow öffnen</value>
+  </data>
+  <data name="StewardWatcherLoading" xml:space="preserve">
+    <value>Lese die Issues von GitHub...</value>
+  </data>
+  <data name="StewardWatcherTicking" xml:space="preserve">
+    <value>Der Watcher läuft. Der Watchdog hat kein offenes Issue.</value>
+  </data>
+  <data name="StewardWatcherNotTicking" xml:space="preserve">
+    <value>Der Watchdog meldet, dass der Watcher nicht läuft, also werden neue Releases nicht gestempelt.</value>
+  </data>
+  <data name="StewardWatcherListings" xml:space="preserve">
+    <value>Einträge, die der Watcher meldet</value>
+  </data>
+  <data name="StewardWatcherListingsEmpty" xml:space="preserve">
+    <value>Der Watcher meldet keinen Eintrag.</value>
+  </data>
+  <data name="StewardWatcherNoListing" xml:space="preserve">
+    <value>Das Issue nennt keinen Eintrag.</value>
+  </data>
+  <data name="StewardWatcherUnknownListing" xml:space="preserve">
+    <value>Nicht im Inhaltsindex, den Borea gelesen hat.</value>
+  </data>
+  <data name="StewardWatcherUpdatedFormat" xml:space="preserve">
+    <value>aktualisiert {0}</value>
+  </data>
+  <data name="StewardWatcherFailedFormat" xml:space="preserve">
+    <value>Die Issues von {0} sind nicht lesbar. {1}</value>
+  </data>
+  <data name="StewardWatcherForbidden" xml:space="preserve">
+    <value>GitHub hat den Zugriff verweigert.</value>
+  </data>
   <data name="StewardTabStatus" xml:space="preserve">
     <value>Status</value>
   </data>

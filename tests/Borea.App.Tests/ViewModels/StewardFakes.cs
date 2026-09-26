@@ -95,6 +95,30 @@ internal sealed class FakeStewardQueue : IStewardQueue
     }
 }
 
+/// <summary>Answers the Watcher tab from its lists and counts the reads.</summary>
+internal sealed class FakeWatcherIssues : IWatcherIssues
+{
+    public List<WatcherIssue> Listings { get; } = [];
+
+    public List<WatcherIssue> Watchdog { get; } = [];
+
+    public List<WatcherIssuesFailure> Failures { get; } = [];
+
+    public int Reads { get; private set; }
+
+    public static WatcherIssue Listing(int number, string? listingId) =>
+        new(WatcherIssues.ListingsRepository, number, new Uri($"https://github.com/{WatcherIssues.ListingsRepository}/issues/{number}"), $"{listingId ?? "Something"}: the watcher found a problem", DateTimeOffset.UtcNow.AddHours(-2), listingId);
+
+    public static WatcherIssue WatchdogIssue(int number) =>
+        new(WatcherIssues.WatchdogRepository, number, new Uri($"https://github.com/{WatcherIssues.WatchdogRepository}/issues/{number}"), "The watcher is not ticking", DateTimeOffset.UtcNow.AddMinutes(-50), null);
+
+    public Task<WatcherIssues> ListAsync(CancellationToken cancellationToken = default)
+    {
+        Reads++;
+        return Task.FromResult(new WatcherIssues([.. Listings], [.. Watchdog], [.. Failures]));
+    }
+}
+
 /// <summary>A signed-in session that answers the main ruleset of each index repository with its bypass.</summary>
 internal sealed class StewardSession : IGitHubSession
 {

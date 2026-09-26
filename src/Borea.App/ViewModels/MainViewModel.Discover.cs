@@ -902,7 +902,7 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
             .Where(tag => tags.Contains(tag.Tag, StringComparer.OrdinalIgnoreCase))
             .ToList();
         return curated.Select(tag => owner.CategoryName(tag.Tag, tag.Name))
-            .Concat(tags.Where(value => !curated.Any(tag => string.Equals(tag.Tag, value, StringComparison.OrdinalIgnoreCase))))
+            .Concat(tags.Where(value => !curated.Any(tag => string.Equals(tag.Tag, value, StringComparison.OrdinalIgnoreCase))).Select(TagText.Display))
             .ToList();
     }
 

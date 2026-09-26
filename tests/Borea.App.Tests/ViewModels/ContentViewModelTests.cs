@@ -44,7 +44,7 @@ public sealed class ContentViewModelTests
         await armory.OpenCommand.ExecuteAsync(null);
 
         Assert.True(viewModel.HasContentTags);
-        Assert.Equal(["Parts", "Physics", "weapons"], armory.AllTags);
+        Assert.Equal(["Parts", "Physics", "Weapons"], armory.AllTags);
         Assert.Equal(armory.AllTags, armory.Tags);
     }
 

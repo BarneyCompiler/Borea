@@ -155,6 +155,21 @@ public sealed class DiscoverViewModelTests
         Assert.Equal(["KSArmory"], viewModel.DiscoverItems.Select(item => item.ModId));
     }
 
+    [Theory]
+    [InlineData("space station")]
+    [InlineData("space-station")]
+    [InlineData("Space Station")]
+    public async Task Search_MatchesAFreeFormTagInItsStoredAndItsShownForm(string query)
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithSpaceStationTags);
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+
+        viewModel.SearchText = query;
+
+        Assert.Equal(["KSArmory"], viewModel.DiscoverItems.Select(item => item.ModId));
+    }
+
     [Fact]
     public async Task Categories_WithoutCuratedTags_ShowNoRows()
     {
@@ -196,8 +211,29 @@ public sealed class DiscoverViewModelTests
         Assert.Equal(harness.Localization.DiscoverCategoryParts, viewModel.CategoryOptions.Single(category => category.Tag == "parts").Name);
         Assert.Equal("Hardware", viewModel.CategoryOptions.Single(category => category.Tag == "weapons").Name);
         var armory = viewModel.DiscoverItems.Single(item => item.ModId == "KSArmory");
-        Assert.Equal([harness.Localization.DiscoverCategoryParts, "Hardware", "physics"], armory.AllTags);
+        Assert.Equal([harness.Localization.DiscoverCategoryParts, "Hardware", "Physics"], armory.AllTags);
     }
+
+    [Fact]
+    public async Task Tags_FreeFormTagsShowAsWordsWithACapital_AndCuratedTagsByTheirLocalizedName()
+    {
+        var tags = ViewModelHarness.CuratedTags(("parts", "Parts"));
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: json => tags(WithSpaceStationTags(json)));
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        var armory = viewModel.DiscoverItems.Single(item => item.ModId == "KSArmory");
+
+        Assert.Equal(["Parts", "Weapons", "Space Station", "X2 Engine"], armory.AllTags);
+        Assert.Equal(["Parts", "Weapons", "Space Station"], armory.Tags);
+
+        harness.Localization.TrySetCulture("de");
+
+        Assert.NotEqual("Parts", harness.Localization.DiscoverCategoryParts);
+        Assert.Equal([harness.Localization.DiscoverCategoryParts, "Weapons", "Space Station", "X2 Engine"], armory.AllTags);
+    }
+
+    /// <summary>Gives KSArmory the free-form tags space-station and x2-engine in place of physics.</summary>
+    private static string WithSpaceStationTags(string json) => json.Replace("\"physics\"", "\"space-station\", \"x2-engine\"", StringComparison.Ordinal);
 
     [Fact]
     public async Task Search_InAnotherLanguage_MatchesTheTranslatedNameAndTheTagButNotTheIndexName()

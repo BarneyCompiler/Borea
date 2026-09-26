@@ -21,7 +21,7 @@ public sealed class StewardReviewViewModelTests
         abstract = "Adds a thing."
         description = "It adds **a thing**."
         license = "MIT"
-        tags = ["parts", "planes"]
+        tags = ["parts", "space-station"]
 
         [links]
         repository = "https://github.com/alice/MyMod"
@@ -83,7 +83,7 @@ public sealed class StewardReviewViewModelTests
         var document = Assert.Single(review.Documents);
         Assert.Equal(("listings/MyMod.toml", "Listing", true, null, null), (document.Path, document.KindText, document.IsPreview, document.Problem, document.RawText));
         Assert.Equal(("My Mod", "by Alice, Bob", "Adds a thing.", "It adds **a thing**.", "MIT", ">= 2026.9", null), (document.Name, document.AuthorsText, document.Abstract, document.Description, document.License, document.GameVersionText, document.VersionText));
-        Assert.Equal(["parts", "planes"], document.Tags);
+        Assert.Equal(["Parts", "Space Station"], document.Tags);
         Assert.Equal([("forums", Forums), ("repository", "https://github.com/alice/MyMod")], document.Links.Select(link => (link.Key, link.Url)));
         Assert.Empty(document.Members);
         Assert.Equal(

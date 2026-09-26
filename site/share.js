@@ -165,7 +165,13 @@
         names.push(name);
       }
     });
-    return names.concat(written.filter(function (name) { return known.indexOf(name.toLowerCase()) < 0; }));
+    return names.concat(written.filter(function (name) { return known.indexOf(name.toLowerCase()) < 0; }).map(displayTag));
+  }
+
+  // A free-form tag as the App shows it, each word between - with a capital first letter, so "space-station" is "Space Station".
+  function displayTag(tag) {
+    var words = tag.split("-").filter(Boolean);
+    return words.length ? words.map(function (word) { return word.charAt(0).toUpperCase() + word.slice(1); }).join(" ") : tag;
   }
 
   function imageReference(target) {

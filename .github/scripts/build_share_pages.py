@@ -478,11 +478,17 @@ class Snapshot:
         return text(fallback)
 
     def display_tags(self, tags) -> list[str]:
-        """The curated tags of a listing under their vocabulary name and in its order, then the tags the author wrote."""
+        """The curated tags of a listing under their vocabulary name and in its order, then the other tags the author wrote in their shown form."""
         written = [name for name in (text(tag) for tag in tags) if name] if isinstance(tags, list) else []
         chosen = {name.lower() for name in written}
         known = {key for key, _ in self.curated_tags}
-        return [name for key, name in self.curated_tags if key in chosen] + [name for name in written if name.lower() not in known]
+        return [name for key, name in self.curated_tags if key in chosen] + [display_tag(name) for name in written if name.lower() not in known]
+
+
+def display_tag(tag: str) -> str:
+    """A free-form tag as the App shows it, each word between - with a capital first letter, so "space-station" is "Space Station"."""
+    words = [word for word in tag.split("-") if word]
+    return " ".join(word[0].upper() + word[1:] for word in words) if words else tag
 
 
 def links_of(authored: dict) -> list[tuple[str, str]]:

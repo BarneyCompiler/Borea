@@ -90,6 +90,16 @@ public sealed partial class ListingImage : ObservableObject
 
     partial void OnBytesChanged(byte[]? value) => ParkIfIdle();
 
+    /// <summary>Gives the bytes back at once when no view shows the icon, because no row asks for it any more.</summary>
+    internal void Forget()
+    {
+        if (_views > 0)
+            return;
+
+        _owner.IdleIcons.Remove(this);
+        Bytes = null;
+    }
+
     /// <summary>Only an icon gives its bytes back, because the images of a description go with their page.</summary>
     private void ParkIfIdle()
     {

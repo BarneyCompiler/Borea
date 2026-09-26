@@ -13,6 +13,8 @@ public partial class MainViewModel
 {
     private readonly Dictionary<IconKey, ListingImage> _icons = [];
 
+    private HashSet<IconKey>? _iconsAsked;
+
     private bool? _loadImagesFromAuthorHosts;
 
     [ObservableProperty]
@@ -53,6 +55,7 @@ public partial class MainViewModel
             return null;
 
         var key = new IconKey(record.Url, record.Sha256, record.Width, record.Height, record.SizeBytes, record.License, record.Attribution, record.Source);
+        _iconsAsked?.Add(key);
         if (!_icons.TryGetValue(key, out var icon))
         {
             icon = new ListingImage(this, record);
@@ -60,6 +63,29 @@ public partial class MainViewModel
         }
 
         return icon;
+    }
+
+    internal int IconCount => _icons.Count;
+
+    /// <summary>Starts to note the icons that the rows, tiles and pages of a rebuild from the index ask for.</summary>
+    private void StartIconRebuild() => _iconsAsked = [];
+
+    /// <summary>
+    /// Drops the icons that the rebuild did not ask for, so a changed or removed icon record leaves no entry behind.
+    /// A failed Discover load keeps its old rows, and so they keep their icons.
+    /// </summary>
+    private void EndIconRebuild()
+    {
+        var asked = _iconsAsked;
+        _iconsAsked = null;
+        if (asked is null || DiscoverError is not null)
+            return;
+
+        foreach (var (key, icon) in _icons.Where(entry => !asked.Contains(entry.Key)).ToList())
+        {
+            _icons.Remove(key);
+            icon.Forget();
+        }
     }
 
     /// <summary>The images of the pack version a view shows, which are facts of that version alone.</summary>

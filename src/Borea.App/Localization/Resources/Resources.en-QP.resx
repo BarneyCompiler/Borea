@@ -57,6 +57,12 @@
   <data name="SettingsLanguageLabel" xml:space="preserve">
     <value>Manner o' speech</value>
   </data>
+  <data name="SettingsMarkUntranslatedTexts" xml:space="preserve">
+    <value>Flag the scribblin's not yet in pirate tongue</value>
+  </data>
+  <data name="SettingsMarkUntranslatedTextsHint" xml:space="preserve">
+    <value>Shows every scribblin' this tongue be lackin' in landlubber English betwixt two stars, like ** Home **.</value>
+  </data>
   <data name="SettingsRegionalFormatLabel" xml:space="preserve">
     <value>Format o' the region</value>
   </data>
@@ -1712,6 +1718,9 @@
   </data>
   <data name="AboutContentIndex" xml:space="preserve">
     <value>Bulletin board</value>
+  </data>
+  <data name="AboutTranslationFiles" xml:space="preserve">
+    <value>Tongue scrolls</value>
   </data>
   <data name="AboutIndexUpdatedFormat" xml:space="preserve">
     <value>Tide changed {0}</value>

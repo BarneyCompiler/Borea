@@ -57,6 +57,12 @@
   <data name="SettingsLanguageLabel" xml:space="preserve">
     <value>Language</value>
   </data>
+  <data name="SettingsMarkUntranslatedTexts" xml:space="preserve">
+    <value>Mark untranslated texts</value>
+  </data>
+  <data name="SettingsMarkUntranslatedTextsHint" xml:space="preserve">
+    <value>Shows every text that this language does not translate yet in English between two stars, such as ** Home **.</value>
+  </data>
   <data name="SettingsRegionalFormatLabel" xml:space="preserve">
     <value>Regional format</value>
   </data>
@@ -2630,6 +2636,9 @@
   </data>
   <data name="AboutContentIndex" xml:space="preserve">
     <value>Content index</value>
+  </data>
+  <data name="AboutTranslationFiles" xml:space="preserve">
+    <value>Translation files</value>
   </data>
   <data name="AboutIndexUpdatedFormat" xml:space="preserve">
     <value>Updated {0}</value>

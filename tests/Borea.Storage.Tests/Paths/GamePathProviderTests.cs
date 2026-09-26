@@ -76,6 +76,7 @@ public sealed class GamePathProviderTests
         Assert.StartsWith(@"D:\Portable\Borea", provider.GetActiveInstancePointerPath());
         Assert.StartsWith(@"D:\Portable\Borea", provider.GetLoadersRoot());
         Assert.StartsWith(@"D:\Portable\Borea", provider.GetLogsFolder());
+        Assert.StartsWith(@"D:\Portable\Borea", provider.GetLanguagesFolder());
         Assert.StartsWith(@"D:\Portable\Borea", provider.GetAppLockPath());
         Assert.StartsWith(@"D:\Portable\Borea", provider.GetImageCacheFolder());
         Assert.StartsWith(@"D:\Portable\Borea", provider.GetIndexPath());
@@ -277,7 +278,8 @@ public sealed class GamePathProviderTests
             provider.GetTaskHistoryPath(),
             provider.GetAppLockPath(),
             provider.GetIndexPath(),
-            provider.GetAnnouncementsPath()
+            provider.GetAnnouncementsPath(),
+            provider.GetLanguagesFolder()
         };
 
         Assert.Equal(paths.Length, paths.Distinct().Count());

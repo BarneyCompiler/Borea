@@ -144,8 +144,7 @@ sealed class Program
 
         var localization = new LocalizationService();
         var preferences = services.AppPreferences.GetAsync(MainViewModel.BundledThemeNames).GetAwaiter().GetResult().Preferences;
-        if (preferences.UiCultureName is not null)
-            localization.TrySetCulture(preferences.UiCultureName);
+        localization.ApplySavedCulture(preferences.UiCultureName);
 
         HandoverFailureDialog.Show(localization.HandoverFailed);
     }

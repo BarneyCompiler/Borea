@@ -443,6 +443,42 @@ public sealed class FileAppPreferencesRepositoryTests : IDisposable
         Assert.Equal("en-QP", result.Preferences.UiCultureName);
     }
 
+    [Fact]
+    public async Task SaveThenGet_MarkUntranslatedTextsOn_RestoresIt()
+    {
+        await _repository.SaveAsync(AppPreferences.Empty.WithMarkUntranslatedTexts(true), BundledThemeNames);
+
+        var result = await _repository.GetAsync(BundledThemeNames);
+
+        Assert.True(result.Preferences.MarkUntranslatedTexts);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(""", "markUntranslatedTexts": null""")]
+    public async Task GetAsync_NoMarkUntranslatedTexts_ReadsAsOff(string fields)
+    {
+        await WriteAsync($$"""
+            { "formatVersion": 1, "selectedTheme": "Light"{{fields}} }
+            """);
+
+        var result = await _repository.GetAsync(BundledThemeNames);
+
+        Assert.False(result.Preferences.MarkUntranslatedTexts);
+    }
+
+    [Fact]
+    public void With_OtherPreferenceChanges_KeepMarkUntranslatedTexts()
+    {
+        var preferences = AppPreferences.Empty.WithMarkUntranslatedTexts(true)
+            .WithUiCultureName("de")
+            .WithSelectedThemeName("Light")
+            .WithDismissedUntestedGameRevision(5482);
+
+        Assert.True(preferences.MarkUntranslatedTexts);
+        Assert.False(AppPreferences.Empty.MarkUntranslatedTexts);
+    }
+
     [Theory]
     [InlineData("not-a-culture-xx")]
     [InlineData("en-x-pirate")]

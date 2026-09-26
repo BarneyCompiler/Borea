@@ -98,6 +98,11 @@ public interface IGamePathProvider
     string GetLogsFolder();
 
     /// <summary>
+    /// Folder of the translation files that the App reads at start, so a translator sees a translation without a build.
+    /// </summary>
+    string GetLanguagesFolder();
+
+    /// <summary>
     /// Root of the backups of saves and vehicles, one folder per instance.
     /// </summary>
     string GetBackupsRoot();

@@ -158,6 +158,31 @@ internal sealed class ViewModelHarness : IDisposable
         return root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
     };
 
+    /// <summary>Adds <paramref name="count"/> copies of one listing to the index snapshot, each with the id and the name of the listing plus a number.</summary>
+    public static string WithCopies(string json, string listingId, int count)
+    {
+        var root = JsonNode.Parse(json)!;
+        var listings = root["listings"]!.AsArray();
+        var original = listings.Single(node => (string?)node!["id"] == listingId)!;
+        for (var number = 1; number <= count; number++)
+        {
+            var id = $"{listingId}{number}";
+            var copy = original.DeepClone();
+            copy["id"] = id;
+            copy["authored"]!["id"] = id;
+            copy["authored"]!["name"] = id;
+            foreach (var release in copy["releases"]!.AsArray())
+            {
+                release!["id"] = id;
+                release["listing"]!["name"] = id;
+            }
+
+            listings.Add(copy);
+        }
+
+        return root.ToJsonString();
+    }
+
     public Task<BoreaServices> BuildServicesAsync() =>
         BoreaServices.BuildAsync(Root, new IndexOnlyHandler(this), SpaceDock, Candidates, processStarter: _processStarter, images: _images ?? Images, sharedProfileRoot: _sharedProfileRoot ?? Path.Combine(Root, "GameProfile"), isGameProcessRunning: () => IsGameProcessRunning(), isOtherBoreaRunning: () => IsOtherBoreaRunning(), gitHub: _gitHub, listingPublisher: _listingPublisher, selfUpdater: _selfUpdater, indexStatusEditor: _indexStatusEditor, stewardQueue: _stewardQueue, watcherIssues: _watcherIssues, pullRequestReviews: _pullRequestReviews, pullRequestActions: _pullRequestActions, indexReports: _indexReports, releaseAmendments: _releaseAmendments);
 

@@ -9,8 +9,12 @@ using Microsoft.Win32;
 
 namespace Borea.App.Links;
 
-/// <summary>Registers this Borea as the borea:// handler. A failure is logged and never stops the App.</summary>
-internal sealed class LinkHandler(ILinkRegistrar registrar, string executablePath)
+/// <summary>
+/// Registers this Borea as the borea:// handler, and on Linux puts it in the application menu.
+/// A failure is logged and never stops the App.
+/// </summary>
+/// <param name="writeLauncher">Writes the launcher entry and returns true when it changed. Null where the system needs none.</param>
+internal sealed class LinkHandler(ILinkRegistrar registrar, string executablePath, Func<string, bool>? writeLauncher = null)
 {
     private static readonly TimeSpan XdgMimeTimeout = TimeSpan.FromSeconds(10);
 
@@ -27,8 +31,8 @@ internal sealed class LinkHandler(ILinkRegistrar registrar, string executablePat
 
         if (OperatingSystem.IsLinux())
         {
-            var dataHome = LinuxLinkRegistrar.DataHome(Environment.GetEnvironmentVariable, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-            return new LinkHandler(new LinuxLinkRegistrar(dataHome, ReadIcon, RunXdgMime), executable);
+            var dataHome = LinuxDesktopEntry.DataHome(Environment.GetEnvironmentVariable, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            return new LinkHandler(new LinuxLinkRegistrar(dataHome, ReadIcon, RunXdgMime), executable, new LinuxLauncher(dataHome, ReadIcon).Write);
         }
 
         return null;
@@ -55,11 +59,31 @@ internal sealed class LinkHandler(ILinkRegistrar registrar, string executablePat
             else if (!enabled && registrar.Unregister(executablePath))
                 log?.Write($"Removed {executablePath} as the handler of borea:// links.");
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SecurityException or ArgumentException or InvalidOperationException or Win32Exception)
+        catch (Exception exception) when (IsWriteFailure(exception))
         {
             log?.Write(enabled ? "Borea could not register as the handler of borea:// links." : "Borea could not remove itself as the handler of borea:// links.", exception);
         }
     }
+
+    /// <summary>Runs at every start and not only with the link switch on, because a player starts the App from this entry.</summary>
+    internal void AddLauncher(IBoreaLog? log)
+    {
+        if (writeLauncher is null)
+            return;
+
+        try
+        {
+            if (writeLauncher(executablePath))
+                log?.Write($"Added {executablePath} to the application menu.");
+        }
+        catch (Exception exception) when (IsWriteFailure(exception))
+        {
+            log?.Write("Borea could not add itself to the application menu.", exception);
+        }
+    }
+
+    private static bool IsWriteFailure(Exception exception)
+        => exception is IOException or UnauthorizedAccessException or SecurityException or ArgumentException or InvalidOperationException or Win32Exception;
 
     private static byte[] ReadIcon()
     {

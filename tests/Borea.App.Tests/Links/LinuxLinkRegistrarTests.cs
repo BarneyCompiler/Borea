@@ -136,7 +136,7 @@ public sealed class LinuxLinkRegistrarTests : IDisposable
     {
         var home = Path.Combine(Path.GetTempPath(), "home");
 
-        var dataHome = LinuxLinkRegistrar.DataHome(name => name == "XDG_DATA_HOME" ? value : null, home);
+        var dataHome = LinuxDesktopEntry.DataHome(name => name == "XDG_DATA_HOME" ? value : null, home);
 
         Assert.Equal(used ? value : Path.Combine(home, ".local", "share"), dataHome);
     }

@@ -616,6 +616,7 @@ jobs:
           Without that step, Windows shows "Windows protected your PC". This is because the file might not be downloaded often and is not signed. Select "More info", then "Run anyway".
 
           **Linux.** Unpack the App archive and run `./borea` for the App, or run `./borea --help` in the unpacked folder of either archive.
+          After the App has started once, Borea is in the application menu and starts from there without a terminal.
           Both need the ICU and OpenSSL libraries of your distribution, and only the App also needs the X11, ICE, SM and fontconfig libraries. Most desktop installs already have them. See Readme.
 
           **macOS.** Unpack and start Borea from Terminal, not from Finder: `tar -xzf <file>`, then run `./borea` inside the new folder of the App archive for the App, or `./borea --help` inside the new folder of either archive.

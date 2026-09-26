@@ -87,6 +87,7 @@ If you start `borea.exe` from the CLI archive by a double-click, it tells you to
 ### Linux
 
 Unpack the App archive and start `borea`, for example with `./borea` in a terminal in the unpacked folder.
+After that first start, Borea is in the application menu of your desktop, and it starts from there without a terminal.
 For the command line, run `./borea --help` in the unpacked folder of either archive.
 The build carries the .NET runtime but not the system libraries it sits on.
 The App and the CLI both need the ICU and OpenSSL libraries.

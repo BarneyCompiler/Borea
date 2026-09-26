@@ -47,6 +47,24 @@ public sealed class ListingDraftTests
     }
 
     [Fact]
+    public void FromDocument_Since_IsReadAndWrittenBackWithTheOtherReleasesKeys()
+    {
+        var document = Listed();
+        document.GetTable("releases")!.Set("since", "1.2");
+        document.GetTable("releases")!.Set("x_future", "kept");
+
+        var draft = ListingDraft.FromDocument(document);
+        var written = (draft with { Releases = draft.Releases! with { Since = "0.9" } }).ToDocument().GetTable("releases")!;
+        var cleared = (draft with { Releases = draft.Releases! with { Since = null } }).ToDocument().GetTable("releases")!;
+
+        Assert.Equal(new ListingReleases("StarMapLoader/StarMap", null, null, "1.2"), draft.Releases);
+        Assert.Equal(["github", "since", "x_future"], written.Entries.Select(entry => entry.Key));
+        Assert.Equal("0.9", written.GetString("since"));
+        Assert.Equal("kept", written.GetString("x_future"));
+        Assert.False(cleared.Contains("since"));
+    }
+
+    [Fact]
     public void FromDocument_DependencyWithAlternatives_IsWrittenBackUnchanged()
     {
         var alternatives = new AuthoredTable();

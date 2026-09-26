@@ -173,6 +173,32 @@ public sealed class SnapshotParserTests
     }
 
     [Fact]
+    public void Parse_AuthoredListingWithGitHubAndSince_HasOneHostAndReadsSinceAsAVersion()
+    {
+        var authored = ValidAuthoredJson.Replace("\"links\":", "\"releases\": { \"github\": \"owner/repo\", \"since\": \"1.2\" }, \"links\":");
+        var listing = $$"""{ "id": "test-mod", "authored": {{authored}}, "releases": [] }""";
+
+        var result = SnapshotParser.Parse(Snapshot(listing, ""));
+
+        var releases = Assert.Single(result.ValidListings).Authored!.Releases!;
+        Assert.Equal("github", Assert.Single(releases.Hosts).Host);
+        Assert.Equal("1.2.0", releases.Since.ToString());
+    }
+
+    [Fact]
+    public void Parse_AuthoredListingWithAnUnknownKeyUnderReleases_KeepsItsHosts()
+    {
+        var authored = ValidAuthoredJson.Replace("\"links\":", "\"releases\": { \"github\": \"owner/repo\", \"until\": \"2.0\", \"notify\": true }, \"links\":");
+        var listing = $$"""{ "id": "test-mod", "authored": {{authored}}, "releases": [] }""";
+
+        var result = SnapshotParser.Parse(Snapshot(listing, ""));
+
+        var releases = Assert.Single(result.ValidListings).Authored!.Releases!;
+        Assert.Equal("owner/repo", Assert.Single(releases.Hosts).Reference);
+        Assert.Null(releases.Since);
+    }
+
+    [Fact]
     public void Parse_TombstoneListing_IsValidWithNoAuthoredData()
     {
         var listing = """{ "id": "removed-mod", "index_status": { "state": "delisted" } }""";

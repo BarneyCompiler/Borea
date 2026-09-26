@@ -17,7 +17,12 @@ public sealed class ReleaseSource
     /// </summary>
     public string Authority { get; }
 
-    public ReleaseSource(IReadOnlyList<ReleaseHost> hosts, string? authority = null)
+    /// <summary>
+    /// The version from which the index also stamps the older releases of the authority (RFC 0079), or null.
+    /// </summary>
+    public ModVersion? Since { get; }
+
+    public ReleaseSource(IReadOnlyList<ReleaseHost> hosts, string? authority = null, ModVersion? since = null)
     {
         if (hosts is null || hosts.Count == 0)
             throw new ArgumentException("A release source needs at least one host.", nameof(hosts));
@@ -42,6 +47,7 @@ public sealed class ReleaseSource
         }
 
         Hosts = new ReadOnlyCollection<ReleaseHost>(hosts.ToArray());
+        Since = since;
     }
 
     /// <summary>

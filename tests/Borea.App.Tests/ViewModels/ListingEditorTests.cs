@@ -384,6 +384,52 @@ public sealed class ListingEditorTests
         Assert.Equal(editor.DocumentText, window.CopiedText);
     }
 
+    [Fact]
+    public async Task LoadListed_Since_IsReadIntoItsFieldAndWrittenBack()
+    {
+        var listed = StarMapListing.Replace("github = \"StarMapLoader/StarMap\"", "github = \"StarMapLoader/StarMap\"\nsince = \"1.2\"", StringComparison.Ordinal);
+        using var harness = await ViewModelHarness.CreateAsync(respond: request =>
+            request.RequestUri!.AbsoluteUri == "https://raw.githubusercontent.com/KSAModding/content-index/main/listings/StarMap.toml"
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(listed) }
+                : null);
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        editor.ListedQuery = "starm";
+
+        await editor.LoadListedCommand.ExecuteAsync(null);
+
+        Assert.Equal("1.2", editor.ReleasesSince);
+        Assert.Contains("[releases]\ngithub = \"StarMapLoader/StarMap\"\nsince = \"1.2\"\n", editor.DocumentText, StringComparison.Ordinal);
+
+        editor.ReleasesSince = "0.9";
+
+        Assert.Contains("[releases]\ngithub = \"StarMapLoader/StarMap\"\nsince = \"0.9\"\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.DoesNotContain(editor.Errors, issue => issue.Location.StartsWith("releases", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Since_NewListing_IsWrittenWithAHostAndCheckedAsAVersion()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, _, _) = await ValidNewListingAsync(harness);
+
+        editor.ReleasesSince = "1.2";
+
+        Assert.True(editor.HasReleasesHost);
+        Assert.Contains("[releases]\ngithub = \"owner/MyMod\"\nsince = \"1.2\"\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.False(editor.HasErrors, string.Join("\n", editor.Errors));
+
+        editor.ReleasesSince = "latest";
+
+        Assert.Contains(editor.Errors, issue => issue.Location == "releases.since");
+        Assert.Contains(editor.VisibleErrors, error => error.StartsWith(harness.Localization.ListingReleasesSince + ": ", StringComparison.Ordinal));
+
+        editor.ReleasesGitHub = string.Empty;
+
+        Assert.False(editor.HasReleasesHost);
+        Assert.DoesNotContain("since", editor.DocumentText, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("flight com", "AdvancedFlightComputer")]
     [InlineData("MEASURE", "MeasureTools")]

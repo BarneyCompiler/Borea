@@ -114,7 +114,7 @@ public sealed record ListingDraft
         SetOrRemove(document, "tags", Tags.Count == 0 ? null : Tags.Cast<object>().ToList());
         SetOrRemove(document, "status", Status);
         SetOrRemove(document, "superseded_by", SupersededBy);
-        SetOrRemove(document, "releases", WriteReleases(Releases));
+        SetOrRemove(document, "releases", WriteReleases(Releases, document.GetTable("releases")));
 
         var links = new AuthoredTable();
         foreach (var link in Links)
@@ -154,21 +154,19 @@ public sealed record ListingDraft
         if (table is null)
             return null;
 
-        return new ListingReleases(table.GetString("github"), table["spacedock"] as long?, table.GetString("authority"));
+        return new ListingReleases(table.GetString("github"), table["spacedock"] as long?, table.GetString("authority"), table.GetString("since"));
     }
 
-    private static AuthoredTable? WriteReleases(ListingReleases? releases)
+    private static AuthoredTable? WriteReleases(ListingReleases? releases, AuthoredTable? original)
     {
         if (releases is null || (string.IsNullOrEmpty(releases.GitHub) && releases.SpaceDock is null))
             return null;
 
-        var table = new AuthoredTable();
-        if (!string.IsNullOrEmpty(releases.GitHub))
-            table.Set("github", releases.GitHub);
-        if (releases.SpaceDock is { } spaceDock)
-            table.Set("spacedock", spaceDock);
-        if (!string.IsNullOrEmpty(releases.Authority))
-            table.Set("authority", releases.Authority);
+        var table = original?.Clone() ?? new AuthoredTable();
+        SetOrRemove(table, "github", string.IsNullOrEmpty(releases.GitHub) ? null : releases.GitHub);
+        SetOrRemove(table, "spacedock", releases.SpaceDock);
+        SetOrRemove(table, "authority", string.IsNullOrEmpty(releases.Authority) ? null : releases.Authority);
+        SetOrRemove(table, "since", string.IsNullOrEmpty(releases.Since) ? null : releases.Since);
         return table;
     }
 
@@ -241,8 +239,11 @@ public sealed record ListingDraft
 
 public sealed record ListingLink(string Key, string Url);
 
-/// <summary>The [releases] table: the hosts the watcher reads, and which of them decides when both are named.</summary>
-public sealed record ListingReleases(string? GitHub, long? SpaceDock, string? Authority = null);
+/// <summary>
+/// The [releases] table: the hosts the watcher reads, which of them decides when both are named, and the version
+/// from which the watcher also stamps the older releases (RFC 0079).
+/// </summary>
+public sealed record ListingReleases(string? GitHub, long? SpaceDock, string? Authority = null, string? Since = null);
 
 public sealed record ListingLoader(string Id, string Min, string? Max = null);
 

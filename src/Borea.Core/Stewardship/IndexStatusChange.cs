@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Borea.Core.Stewardship;
@@ -22,6 +23,15 @@ public sealed record IndexStatusChange(IndexStatusAction Action, string Id, stri
 
     /// <summary>A reason is one line, so it also refuses the Unicode line and paragraph separators.</summary>
     private static readonly char[] LineBreaks = [(char)0x2028, (char)0x2029];
+
+    /// <summary>
+    /// The number of the report in content-index that the change answers, or null. The merge of a delist or a retract closes the report,
+    /// and a dispute only names it, because the report stays open until a steward decides.
+    /// </summary>
+    public int? Report { get; init; }
+
+    /// <summary>Whether the pull request says Closes #<see cref="Report"/>, so that its merge closes the report.</summary>
+    public bool ClosesReport => Report is not null && Action is IndexStatusAction.Delist or IndexStatusAction.Retract;
 
     public static IndexStatusChange Dispute(string id, string reason) => new(IndexStatusAction.Dispute, id, IndexStatusEntry.Disputed, null, reason);
 
@@ -59,6 +69,9 @@ public sealed record IndexStatusChange(IndexStatusAction Action, string Id, stri
             ? $"Lifts `{State}` from {scope} in `{IndexStatusDocument.Path}`."
             : $"Sets `{State}` on {scope} in `{IndexStatusDocument.Path}`.");
         body.Append("\n\nReason: ").Append(Reason.Trim());
+        if (Report is { } report)
+            body.Append(ClosesReport ? "\n\nCloses #" : "\n\nFor report #").Append(report.ToString(CultureInfo.InvariantCulture)).Append(ClosesReport ? string.Empty : ".");
+
         if (owners.Count > 0)
             body.Append("\n\n").Append(string.Join(' ', owners.Select(owner => "@" + owner))).Append(owners.Count == 1 ? " owns " : " own ").Append($"`{Id}`.");
 

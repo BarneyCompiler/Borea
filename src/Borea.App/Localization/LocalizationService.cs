@@ -538,6 +538,75 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string StewardReviewNoPatch => Resources.StewardReviewNoPatch;
 
+    public string StewardActionApprove => Resources.StewardActionApprove;
+
+    public string StewardActionRequestChanges => Resources.StewardActionRequestChanges;
+
+    public string StewardActionComment => Resources.StewardActionComment;
+
+    public string StewardActionMerge => Resources.StewardActionMerge;
+
+    public string StewardActionClose => Resources.StewardActionClose;
+
+    public string FormatStewardActionApproveTitle(string pullRequest)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionApproveTitleFormat, pullRequest);
+
+    public string FormatStewardActionRequestChangesTitle(string pullRequest)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionRequestChangesTitleFormat, pullRequest);
+
+    public string FormatStewardActionCommentTitle(string pullRequest)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionCommentTitleFormat, pullRequest);
+
+    public string FormatStewardActionMergeTitle(string pullRequest)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionMergeTitleFormat, pullRequest);
+
+    public string FormatStewardActionCloseTitle(string pullRequest)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionCloseTitleFormat, pullRequest);
+
+    public string FormatStewardActionApproveEffect(string commit)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionApproveEffectFormat, commit);
+
+    public string FormatStewardActionRequestChangesEffect(string commit)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionRequestChangesEffectFormat, commit);
+
+    public string FormatStewardActionCommentEffect(string commit)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionCommentEffectFormat, commit);
+
+    public string FormatStewardActionMergeEffect(string commit, string baseBranch)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardActionMergeEffectFormat, commit, baseBranch);
+
+    public string StewardActionCloseEffect => Resources.StewardActionCloseEffect;
+
+    public string StewardActionText => Resources.StewardActionText;
+
+    public string StewardActionTextRequired => Resources.StewardActionTextRequired;
+
+    public string StewardActionTextOptional => Resources.StewardActionTextOptional;
+
+    public string StewardActionSending => Resources.StewardActionSending;
+
+    public string StewardActionReviewed => Resources.StewardActionReviewed;
+
+    public string StewardActionMerged => Resources.StewardActionMerged;
+
+    public string StewardActionClosed => Resources.StewardActionClosed;
+
+    public string StewardActionSkipReview => Resources.StewardActionSkipReview;
+
+    public string StewardActionMergeWithoutReview => Resources.StewardActionMergeWithoutReview;
+
+    public string StewardActionOwnWarning => Resources.StewardActionOwnWarning;
+
+    public string StewardActionChanged => Resources.StewardActionChanged;
+
+    public string StewardActionNotOpen => Resources.StewardActionNotOpen;
+
+    public string StewardMergeNeedsValidate => Resources.StewardMergeNeedsValidate;
+
+    public string StewardMergeNeedsVerdict => Resources.StewardMergeNeedsVerdict;
+
+    public string StewardMergeDraft => Resources.StewardMergeDraft;
+
     public string StewardTabWatcher => Resources.StewardTabWatcher;
 
     public string StewardWatcherHint => Resources.StewardWatcherHint;

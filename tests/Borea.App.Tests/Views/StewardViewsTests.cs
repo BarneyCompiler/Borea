@@ -19,6 +19,7 @@ public sealed class StewardViewsTests
     private readonly FakeStewardQueue _queue = new();
     private readonly FakeWatcherIssues _watcher = new();
     private readonly FakePullRequestReviews _reviews = new();
+    private readonly FakePullRequestActions _actions = new();
 
     [Fact]
     public async Task StewardPage_ShowsEachStateWithLiftAndTheOpenPullRequests()
@@ -255,10 +256,94 @@ public sealed class StewardViewsTests
         Assert.Single(_editor.Opened);
     }
 
+    [Fact]
+    public async Task ReviewPage_ShowsTheActions_WithMergeOffAndWhy()
+    {
+        _queue.Items.Add(FakeStewardQueue.Item(5));
+        using var harness = await CreateAsync();
+        _reviews.Reviews[("KSAModding/content-index", 5)] = FakePullRequestReviews.Review(5) with { Validate = new ValidateStatus(ValidateState.Pending), Author = "octocat" };
+        var viewModel = harness.ViewModel;
+        viewModel.OpenStewardPageCommand.Execute(null);
+        await viewModel.StewardPage.Queue.WhenLoadedAsync();
+        await viewModel.StewardPage.Queue.Items[0].OpenCommand.ExecuteAsync(null);
+
+        var (texts, buttons, merge) = await HeadlessApp.RunAsync(harness, () =>
+        {
+            var window = new Window { Width = 1280, Height = 832, Content = new StewardPageView(), DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                var shown = window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+                var visible = window.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible).ToList();
+                var mergeButton = visible.Single(button => (button.Content as TextBlock)?.Text == harness.Localization.StewardActionMerge);
+                return Task.FromResult((shown, visible.Select(button => button.Content as string).ToList(), mergeButton.IsEffectivelyEnabled));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.False(merge);
+        Assert.Contains(harness.Localization.StewardActionApprove, buttons);
+        Assert.Contains(harness.Localization.StewardActionRequestChanges, buttons);
+        Assert.Contains(harness.Localization.StewardActionComment, buttons);
+        Assert.Contains(harness.Localization.StewardActionClose, buttons);
+        Assert.Contains("Merge is off until validate passed on the head commit. Merge is off until the checks left their verdict.", texts);
+        Assert.Contains(harness.Localization.StewardActionOwnWarning, texts);
+    }
+
+    [Fact]
+    public async Task PullRequestActionModal_NamesThePullRequest_AndADoubleClickSendsOnce()
+    {
+        _queue.Items.Add(FakeStewardQueue.Item(5));
+        using var harness = await CreateAsync();
+        _reviews.Reviews[("KSAModding/content-index", 5)] = FakePullRequestReviews.Review(5) with { Title = "Add My Mod" };
+        var viewModel = harness.ViewModel;
+        viewModel.OpenStewardPageCommand.Execute(null);
+        await viewModel.StewardPage.Queue.WhenLoadedAsync();
+        await viewModel.StewardPage.Queue.Items[0].OpenCommand.ExecuteAsync(null);
+        viewModel.StewardPage.Review!.CommentCommand.Execute(null);
+        viewModel.StewardAction!.Text = "Is MyMod the right id?";
+
+        var texts = await HeadlessApp.RunAsync(harness, async () =>
+        {
+            var modal = new PullRequestActionModal();
+            var window = new Window { Width = 1280, Height = 832, Content = modal, DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                var shown = modal.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+                var send = modal.GetVisualDescendants().OfType<Button>().Single(button => button.IsEffectivelyVisible && (button.Content as TextBlock)?.Text == harness.Localization.StewardActionComment);
+                var point = send.TranslatePoint(new Point(send.Bounds.Width / 2, send.Bounds.Height / 2), window)!.Value;
+                window.MouseDown(point, MouseButton.Left);
+                window.MouseUp(point, MouseButton.Left);
+                window.MouseDown(point, MouseButton.Left);
+                window.MouseUp(point, MouseButton.Left);
+                await viewModel.StewardAction.WhenDoneAsync();
+                window.UpdateLayout();
+                shown.AddRange(modal.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text));
+                return shown;
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Contains("Comment on KSAModding/content-index #5", texts);
+        Assert.Contains("Add My Mod", texts);
+        Assert.Contains("Borea sends your text as a review of commit 0123456.", texts);
+        Assert.Contains(harness.Localization.StewardActionReviewed, texts);
+        Assert.Equal(("Comment", "Is MyMod the right id?"), (Assert.Single(_actions.Sent).Action, _actions.Sent[0].Text));
+    }
+
     private async Task<ViewModelHarness> CreateAsync()
     {
         _session.SignInDirectly();
-        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher, pullRequestReviews: _reviews);
+        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher, pullRequestReviews: _reviews, pullRequestActions: _actions);
         await harness.ViewModel.WhenStewardRoleCheckedAsync();
         return harness;
     }

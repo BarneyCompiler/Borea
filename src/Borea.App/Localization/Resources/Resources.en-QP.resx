@@ -183,6 +183,15 @@
   <data name="StewardReviewVerdict" xml:space="preserve">
     <value>What the lookouts say</value>
   </data>
+  <data name="StewardActionApprove" xml:space="preserve">
+    <value>Give it the nod</value>
+  </data>
+  <data name="StewardActionMerge" xml:space="preserve">
+    <value>Haul it aboard</value>
+  </data>
+  <data name="StewardActionClose" xml:space="preserve">
+    <value>Cast it adrift</value>
+  </data>
   <data name="StewardTabWatcher" xml:space="preserve">
     <value>Crow's nest</value>
   </data>

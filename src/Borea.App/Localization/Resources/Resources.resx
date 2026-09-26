@@ -405,6 +405,96 @@
   <data name="StewardReviewNoPatch" xml:space="preserve">
     <value>GitHub sends no diff for this file, for example because it is binary or very large.</value>
   </data>
+  <data name="StewardActionApprove" xml:space="preserve">
+    <value>Approve</value>
+  </data>
+  <data name="StewardActionRequestChanges" xml:space="preserve">
+    <value>Request changes</value>
+  </data>
+  <data name="StewardActionComment" xml:space="preserve">
+    <value>Comment</value>
+  </data>
+  <data name="StewardActionMerge" xml:space="preserve">
+    <value>Merge</value>
+  </data>
+  <data name="StewardActionClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="StewardActionApproveTitleFormat" xml:space="preserve">
+    <value>Approve {0}</value>
+  </data>
+  <data name="StewardActionRequestChangesTitleFormat" xml:space="preserve">
+    <value>Request changes on {0}</value>
+  </data>
+  <data name="StewardActionCommentTitleFormat" xml:space="preserve">
+    <value>Comment on {0}</value>
+  </data>
+  <data name="StewardActionMergeTitleFormat" xml:space="preserve">
+    <value>Merge {0}</value>
+  </data>
+  <data name="StewardActionCloseTitleFormat" xml:space="preserve">
+    <value>Close {0}</value>
+  </data>
+  <data name="StewardActionApproveEffectFormat" xml:space="preserve">
+    <value>Borea sends a review that approves commit {0}.</value>
+  </data>
+  <data name="StewardActionRequestChangesEffectFormat" xml:space="preserve">
+    <value>Borea sends a review of commit {0} that asks the author for changes.</value>
+  </data>
+  <data name="StewardActionCommentEffectFormat" xml:space="preserve">
+    <value>Borea sends your text as a review of commit {0}.</value>
+  </data>
+  <data name="StewardActionMergeEffectFormat" xml:space="preserve">
+    <value>Borea squash merges commit {0} into {1}. GitHub refuses the merge when the pull request got another commit since.</value>
+  </data>
+  <data name="StewardActionCloseEffect" xml:space="preserve">
+    <value>Borea posts your text as a comment and closes the pull request without a merge.</value>
+  </data>
+  <data name="StewardActionText" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="StewardActionTextRequired" xml:space="preserve">
+    <value>The author sees this text on GitHub.</value>
+  </data>
+  <data name="StewardActionTextOptional" xml:space="preserve">
+    <value>Optional. The author sees this text on GitHub.</value>
+  </data>
+  <data name="StewardActionSending" xml:space="preserve">
+    <value>Sending to GitHub...</value>
+  </data>
+  <data name="StewardActionReviewed" xml:space="preserve">
+    <value>GitHub has the review.</value>
+  </data>
+  <data name="StewardActionMerged" xml:space="preserve">
+    <value>The pull request is merged.</value>
+  </data>
+  <data name="StewardActionClosed" xml:space="preserve">
+    <value>The pull request is closed.</value>
+  </data>
+  <data name="StewardActionSkipReview" xml:space="preserve">
+    <value>GitHub still requires a review of this pull request, such as the one of a code owner. Your bypass as a steward skips it.</value>
+  </data>
+  <data name="StewardActionMergeWithoutReview" xml:space="preserve">
+    <value>Merge without the review</value>
+  </data>
+  <data name="StewardActionOwnWarning" xml:space="preserve">
+    <value>You opened this pull request. POLICY.md asks a steward who is a party to a case to leave it to another steward.</value>
+  </data>
+  <data name="StewardActionChanged" xml:space="preserve">
+    <value>The pull request has another head commit or another base branch than Borea showed. Borea reads it again, so look at it before you act.</value>
+  </data>
+  <data name="StewardActionNotOpen" xml:space="preserve">
+    <value>The pull request is closed or merged now. Borea reads it again.</value>
+  </data>
+  <data name="StewardMergeNeedsValidate" xml:space="preserve">
+    <value>Merge is off until validate passed on the head commit.</value>
+  </data>
+  <data name="StewardMergeNeedsVerdict" xml:space="preserve">
+    <value>Merge is off until the checks left their verdict.</value>
+  </data>
+  <data name="StewardMergeDraft" xml:space="preserve">
+    <value>Merge is off for a draft.</value>
+  </data>
   <data name="StewardTabWatcher" xml:space="preserve">
     <value>Watcher</value>
   </data>

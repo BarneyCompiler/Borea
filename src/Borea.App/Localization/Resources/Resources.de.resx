@@ -405,6 +405,96 @@
   <data name="StewardReviewNoPatch" xml:space="preserve">
     <value>GitHub sendet für diese Datei keinen Diff, zum Beispiel weil sie binär oder sehr groß ist.</value>
   </data>
+  <data name="StewardActionApprove" xml:space="preserve">
+    <value>Genehmigen</value>
+  </data>
+  <data name="StewardActionRequestChanges" xml:space="preserve">
+    <value>Änderungen anfordern</value>
+  </data>
+  <data name="StewardActionComment" xml:space="preserve">
+    <value>Kommentieren</value>
+  </data>
+  <data name="StewardActionMerge" xml:space="preserve">
+    <value>Mergen</value>
+  </data>
+  <data name="StewardActionClose" xml:space="preserve">
+    <value>Schließen</value>
+  </data>
+  <data name="StewardActionApproveTitleFormat" xml:space="preserve">
+    <value>{0} genehmigen</value>
+  </data>
+  <data name="StewardActionRequestChangesTitleFormat" xml:space="preserve">
+    <value>Änderungen an {0} anfordern</value>
+  </data>
+  <data name="StewardActionCommentTitleFormat" xml:space="preserve">
+    <value>{0} kommentieren</value>
+  </data>
+  <data name="StewardActionMergeTitleFormat" xml:space="preserve">
+    <value>{0} mergen</value>
+  </data>
+  <data name="StewardActionCloseTitleFormat" xml:space="preserve">
+    <value>{0} schließen</value>
+  </data>
+  <data name="StewardActionApproveEffectFormat" xml:space="preserve">
+    <value>Borea sendet ein Review, das Commit {0} genehmigt.</value>
+  </data>
+  <data name="StewardActionRequestChangesEffectFormat" xml:space="preserve">
+    <value>Borea sendet ein Review zu Commit {0}, das den Autor um Änderungen bittet.</value>
+  </data>
+  <data name="StewardActionCommentEffectFormat" xml:space="preserve">
+    <value>Borea sendet deinen Text als Review zu Commit {0}.</value>
+  </data>
+  <data name="StewardActionMergeEffectFormat" xml:space="preserve">
+    <value>Borea mergt Commit {0} als Squash in {1}. GitHub lehnt den Merge ab, wenn der Pull Request seitdem einen anderen Commit bekommen hat.</value>
+  </data>
+  <data name="StewardActionCloseEffect" xml:space="preserve">
+    <value>Borea schreibt deinen Text als Kommentar und schließt den Pull Request ohne Merge.</value>
+  </data>
+  <data name="StewardActionText" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="StewardActionTextRequired" xml:space="preserve">
+    <value>Der Autor sieht diesen Text auf GitHub.</value>
+  </data>
+  <data name="StewardActionTextOptional" xml:space="preserve">
+    <value>Optional. Der Autor sieht diesen Text auf GitHub.</value>
+  </data>
+  <data name="StewardActionSending" xml:space="preserve">
+    <value>Wird an GitHub gesendet...</value>
+  </data>
+  <data name="StewardActionReviewed" xml:space="preserve">
+    <value>GitHub hat das Review.</value>
+  </data>
+  <data name="StewardActionMerged" xml:space="preserve">
+    <value>Der Pull Request ist gemergt.</value>
+  </data>
+  <data name="StewardActionClosed" xml:space="preserve">
+    <value>Der Pull Request ist geschlossen.</value>
+  </data>
+  <data name="StewardActionSkipReview" xml:space="preserve">
+    <value>GitHub verlangt für diesen Pull Request noch ein Review, zum Beispiel das eines Code-Owners. Als Steward darfst du die Regeln umgehen, deshalb überspringt der Merge es.</value>
+  </data>
+  <data name="StewardActionMergeWithoutReview" xml:space="preserve">
+    <value>Ohne das Review mergen</value>
+  </data>
+  <data name="StewardActionOwnWarning" xml:space="preserve">
+    <value>Du hast diesen Pull Request geöffnet. POLICY.md bittet einen Steward, der an einem Fall beteiligt ist, ihn einem anderen Steward zu überlassen.</value>
+  </data>
+  <data name="StewardActionChanged" xml:space="preserve">
+    <value>Der Pull Request hat einen anderen Head-Commit oder einen anderen Ziel-Branch, als Borea gezeigt hat. Borea liest ihn neu, also sieh ihn dir an, bevor du handelst.</value>
+  </data>
+  <data name="StewardActionNotOpen" xml:space="preserve">
+    <value>Der Pull Request ist jetzt geschlossen oder gemergt. Borea liest ihn neu.</value>
+  </data>
+  <data name="StewardMergeNeedsValidate" xml:space="preserve">
+    <value>Mergen geht erst, wenn validate auf dem Head-Commit bestanden hat.</value>
+  </data>
+  <data name="StewardMergeNeedsVerdict" xml:space="preserve">
+    <value>Mergen geht erst, wenn die Prüfungen ihr Urteil abgegeben haben.</value>
+  </data>
+  <data name="StewardMergeDraft" xml:space="preserve">
+    <value>Einen Entwurf kann Borea nicht mergen.</value>
+  </data>
   <data name="StewardTabWatcher" xml:space="preserve">
     <value>Watcher</value>
   </data>

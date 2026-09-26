@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using Borea.Core.Listings;
 using Borea.Core.Stewardship;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -22,9 +23,16 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsStewardChangeOpen))]
     private IndexStatusDialog? _stewardChange;
 
+    /// <summary>The open confirmation of an action on the pull request of the review, or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStewardActionOpen))]
+    private PullRequestActionDialog? _stewardAction;
+
     public StewardPage StewardPage => _stewardPage ??= new StewardPage(this);
 
     public bool IsStewardChangeOpen => StewardChange is not null;
+
+    public bool IsStewardActionOpen => StewardAction is not null;
 
     /// <summary>Editing index-status.toml needs the bypass of content-index itself.</summary>
     public bool CanEditIndexStatus => IsGitHubSignedIn && _services?.StewardRole.Current is { ContentIndex: true };
@@ -32,10 +40,17 @@ public partial class MainViewModel
     /// <summary>A listing of the content index, as opposed to one that only SpaceDock knows.</summary>
     public bool CanEditContentStatus => CanEditIndexStatus && SelectedContent?.Source == "index";
 
+    /// <summary>The actions on a pull request need the bypass of its own repository.</summary>
+    internal bool IsStewardOf(string repository) =>
+        IsGitHubSignedIn && _services?.StewardRole.Current is { } access
+        && (string.Equals(repository, ListingPullRequestLinks.Repository, StringComparison.OrdinalIgnoreCase) ? access.ContentIndex
+            : string.Equals(repository, StewardAccess.ReleasesRepository, StringComparison.OrdinalIgnoreCase) && access.ContentIndexReleases);
+
     private void RefreshIndexStatusRights()
     {
         OnPropertyChanged(nameof(CanEditIndexStatus));
         OnPropertyChanged(nameof(CanEditContentStatus));
+        _stewardPage?.Review?.RefreshRights();
     }
 
     [RelayCommand]
@@ -112,6 +127,21 @@ public partial class MainViewModel
             StewardChange = null;
     }
 
+    /// <summary>Opens the confirmation of the action on the pull request that the review shows. Another open confirmation stays until it is closed.</summary>
+    internal void BeginPullRequestAction(StewardReview review, PullRequestAction action)
+    {
+        if (StewardAction is not null || review.PullRequest is not { } pullRequest || !review.CanAct || (action == PullRequestAction.Merge && !review.CanMerge))
+            return;
+
+        StewardAction = new PullRequestActionDialog(this, review, pullRequest, action);
+    }
+
+    internal void ClosePullRequestAction(PullRequestActionDialog dialog)
+    {
+        if (ReferenceEquals(StewardAction, dialog))
+            StewardAction = null;
+    }
+
     /// <summary>The Status tab shows the new pull request, and its list conflicts once one of them merges.</summary>
     internal void OnIndexStatusPullRequestOpened()
     {
@@ -170,6 +200,25 @@ public partial class MainViewModel
             StewardFailure.NotFound => Localization.StewardQueueNotFound,
             _ => StewardErrorText(failure.Error),
         });
+
+    /// <summary>Why a pull request could not be read or acted on. The errors of the status edits name content-index, so these name the pull request or its repository.</summary>
+    internal string StewardPullRequestErrorText(StewardException exception) => exception.Failure switch
+    {
+        StewardFailure.Forbidden => Localization.StewardQueueForbidden,
+        StewardFailure.NotFound => Localization.StewardReviewNotFound,
+        _ => StewardErrorText(exception),
+    };
+
+    /// <summary>Why Borea does not merge, or does not act on the pull request as the review showed it.</summary>
+    internal string PullRequestRefusalText(PullRequestRefusal refusal) => refusal switch
+    {
+        PullRequestRefusal.NotOpen => Localization.StewardActionNotOpen,
+        PullRequestRefusal.Changed => Localization.StewardActionChanged,
+        PullRequestRefusal.Draft => Localization.StewardMergeDraft,
+        PullRequestRefusal.Validate => Localization.StewardMergeNeedsValidate,
+        PullRequestRefusal.Verdict => Localization.StewardMergeNeedsVerdict,
+        _ => Localization.StewardActionSkipReview,
+    };
 
     /// <summary>The repository without its owner and the number, such as "content-index #5".</summary>
     internal static string RepositoryNumberText(string repository, int number) =>

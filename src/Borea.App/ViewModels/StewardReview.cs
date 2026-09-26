@@ -12,8 +12,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace Borea.App.ViewModels;
 
 /// <summary>
-/// The review of one pull request on the Steward page. It reads only, so the steward decides on GitHub. Refresh reads the pull request
-/// again, so a new commit shows with its own files, documents and status.
+/// The review of one pull request on the Steward page, with the steward actions on it. Refresh reads the pull request again,
+/// so a new commit shows with its own files, documents and status.
 /// </summary>
 public sealed partial class StewardReview : ObservableObject
 {
@@ -32,6 +32,9 @@ public sealed partial class StewardReview : ObservableObject
     private PullRequestReview? _pullRequest;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAct))]
+    [NotifyPropertyChangedFor(nameof(CanMerge))]
+    [NotifyPropertyChangedFor(nameof(MergeBlockedText))]
     private bool _isLoading;
 
     [ObservableProperty]
@@ -108,6 +111,21 @@ public sealed partial class StewardReview : ObservableObject
 
     public bool HasDocuments => Documents.Count > 0;
 
+    /// <summary>The actions show for an open pull request of a repository whose ruleset the account bypasses.</summary>
+    public bool CanAct => !IsLoading && PullRequest is { State: PullRequestState.Open } pull && _owner.IsStewardOf(pull.Repository);
+
+    public bool CanMerge => CanAct && PullRequestMerge.BlockersOf(PullRequest!).Count == 0;
+
+    /// <summary>Why Merge is off, such as a validate that has not passed or a verdict that is missing.</summary>
+    public string? MergeBlockedText => CanAct && PullRequestMerge.BlockersOf(PullRequest!) is { Count: > 0 } blockers
+        ? string.Join(" ", blockers.Select(_owner.PullRequestRefusalText))
+        : null;
+
+    /// <summary>The signed-in steward opened the pull request, and POLICY.md asks a party to leave the case to another steward.</summary>
+    public string? OwnWarning => PullRequest?.Author is { } author && string.Equals(author, _owner.GitHubLogin, StringComparison.OrdinalIgnoreCase)
+        ? _owner.Localization.StewardActionOwnWarning
+        : null;
+
     internal Task WhenLoadedAsync() => _load;
 
     /// <summary>Reads the pull request again. A second call during a read joins it.</summary>
@@ -115,6 +133,15 @@ public sealed partial class StewardReview : ObservableObject
 
     /// <summary>Builds the texts of the review again in the language that is now selected.</summary>
     internal void RefreshText() => Show(PullRequest);
+
+    /// <summary>Shows or hides the actions again after a sign-in, a sign-out or a new steward role, because they depend on the account.</summary>
+    internal void RefreshRights()
+    {
+        OnPropertyChanged(nameof(CanAct));
+        OnPropertyChanged(nameof(CanMerge));
+        OnPropertyChanged(nameof(MergeBlockedText));
+        OnPropertyChanged(nameof(OwnWarning));
+    }
 
     [RelayCommand]
     private void Open() => Error = _owner.TryOpenWithSystem(Url.AbsoluteUri) ?? Error;
@@ -131,6 +158,21 @@ public sealed partial class StewardReview : ObservableObject
 
     internal void OpenLink(string url) => Error = _owner.TryOpenWithSystem(url) ?? Error;
 
+    [RelayCommand]
+    private void Approve() => _owner.BeginPullRequestAction(this, PullRequestAction.Approve);
+
+    [RelayCommand]
+    private void RequestChanges() => _owner.BeginPullRequestAction(this, PullRequestAction.RequestChanges);
+
+    [RelayCommand]
+    private void Comment() => _owner.BeginPullRequestAction(this, PullRequestAction.Comment);
+
+    [RelayCommand]
+    private void Merge() => _owner.BeginPullRequestAction(this, PullRequestAction.Merge);
+
+    [RelayCommand]
+    private void ClosePullRequest() => _owner.BeginPullRequestAction(this, PullRequestAction.Close);
+
     private async Task LoadAsync()
     {
         if (_owner.Services is not { } services)
@@ -144,13 +186,7 @@ public sealed partial class StewardReview : ObservableObject
         }
         catch (StewardException exception)
         {
-            // the texts of the status edits name content-index, so these name the pull request or its repository
-            Error = exception.Failure switch
-            {
-                StewardFailure.Forbidden => _owner.Localization.StewardQueueForbidden,
-                StewardFailure.NotFound => _owner.Localization.StewardReviewNotFound,
-                _ => _owner.StewardErrorText(exception),
-            };
+            Error = _owner.StewardPullRequestErrorText(exception);
         }
         finally
         {

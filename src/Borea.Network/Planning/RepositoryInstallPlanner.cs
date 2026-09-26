@@ -82,7 +82,8 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
     }
 
     /// <summary>
-    /// The candidates of every reachable mod, newest first and yanked releases last. An exact request is its own only candidate,
+    /// The candidates of every reachable mod, newest first, and last the yanked releases and those whose download is gone and that are not installed,
+    /// because an installed copy is never replaced for its gone download. An exact request is its own only candidate,
     /// and every other candidate is inside the channel or already installed.
     /// </summary>
     private static async Task<Dictionary<string, IReadOnlyList<RequestedMod?>>> BuildDomainsAsync(InstallPlanningRequest request, Dictionary<string, RequestedMod> roots, ReleaseChannel channel, List<PlanningMessage> conflicts, CancellationToken cancellationToken)
@@ -104,7 +105,7 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
                 foreach (var version in (await request.Repository.GetAvailableVersionsAsync(id, cancellationToken).ConfigureAwait(false)).OrderByDescending(value => value))
                 {
                     var release = await request.Repository.GetReleaseAsync(id, version, cancellationToken).ConfigureAwait(false);
-                    if (release is not { Yanked: false }) continue;
+                    if (release is not { IsOffered: true }) continue;
                     if (channel.Includes(release.ReleaseStatus) || IsInstalled(request, release)) values.Add(release);
                     else outsideChannel = true;
                 }
@@ -116,7 +117,7 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
             }
             if (root is { Exact: false } && values.Count == 0 && outsideChannel)
                 conflicts.Add(new PlanningMessage(id, PlanningMessageKind.OutsideChannel) { Channel = channel });
-            releases[id] = values.DistinctBy(value => value.Version).OrderBy(value => value.Yanked).ThenByDescending(value => value.Version).ToList();
+            releases[id] = values.DistinctBy(value => value.Version).OrderBy(value => value.Yanked || (value.Download.UnavailableSince is not null && !IsInstalled(request, value))).ThenByDescending(value => value.Version).ToList();
             foreach (var dependencyId in releases[id].SelectMany(DependencyIds).Distinct(ModIds.Comparer).OrderBy(value => value, ModIds.Comparer)) pending.Enqueue(dependencyId);
         }
 
@@ -165,6 +166,7 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
     private static void EvaluateRelease(InstallPlanningRequest request, ReleaseChannel channel, ModVersionMetadata release, Dictionary<string, RequestedMod> selected, List<PlanningMessage> warnings, List<PlanningMessage> unresolved, List<PlanningMessage> conflicts, List<PlanningChoice> choices)
     {
         if (release.Yanked) warnings.Add(new PlanningMessage(release.ModId, PlanningMessageKind.Yanked) { Value = release.YankedReason });
+        if (release.Download.UnavailableSince is { } since && !IsInstalled(request, release)) warnings.Add(new PlanningMessage(release.ModId, PlanningMessageKind.Unavailable) { Version = release.Version, Since = since });
         // only an exact request reaches this
         if (!channel.Includes(release.ReleaseStatus) && !IsInstalled(request, release)) warnings.Add(new PlanningMessage(release.ModId, PlanningMessageKind.ReleaseChannel) { Version = release.Version, Status = release.ReleaseStatus, Channel = channel });
         var compatibility = Compatibility.Evaluate(release, request.GameVersion);

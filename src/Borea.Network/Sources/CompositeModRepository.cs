@@ -89,6 +89,20 @@ public sealed class CompositeModRepository : IModRepository
         return Array.Empty<ModVersion>();
     }
 
+    public async Task<IReadOnlyList<ModVersionMetadata>> GetReleaseHistoryAsync(string modId, CancellationToken cancellationToken = default)
+    {
+        foreach (var (source, repository) in _sources)
+        {
+            var releases = await repository.GetReleaseHistoryAsync(modId, cancellationToken).ConfigureAwait(false);
+            if (releases.Count > 0)
+                return releases.Select(release => Tag(release, source)).ToArray();
+
+            if (await ClaimsAsync(repository, modId, cancellationToken).ConfigureAwait(false))
+                return Array.Empty<ModVersionMetadata>();
+        }
+        return Array.Empty<ModVersionMetadata>();
+    }
+
     public async Task<IReadOnlyList<ModMetadata>> SearchAsync(string query, CancellationToken cancellationToken = default)
     {
         var results = new List<ModMetadata>();

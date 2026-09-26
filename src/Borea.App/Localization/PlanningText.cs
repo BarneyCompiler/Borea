@@ -28,6 +28,7 @@ internal static class PlanningText
             PlanningMessageKind.ProposedConflict => Fill(Resources.InstallMessageProposedConflictFormat, dependency),
             PlanningMessageKind.Yanked => WithReason(Resources.InstallMessageYanked, message.Value),
             PlanningMessageKind.YankedPin => WithReason(Resources.InstallMessageYankedPin, message.Value),
+            PlanningMessageKind.Unavailable => Fill(Resources.InstallMessageUnavailableFormat, message.Version, message.Since is { } since ? ViewModels.MainViewModel.DateText(since) : null),
             PlanningMessageKind.ReleaseChannel => Fill(Resources.InstallReleaseChannelFormat, message.Version, StatusText(message.Status)),
             PlanningMessageKind.Incompatible => Fill(Resources.InstallMessageIncompatibleFormat, message.Value),
             PlanningMessageKind.Compatibility => message.Compatibility == GameCompatibility.Untested ? Resources.InstallMessageUntested : Resources.InstallMessageCompatibilityUnknown,

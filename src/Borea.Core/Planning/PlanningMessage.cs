@@ -14,6 +14,7 @@ public enum PlanningMessageKind
     ProposedConflict,
     Yanked,
     YankedPin,
+    Unavailable,
     ReleaseChannel,
     Incompatible,
     Compatibility,
@@ -62,6 +63,9 @@ public sealed record PlanningMessage(string ModId, PlanningMessageKind Kind)
 
     public int? Limit { get; init; }
 
+    /// <summary>When the download of the release went from its host (RFC 0078).</summary>
+    public DateTimeOffset? Since { get; init; }
+
     public string Code => Kind switch
     {
         PlanningMessageKind.ForeignOwned => "foreign-owned",
@@ -71,6 +75,7 @@ public sealed record PlanningMessage(string ModId, PlanningMessageKind Kind)
         PlanningMessageKind.ExactPin => "exact-pin",
         PlanningMessageKind.ProposedConflict => "proposed-conflict",
         PlanningMessageKind.Yanked or PlanningMessageKind.YankedPin => "yanked",
+        PlanningMessageKind.Unavailable => "unavailable",
         PlanningMessageKind.ReleaseChannel => "release-channel",
         PlanningMessageKind.Incompatible => "incompatible",
         PlanningMessageKind.Compatibility => "compatibility",
@@ -106,6 +111,7 @@ public sealed record PlanningMessage(string ModId, PlanningMessageKind Kind)
         PlanningMessageKind.ExactPin => $"Exact version {Version} was not selected.",
         PlanningMessageKind.Yanked => Value ?? "The selected release is yanked.",
         PlanningMessageKind.YankedPin => Value ?? "The exact pinned release is yanked.",
+        PlanningMessageKind.Unavailable => $"The download of {ModId} {Version} is gone from its host since {Since:yyyy-MM-dd}, so Borea can install it only from a mirror or a copy it already has.",
         PlanningMessageKind.ReleaseChannel => $"Release {Version} has the release status {StatusName(Status)}, which the {Channel?.ToName()} channel does not offer.",
         PlanningMessageKind.Incompatible => "The release is incompatible with the target game.",
         PlanningMessageKind.Compatibility => $"Game compatibility is {Compatibility}.",

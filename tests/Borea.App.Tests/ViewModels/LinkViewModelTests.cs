@@ -215,6 +215,19 @@ public sealed class LinkViewModelTests
     }
 
     [Fact]
+    public async Task InstallLink_VersionWhoseDownloadIsGone_OffersTheNewestRelease()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: ViewModelHarness.MarkGone("MeasureTools", "1.1.9"));
+        await ActivateInstanceAsync(harness);
+
+        await harness.ViewModel.OpenLinkAsync("borea://install/MeasureTools?version=1.1.9");
+
+        var row = harness.ViewModel.SelectedContent!;
+        Assert.Equal("1.1.10", row.PendingPlan!.Operations.Single().Release.Version.ToString());
+        Assert.StartsWith(harness.Localization.FormatLinkVersionGone("1.1.9"), row.LinkRequestText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InstallLink_Confirmed_Installs_AndASecondLinkSaysItIsInstalled()
     {
         var archive = Archive();

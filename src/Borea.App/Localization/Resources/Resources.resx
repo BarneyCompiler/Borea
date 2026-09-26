@@ -1137,6 +1137,9 @@
   <data name="ContentNotOnDiskDetail" xml:space="preserve">
     <value>The folder of this mod is gone. Install it again, or remove it from the list.</value>
   </data>
+  <data name="ContentGoneFormat" xml:space="preserve">
+    <value>The download of this version is gone since {0}. Borea keeps the installed copy.</value>
+  </data>
   <data name="ContentNotOnDiskEnable" xml:space="preserve">
     <value>Borea cannot enable a mod whose folder is gone.</value>
   </data>
@@ -1442,6 +1445,9 @@
   </data>
   <data name="LinkVersionYankedFormat" xml:space="preserve">
     <value>Version {0} is yanked, so Borea offers the newest release instead.</value>
+  </data>
+  <data name="LinkVersionGoneFormat" xml:space="preserve">
+    <value>Version {0} can no longer be downloaded, so Borea offers the newest release instead.</value>
   </data>
   <data name="DiscoverListYourMod" xml:space="preserve">
     <value>List or change your mod</value>
@@ -2037,6 +2043,9 @@
   <data name="InstallMessageYankedPin" xml:space="preserve">
     <value>The pack pins a yanked release.</value>
   </data>
+  <data name="InstallMessageUnavailableFormat" xml:space="preserve">
+    <value>Version {0} can no longer be downloaded from its host since {1}, so Borea can install it only from a mirror or a copy it already has.</value>
+  </data>
   <data name="InstallMessageIncompatibleFormat" xml:space="preserve">
     <value>This release needs game {0} or newer.</value>
   </data>
@@ -2406,6 +2415,9 @@
   <data name="ContentNoVersionsInChannel" xml:space="preserve">
     <value>No releases in this channel.</value>
   </data>
+  <data name="ContentVersionGoneFormat" xml:space="preserve">
+    <value>No longer downloadable since {0}.</value>
+  </data>
   <data name="ContentTypeModLoader" xml:space="preserve">
     <value>Mod loader</value>
   </data>
@@ -2456,6 +2468,9 @@
   </data>
   <data name="PackMemberYanked" xml:space="preserve">
     <value>Yanked</value>
+  </data>
+  <data name="PackMemberGone" xml:space="preserve">
+    <value>Download gone</value>
   </data>
   <data name="PackMemberUnlisted" xml:space="preserve">
     <value>Not listed</value>

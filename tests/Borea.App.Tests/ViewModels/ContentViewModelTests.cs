@@ -80,6 +80,29 @@ public sealed class ContentViewModelTests
     }
 
     [Fact]
+    public async Task Versions_ReleaseWhoseDownloadIsGone_ShowsTheDate_AndInstallsOnlyWithAMirror()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: snapshot =>
+            ViewModelHarness.MarkGone("AdvancedFlightComputer", "0.7.5")(ViewModelHarness.MarkGone("AdvancedFlightComputer", "0.7.4", keepMirrors: true)(snapshot)));
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        await viewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer").OpenCommand.ExecuteAsync(null);
+
+        await viewModel.ShowContentVersionsCommand.ExecuteAsync(null);
+
+        Assert.Equal("0.7.3", viewModel.LatestVersion!.Version);
+        var rows = viewModel.ContentVersions.ToDictionary(row => row.Version);
+        Assert.Equal(["0.7.5", "0.7.4", "0.7.3", "0.7.2"], rows.Keys);
+        var gone = harness.Localization.FormatContentVersionGone(MainViewModel.DateText(ViewModelHarness.GoneSince));
+        Assert.Equal(gone, rows["0.7.5"].GoneText);
+        Assert.False(rows["0.7.5"].CanInstall);
+        Assert.Equal(gone, rows["0.7.4"].GoneText);
+        Assert.True(rows["0.7.4"].CanInstall);
+        Assert.Null(rows["0.7.3"].GoneText);
+        Assert.True(rows["0.7.3"].CanInstall);
+    }
+
+    [Fact]
     public async Task Versions_WithoutAGame_AreUnknown()
     {
         using var harness = await ViewModelHarness.CreateAsync();

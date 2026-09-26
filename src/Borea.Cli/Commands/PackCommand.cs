@@ -811,6 +811,7 @@ internal static class PackCommand
             {
                 "retracted-pack" => $"warning: Pack version {view.Version} is retracted. {warning.Message}",
                 "yanked" => $"warning: The selected release of {warning.Id} is yanked. {warning.Message}",
+                "unavailable" => $"warning: {warning.Message}",
                 _ when warning.Code.StartsWith("pack-", StringComparison.Ordinal) => $"warning: {warning.Message}",
                 _ => $"warning: {warning.Id}: {warning.Message}",
             });
@@ -859,6 +860,7 @@ internal static class PackCommand
             output.WriteLine(warning.Code switch
             {
                 "yanked" => $"warning: The selected release of {warning.Id} is yanked. {warning.Message}",
+                "unavailable" => $"warning: {warning.Message}",
                 _ when warning.Code.StartsWith("pack-", StringComparison.Ordinal) => $"warning: {warning.Message}",
                 _ => $"warning: {warning.Id}: {warning.Message}",
             });

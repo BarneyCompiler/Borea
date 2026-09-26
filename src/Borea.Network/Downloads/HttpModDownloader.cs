@@ -44,6 +44,13 @@ public sealed class HttpModDownloader : IModDownloader
         var sources = new List<string>(1 + download.Mirrors.Count) { download.Url };
         sources.AddRange(download.Mirrors);
 
+        // the host answered for a day that the archive is gone, so it is asked last
+        if (download.UnavailableSince is not null)
+        {
+            sources.RemoveAt(0);
+            sources.Add(download.Url);
+        }
+
         var pause = DownloadPause.Current;
         var failures = new List<string>();
         Exception? lastTransportError = null;

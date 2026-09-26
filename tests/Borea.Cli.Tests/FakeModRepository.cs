@@ -38,6 +38,14 @@ internal sealed class FakeModRepository : IModRepository
             .OrderByDescending(version => version)
             .ToList());
 
+    /// <summary>Every release that is not yanked, newest first, as the index keeps a release whose download is gone.</summary>
+    public Task<IReadOnlyList<ModVersionMetadata>> GetReleaseHistoryAsync(string modId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<ModVersionMetadata>>(Releases
+            .Where(release => ModIds.Equals(release.ModId, modId) && !release.Yanked)
+            .DistinctBy(release => release.Version)
+            .OrderByDescending(release => release.Version)
+            .ToList());
+
     public Task<IReadOnlyList<ModMetadata>> SearchAsync(string query, CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<ModMetadata>>(Listings
             .Where(listing => listing.Name.Contains(query, StringComparison.OrdinalIgnoreCase))

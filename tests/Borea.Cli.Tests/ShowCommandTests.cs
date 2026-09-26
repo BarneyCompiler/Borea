@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Borea.Core.Dependencies;
 using Borea.Core.Game;
 using Borea.Core.Index;
@@ -41,6 +42,29 @@ public sealed class ShowCommandTests : IDisposable
         Assert.Contains("Index status: disputed", run.Output);
         Assert.True(run.Output.IndexOf("2.0.0", StringComparison.Ordinal) < run.Output.IndexOf("1.0.0", StringComparison.Ordinal));
         Assert.Contains("1.0.0  compatible  stable  yanked: This release is broken.", run.Output);
+    }
+
+    [Fact]
+    public async Task Show_ReleaseWhoseDownloadIsGone_SaysSinceWhen()
+    {
+        var listing = ContentCommandFixtures.Listing();
+        var since = new DateTimeOffset(2026, 9, 23, 10, 24, 0, TimeSpan.Zero);
+        var gone = ContentCommandFixtures.Release(version: "1.0.0", unavailableSince: since);
+        var newest = ContentCommandFixtures.Release(version: "2.0.0");
+        _host.Mods.Listings.Add(listing);
+        _host.Mods.Releases.AddRange(new[] { gone, newest });
+        _host.IndexReader.Snapshot = Snapshot(new ContentIndexListing(listing.ModId, listing, new[] { gone, newest }, null));
+        _host.InstalledVersion = Installed("2026.9.7.5402");
+
+        var human = await _host.RunAsync("show", listing.ModId);
+        var json = await _host.RunAsync("show", listing.ModId, "--json");
+
+        Assert.Equal(0, human.ExitCode);
+        Assert.Contains("1.0.0  compatible  stable  download gone since 2026-09-23T10:24:00.0000000+00:00", human.Output);
+        Assert.DoesNotContain("2.0.0  compatible  stable  download gone", human.Output);
+        var releases = json.Json.GetProperty("releases");
+        Assert.Equal(JsonValueKind.Null, releases[0].GetProperty("unavailableSince").ValueKind);
+        Assert.Equal(since, releases[1].GetProperty("unavailableSince").GetDateTimeOffset());
     }
 
     [Fact]

@@ -24,21 +24,4 @@ internal static class LoaderLookup
 
         return listing;
     }
-
-    public static async Task<IReadOnlyList<ModVersionMetadata>> GetReleasesAsync(
-        IModRepository repository,
-        string loaderId,
-        CancellationToken cancellationToken)
-    {
-        var versions = await repository.GetAvailableVersionsAsync(loaderId, cancellationToken).ConfigureAwait(false);
-        var releases = new List<ModVersionMetadata>(versions.Count);
-        foreach (var version in versions)
-        {
-            var release = await repository.GetReleaseAsync(loaderId, version, cancellationToken).ConfigureAwait(false);
-            if (release is not null)
-                releases.Add(release);
-        }
-
-        return releases;
-    }
 }

@@ -18,4 +18,7 @@ public sealed class DownloadInfoDto
 
     [JsonPropertyName("mirrors")]
     public List<string>? Mirrors { get; set; }
+
+    [JsonPropertyName("unavailable_since")]
+    public string? UnavailableSince { get; set; }
 }

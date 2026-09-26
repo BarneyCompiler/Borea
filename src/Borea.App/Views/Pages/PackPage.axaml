@@ -186,6 +186,9 @@
                                                     <Border Classes="chip incompatible" IsVisible="{Binding IsYanked}" ToolTip.Tip="{Binding YankedReason}">
                                                         <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.PackMemberYanked}" />
                                                     </Border>
+                                                    <Border Classes="chip untested" IsVisible="{Binding GoneText, Converter={x:Static ObjectConverters.IsNotNull}}" ToolTip.Tip="{Binding GoneText}">
+                                                        <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.PackMemberGone}" />
+                                                    </Border>
                                                     <Border Classes="chip untested" IsVisible="{Binding IsUnlisted}">
                                                         <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.PackMemberUnlisted}" />
                                                     </Border>

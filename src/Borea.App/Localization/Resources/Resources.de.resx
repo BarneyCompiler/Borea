@@ -1137,6 +1137,9 @@
   <data name="ContentNotOnDiskDetail" xml:space="preserve">
     <value>Der Ordner dieses Mods fehlt. Installiere ihn erneut, oder entferne ihn aus der Liste.</value>
   </data>
+  <data name="ContentGoneFormat" xml:space="preserve">
+    <value>Der Download dieser Version ist seit {0} nicht mehr verfügbar. Borea behält die installierte Kopie.</value>
+  </data>
   <data name="ContentNotOnDiskEnable" xml:space="preserve">
     <value>Borea kann einen Mod ohne Ordner nicht aktivieren.</value>
   </data>
@@ -1442,6 +1445,9 @@
   </data>
   <data name="LinkVersionYankedFormat" xml:space="preserve">
     <value>Version {0} wurde zurückgezogen, daher bietet Borea stattdessen die neueste Version an.</value>
+  </data>
+  <data name="LinkVersionGoneFormat" xml:space="preserve">
+    <value>Version {0} kann nicht mehr heruntergeladen werden, daher bietet Borea stattdessen die neueste Version an.</value>
   </data>
   <data name="DiscoverListYourMod" xml:space="preserve">
     <value>Mod eintragen oder ändern</value>
@@ -2037,6 +2043,9 @@
   <data name="InstallMessageYankedPin" xml:space="preserve">
     <value>Das Modpack legt eine zurückgezogene Version fest.</value>
   </data>
+  <data name="InstallMessageUnavailableFormat" xml:space="preserve">
+    <value>Version {0} kann seit {1} nicht mehr von ihrem Host heruntergeladen werden, daher kann Borea sie nur von einem Mirror oder einer vorhandenen Kopie installieren.</value>
+  </data>
   <data name="InstallMessageIncompatibleFormat" xml:space="preserve">
     <value>Diese Version braucht die Spielversion {0} oder neuer.</value>
   </data>
@@ -2406,6 +2415,9 @@
   <data name="ContentNoVersionsInChannel" xml:space="preserve">
     <value>Keine Veröffentlichungen in diesem Kanal.</value>
   </data>
+  <data name="ContentVersionGoneFormat" xml:space="preserve">
+    <value>Seit {0} nicht mehr herunterladbar.</value>
+  </data>
   <data name="ContentTypeModLoader" xml:space="preserve">
     <value>Mod-Loader</value>
   </data>
@@ -2456,6 +2468,9 @@
   </data>
   <data name="PackMemberYanked" xml:space="preserve">
     <value>Zurückgezogen</value>
+  </data>
+  <data name="PackMemberGone" xml:space="preserve">
+    <value>Download entfernt</value>
   </data>
   <data name="PackMemberUnlisted" xml:space="preserve">
     <value>Nicht gelistet</value>

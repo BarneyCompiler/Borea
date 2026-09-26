@@ -61,7 +61,7 @@ internal static class ShowCommand
             }
             else
             {
-                releases = await GetRepositoryReleasesAsync(cli.Mods, listingId, ct).ConfigureAwait(false);
+                releases = await cli.Mods.GetReleaseHistoryAsync(listingId, ct).ConfigureAwait(false);
             }
 
             var installed = cli.InstalledVersion.GetInstalledVersion()?.Version;
@@ -122,22 +122,6 @@ internal static class ShowCommand
                 result.AddError($"'{value}' is not a valid semantic version.");
         });
         return version;
-    }
-
-    private static async Task<IReadOnlyList<ModVersionMetadata>> GetRepositoryReleasesAsync(
-        IModRepository repository,
-        string id,
-        CancellationToken cancellationToken)
-    {
-        var versions = await repository.GetAvailableVersionsAsync(id, cancellationToken).ConfigureAwait(false);
-        var releases = new List<ModVersionMetadata>(versions.Count);
-        foreach (var version in versions.OrderByDescending(value => value))
-        {
-            var release = await repository.GetReleaseAsync(id, version, cancellationToken).ConfigureAwait(false);
-            if (release is not null)
-                releases.Add(release);
-        }
-        return releases;
     }
 
     private static IReadOnlyList<DiagnosticView> MatchingDiagnostics(
@@ -227,7 +211,8 @@ internal static class ShowCommand
                 var yanked = release.Yanked
                     ? release.YankedReason is null ? "  yanked" : $"  yanked: {release.YankedReason}"
                     : string.Empty;
-                output.WriteLine($"  {release.Version}  {release.Compatibility}  {release.ReleaseStatus}{yanked}");
+                var gone = release.UnavailableSince is { } since ? $"  download gone since {since:O}" : string.Empty;
+                output.WriteLine($"  {release.Version}  {release.Compatibility}  {release.ReleaseStatus}{yanked}{gone}");
                 output.WriteLine($"    Game: {release.GameMin} to {release.GameMax ?? "open"}");
                 WriteReleaseDownloads(output, release);
                 WriteChangelog(output, string.IsNullOrWhiteSpace(release.ChangelogText) ? release.Changelog : release.ChangelogText);
@@ -366,6 +351,7 @@ internal static class ShowCommand
         int? GameMaxRevision,
         bool Yanked,
         string? YankedReason,
+        DateTimeOffset? UnavailableSince,
         string? Source,
         string? Changelog,
         string? ChangelogText,
@@ -390,6 +376,7 @@ internal static class ShowCommand
             release.GameMaxRevision,
             release.Yanked,
             release.YankedReason,
+            release.Download.UnavailableSince,
             release.Source,
             release.Changelog,
             release.ChangelogText,
@@ -409,6 +396,7 @@ internal static class ShowCommand
             null,
             null,
             false,
+            null,
             null,
             null,
             null,

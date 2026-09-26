@@ -42,6 +42,24 @@ public sealed class ModInstallCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task InstallDryRun_ReleaseWhoseDownloadIsGone_IsSkipped_AndAnExactRequestWarns()
+    {
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "1.0.0"));
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "2.0.0", unavailableSince: new DateTimeOffset(2026, 9, 23, 10, 24, 0, TimeSpan.Zero)));
+        await _host.RunAsync("instance", "create", "Alpha");
+
+        var newest = await _host.RunAsync("install", "flight-tools", "--instance", "Alpha", "--dry-run");
+        var exact = await _host.RunAsync("install", "flight-tools", "--version", "2.0.0", "--instance", "Alpha", "--dry-run");
+
+        Assert.Equal(0, newest.ExitCode);
+        Assert.Contains("Install flight-tools 1.0.0.", newest.Output);
+        Assert.DoesNotContain("2.0.0", newest.Output);
+        Assert.Equal(0, exact.ExitCode);
+        Assert.Contains("warning: The download of flight-tools 2.0.0 is gone from its host since 2026-09-23", exact.Output);
+        Assert.Contains("Install flight-tools 2.0.0.", exact.Output);
+    }
+
+    [Fact]
     public async Task InstallDryRun_SavedTestingChannel_OffersTestingButNotDev()
     {
         _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "2.0.0"));

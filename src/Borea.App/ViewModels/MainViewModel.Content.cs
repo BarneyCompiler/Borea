@@ -389,14 +389,7 @@ public partial class MainViewModel
         IsLoadingVersions = true;
         try
         {
-            var versions = await _services.Mods.GetAvailableVersionsAsync(item.ModId);
-            var releases = new List<VersionItem>();
-            foreach (var version in versions)
-            {
-                var release = await _services.Mods.GetReleaseAsync(item.ModId, version);
-                if (release is not null)
-                    releases.Add(new VersionItem(this, release));
-            }
+            var releases = (await _services.Mods.GetReleaseHistoryAsync(item.ModId)).Select(release => new VersionItem(this, release)).ToList();
 
             if (ReferenceEquals(SelectedContent, item))
             {
@@ -637,8 +630,14 @@ public sealed partial class VersionItem : ObservableObject, IInstallRow
     /// <summary>The install steps of every listing the waiting plan installs, which the confirmation shows.</summary>
     public IReadOnlyList<StepList> PlanSteps => _owner.InstallStepsOf(PendingPlan);
 
-    /// <summary>Mods install into an instance; a loader is set up from the settings. The installed version has nothing to add.</summary>
-    public bool CanInstall => _release.Type == ContentType.Mod && !IsInstalled;
+    /// <summary>
+    /// Mods install into an instance; a loader is set up from the settings. The installed version has nothing to add,
+    /// and a release whose download is gone can only come from a mirror.
+    /// </summary>
+    public bool CanInstall => _release.Type == ContentType.Mod && !IsInstalled && (_release.Download.UnavailableSince is null || _release.Download.Mirrors.Count > 0);
+
+    /// <summary>Since when the download of the release is gone from its host, or null while it downloads.</summary>
+    public string? GoneText => _release.Download.UnavailableSince is { } since ? _owner.Localization.FormatContentVersionGone(MainViewModel.DateText(since)) : null;
 
     public ReleaseChangelog? Changelog { get; }
 
@@ -670,6 +669,7 @@ public sealed partial class VersionItem : ObservableObject, IInstallRow
         OnPropertyChanged(nameof(CompatibilityText));
         OnPropertyChanged(nameof(PublishedText));
         OnPropertyChanged(nameof(PublishedDateText));
+        OnPropertyChanged(nameof(GoneText));
         OnPropertyChanged(nameof(ConfirmInstallText));
         OnPropertyChanged(nameof(AddedModsText));
         OnPropertyChanged(nameof(AddedModsToolTip));

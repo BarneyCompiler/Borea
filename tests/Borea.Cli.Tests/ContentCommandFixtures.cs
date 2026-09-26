@@ -44,7 +44,8 @@ internal static class ContentCommandFixtures
         ReleaseStatus releaseStatus = ReleaseStatus.Stable,
         LoaderRequirement? loader = null,
         string? changelog = null,
-        string? changelogText = null) => new(
+        string? changelogText = null,
+        DateTimeOffset? unavailableSince = null) => new(
             specVersion: 1,
             modId: id,
             version: ModVersion.Parse(version),
@@ -52,7 +53,7 @@ internal static class ContentCommandFixtures
             releaseDate: new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero),
             gameMin: gameMinRevision == 5348 ? "2026.8.22.5348" : $"2026.1.1.{gameMinRevision}",
             gameMinRevision: gameMinRevision,
-            download: new DownloadInfo("https://example.com/flight-tools.zip", new string('A', 64), 1024, "application/zip"),
+            download: new DownloadInfo("https://example.com/flight-tools.zip", new string('A', 64), 1024, "application/zip", unavailableSince: unavailableSince),
             installSizeBytes: 2048,
             dependencies: dependencies ?? Array.Empty<ModDependency>(),
             loader: loader,

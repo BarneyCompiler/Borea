@@ -369,7 +369,13 @@ public static class DtoMapper
     }
 
     private static DownloadInfo MapDownloadInfo(DownloadInfoDto dto) =>
-        new(dto.URL, dto.SHA256, dto.Size, dto.ContentType, RequireItems(dto.Mirrors, "download.mirrors"));
+        new(
+            dto.URL,
+            dto.SHA256,
+            dto.Size,
+            dto.ContentType,
+            RequireItems(dto.Mirrors, "download.mirrors"),
+            dto.UnavailableSince is null ? null : DateTimeOffset.Parse(dto.UnavailableSince, System.Globalization.CultureInfo.InvariantCulture));
 
     /// <summary>
     /// Builds the release-time listing snapshot by merging whatever the

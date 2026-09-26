@@ -158,6 +158,19 @@ public sealed class SnapshotParserTests
     }
 
     [Fact]
+    public void Parse_ReleaseWithUnavailableSince_ReadsWhenItsDownloadWentFromItsHost()
+    {
+        var gone = ValidReleaseJson.Replace("\"content_type\": \"application/zip\" }", "\"content_type\": \"application/zip\", \"unavailable_since\": \"2026-09-23T10:24:00Z\" }");
+        var listing = $$"""{ "id": "test-mod", "authored": {{ValidAuthoredJson}}, "releases": [{{gone}}] }""";
+
+        var result = SnapshotParser.Parse(Snapshot(listing, ""));
+
+        var release = Assert.Single(Assert.Single(result.ValidListings).ValidReleases);
+        Assert.Equal(new DateTimeOffset(2026, 9, 23, 10, 24, 0, TimeSpan.Zero), release.Download.UnavailableSince);
+        Assert.False(release.IsOffered);
+    }
+
+    [Fact]
     public void Parse_AuthoredListingWithShortBounds_LoadsWithTheBoundsFilled()
     {
         var authored = ValidAuthoredJson.Replace(

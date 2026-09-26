@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Text;
+using Borea.App.Localization;
 using Borea.App.ViewModels;
 using Borea.Core.Dependencies;
 using Borea.Core.Instances;
@@ -68,6 +70,24 @@ public sealed class MissingContentTests
         Assert.True(File.Exists(Path.Combine(ModFolder(harness, instance.InstanceId, "HudCore"), "mod.toml")));
         var saved = await harness.Services.Instances.GetByIdAsync(instance.InstanceId);
         Assert.Equal("1.0.0", saved!.Mods.Single(mod => mod.ModId == "HudCore").Version.ToString());
+    }
+
+    [Fact]
+    public async Task InstallAgain_ReleaseWhoseDownloadIsGone_WarnsWithTheDate()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: ViewModelHarness.MarkGone("MeasureTools", "1.1.10"));
+        var instance = await InstalledContent.AddAsync(harness, "MeasureTools", activate: true, ownership: ModInstallOwnership.Borea, version: "1.1.10");
+        DeleteFolder(harness, instance.InstanceId, "MeasureTools");
+        var viewModel = harness.ViewModel;
+        await viewModel.LoadAsync();
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+
+        await Row(viewModel, "MeasureTools").InstallAgainCommand.ExecuteAsync(null);
+
+        var row = Row(viewModel, "MeasureTools");
+        Assert.True(row.IsConfirmingUpdate);
+        Assert.Contains($"MeasureTools: {string.Format(CultureInfo.CurrentCulture, Resources.InstallMessageUnavailableFormat, "1.1.10", MainViewModel.DateText(ViewModelHarness.GoneSince))}", row.InstallWarning);
+        Assert.True(row.IsMissing);
     }
 
     [Fact]

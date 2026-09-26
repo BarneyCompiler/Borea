@@ -36,6 +36,31 @@ public sealed class ContentUpdateTests
     }
 
     [Fact]
+    public async Task Open_ReleaseWhoseDownloadIsGone_IsNoUpdate_AndAnInstalledCopyStaysWithANote()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: snapshot =>
+            ViewModelHarness.MarkGone("AdvancedFlightComputer", "0.7.5")(ViewModelHarness.MarkGone("MeasureTools", "1.1.10")(snapshot)));
+        var viewModel = harness.ViewModel;
+        var instance = await InstalledContent.AddAsync(harness, "AdvancedFlightComputer", activate: true, ownership: ModInstallOwnership.Borea, version: "0.7.4");
+        await InstalledContent.AddAsync(harness, "MeasureTools", activate: true, ownership: ModInstallOwnership.Borea, version: "1.1.10");
+        await viewModel.LoadAsync();
+
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+        await viewModel.WhenContentUpdatesCheckedAsync();
+
+        var rows = viewModel.ContentGroups.Single().Items;
+        var afc = rows.Single(row => row.ModId == "AdvancedFlightComputer");
+        Assert.Null(afc.UpdateVersion);
+        Assert.Null(afc.GoneText);
+        var measureTools = rows.Single(row => row.ModId == "MeasureTools");
+        Assert.Equal("1.1.10", measureTools.Version);
+        Assert.False(measureTools.IsMissing);
+        Assert.Equal(harness.Localization.FormatContentGone(MainViewModel.DateText(ViewModelHarness.GoneSince)), measureTools.GoneText);
+        Assert.False(viewModel.HasUpdates);
+        Assert.Equal(["0.7.4", "1.1.10"], (await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods.OrderBy(mod => mod.ModId).Select(mod => mod.Version.ToString()));
+    }
+
+    [Fact]
     public async Task Open_ModBoreaDidNotInstall_ShowsNoUpdate()
     {
         using var harness = await ViewModelHarness.CreateAsync();
@@ -583,6 +608,24 @@ public sealed class ContentUpdateTests
 
         Assert.Empty(updateAll.Changelogs);
         Assert.False(updateAll.IsConfirmingUpdate);
+    }
+
+    [Fact]
+    public async Task Update_PassedReleaseWhoseDownloadIsGone_StillShowsItsChangelog()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: ViewModelHarness.MarkGone("AdvancedFlightComputer", "0.7.4"));
+        var viewModel = harness.ViewModel;
+        await InstalledContent.AddAsync(harness, "AdvancedFlightComputer", activate: true, ownership: ModInstallOwnership.Borea, version: "0.7.3");
+        await viewModel.LoadAsync();
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+        var row = viewModel.ContentGroups.Single().Items.Single();
+
+        await row.UpdateCommand.ExecuteAsync(null);
+
+        Assert.True(row.IsConfirmingUpdate);
+        Assert.Equal(
+            ["https://github.com/Maximilian-Nesslauer/KSA-AdvancedFlightComputer/releases/tag/v0.7.5", "https://github.com/Maximilian-Nesslauer/KSA-AdvancedFlightComputer/releases/tag/v0.7.4"],
+            row.Changelogs.Select(changelog => changelog.Link?.Url));
     }
 
     [Fact]

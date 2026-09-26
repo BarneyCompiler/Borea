@@ -26,15 +26,16 @@ public interface IModRepository
     }
 
     /// <summary>
-    /// Retrieves the newest available release of a mod, skipping yanked
-    /// releases, or null if the mod has no usable release.
+    /// Retrieves the newest available release of a mod, skipping releases
+    /// that are not <see cref="ModVersionMetadata.IsOffered"/>, or null if the
+    /// mod has no usable release.
     /// </summary>
     Task<ModVersionMetadata?> GetLatestReleaseAsync(string modId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves one specific release of a mod, or null if that version is not
-    /// available. A yanked release is returned as-is, because an already
-    /// installed copy may still need its data.
+    /// available. A yanked release, or one whose download is gone, is returned
+    /// as-is, because an already installed copy may still need its data.
     /// </summary>
     Task<ModVersionMetadata?> GetReleaseAsync(string modId, ModVersion version, CancellationToken cancellationToken = default);
 
@@ -43,6 +44,23 @@ public interface IModRepository
     /// newest-first. Empty if the mod is not currently available.
     /// </summary>
     Task<IReadOnlyList<ModVersion>> GetAvailableVersionsAsync(string modId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves the releases the version history of a mod shows, newest first: every usable
+    /// release, and every release that is not yanked but whose download is gone (RFC 0078).
+    /// The default reads the usable releases, for a source that marks no download as gone.
+    /// </summary>
+    async Task<IReadOnlyList<ModVersionMetadata>> GetReleaseHistoryAsync(string modId, CancellationToken cancellationToken = default)
+    {
+        var releases = new List<ModVersionMetadata>();
+        foreach (var version in (await GetAvailableVersionsAsync(modId, cancellationToken).ConfigureAwait(false)).OrderByDescending(value => value))
+        {
+            if (await GetReleaseAsync(modId, version, cancellationToken).ConfigureAwait(false) is { } release)
+                releases.Add(release);
+        }
+
+        return releases;
+    }
 
     /// <summary>
     /// Searches available mod listings by name/tag/description text.

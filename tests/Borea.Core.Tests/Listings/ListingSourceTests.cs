@@ -99,6 +99,15 @@ public sealed class ListingSourceTests
     }
 
     [Fact]
+    public void NewestStableVersion_SkipsAReleaseWhoseDownloadIsGone()
+    {
+        var starMap = new ContentIndexListing("StarMap", null, [Release("StarMap", "0.4.5", ReleaseStatus.Stable), Release("StarMap", "0.4.6", ReleaseStatus.Stable, gone: true)], null);
+        var snapshot = new ContentIndexSnapshot(1, [starMap], [], null, []);
+
+        Assert.Equal("0.4.5", ListingPrefill.NewestStableVersion(snapshot, "starmap"));
+    }
+
+    [Fact]
     public void TagsFor_MapsForumPrefixesToCuratedTags()
     {
         var vocabulary = new CuratedTagVocabulary(1,
@@ -229,7 +238,7 @@ public sealed class ListingSourceTests
         return new ContentIndexSnapshot(1, [starMap], [], new ContentIndexGameVersions(1, "test", ["2026.8.19.5261", "2026.9.7.5402", "2026.9.4.5400"]), []);
     }
 
-    private static ModVersionMetadata Release(string id, string version, ReleaseStatus status, bool yanked = false) => new(
+    private static ModVersionMetadata Release(string id, string version, ReleaseStatus status, bool yanked = false, bool gone = false) => new(
         specVersion: 1,
         modId: id,
         version: ModVersion.Parse(version),
@@ -237,7 +246,7 @@ public sealed class ListingSourceTests
         releaseDate: DateTimeOffset.UnixEpoch,
         gameMin: "2026.7.4.2131",
         gameMinRevision: 2131,
-        download: new DownloadInfo("https://example.com/a.zip", null, null, "application/zip"),
+        download: new DownloadInfo("https://example.com/a.zip", null, null, "application/zip", unavailableSince: gone ? DateTimeOffset.UnixEpoch : null),
         installSizeBytes: null,
         dependencies: Array.Empty<ModDependency>(),
         yanked: yanked,

@@ -422,6 +422,87 @@ public sealed class RepositoryInstallPlannerTests
         Assert.DoesNotContain(plan.Conflicts, value => value.Code == "unsatisfied-dependency");
     }
 
+    [Theory]
+    [InlineData(true, "1.0.0")]
+    [InlineData(false, "2.0.0")]
+    public async Task PlanAsync_ReleaseWhoseDownloadIsGone_IsNotPickedForAnInstallOrAnUpdate(bool gone, string expected)
+    {
+        var b1 = Release("B");
+        var b2 = Release("B", "2.0.0", unavailableSince: gone ? GoneSince : null);
+        var planner = new RepositoryInstallPlanner(new ModDependencyResolver());
+        var older = Installed("B", "0.9.0");
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UtcNow, [older], false);
+
+        var install = await planner.PlanAsync(new InstallPlanningRequest(new Instance("Test", InstanceSource.Custom.Value), [new RequestedMod(b1, InstallReason.Manual, Exact: false)], new FakeRepository([b1, b2])));
+        var update = await planner.PlanAsync(new InstallPlanningRequest(instance, [new RequestedMod(older.Metadata, InstallReason.Manual, Exact: false)], new FakeRepository([b1, b2])));
+
+        Assert.Equal(ModVersion.Parse(expected), Assert.Single(install.Operations).Release.Version);
+        Assert.Equal(ModVersion.Parse(expected), Assert.Single(update.Operations).Release.Version);
+        Assert.DoesNotContain(install.Warnings, value => value.Code == "unavailable");
+    }
+
+    [Fact]
+    public async Task PlanAsync_ExactReleaseWhoseDownloadIsGone_WarnsWithTheVersionAndTheDate()
+    {
+        var b = Release("B", "2.0.0", unavailableSince: GoneSince);
+        var plan = await PlanAsync([b], [b]);
+
+        Assert.True(plan.IsReady);
+        Assert.Equal(b.Version, Assert.Single(plan.Operations).Release.Version);
+        var warning = Assert.Single(plan.Warnings, value => value.Kind == PlanningMessageKind.Unavailable);
+        Assert.Equal("B", warning.ModId);
+        Assert.Equal(b.Version, warning.Version);
+        Assert.Equal(GoneSince, warning.Since);
+    }
+
+    [Fact]
+    public async Task PlanAsync_InstalledReleaseWhoseDownloadIsGone_StaysWithoutAWarning()
+    {
+        var b = Release("B", "2.0.0", unavailableSince: GoneSince);
+        var installed = new InstalledMod("B", b.Version, InstallReason.Manual, DateTimeOffset.UtcNow, b);
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UtcNow, [installed], false);
+        var planner = new RepositoryInstallPlanner(new ModDependencyResolver());
+        var repository = new FakeRepository([Release("B"), b]);
+
+        var pinned = await planner.PlanAsync(new InstallPlanningRequest(instance, [new RequestedMod(b, InstallReason.ModPack)], repository));
+        var update = await planner.PlanAsync(new InstallPlanningRequest(instance, [new RequestedMod(installed.Metadata, InstallReason.Manual, Exact: false)], repository));
+
+        foreach (var plan in new[] { pinned, update })
+        {
+            Assert.True(plan.IsReady);
+            Assert.Empty(plan.Operations);
+            Assert.Equal(b.Version, Assert.Single(plan.Selections).Release.Version);
+            Assert.DoesNotContain(plan.Warnings, value => value.Kind == PlanningMessageKind.Unavailable);
+        }
+    }
+
+    [Fact]
+    public async Task PlanAsync_DependencyThatOnlyAReleaseWhoseDownloadIsGoneMeets_IsNotResolved()
+    {
+        var a = Release("A", dependencies: [Required("B", min: "2.0.0")]);
+        var b1 = Release("B");
+        var b2 = Release("B", "2.0.0", unavailableSince: GoneSince);
+
+        var plan = await PlanAsync([a], [a, b1, b2]);
+
+        Assert.False(plan.IsReady);
+        Assert.Contains(plan.Conflicts, value => value.Code == "unsatisfied-dependency" && value.ModId == "A");
+        Assert.DoesNotContain(plan.Selections, value => value.Release.Version == b2.Version);
+    }
+
+    [Fact]
+    public async Task PlanAsync_NonExactRootWhoseDownloadIsGone_UsesAnOfferedRelease()
+    {
+        var b1 = Release("B");
+        var b2 = Release("B", "2.0.0", unavailableSince: GoneSince);
+        var request = new InstallPlanningRequest(new Instance("Test", InstanceSource.Custom.Value), [new RequestedMod(b2, InstallReason.Manual, Exact: false)], new FakeRepository([b1, b2]));
+
+        var plan = await new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(request);
+
+        Assert.True(plan.IsReady);
+        Assert.Equal(b1.Version, Assert.Single(plan.Operations).Release.Version);
+    }
+
     [Fact]
     public async Task PlanAsync_YankedNonExactRootWithoutReplacementKeepsWarning()
     {
@@ -737,7 +818,8 @@ public sealed class RepositoryInstallPlannerTests
     private static Task<InstallPlan> PlanAsync(IReadOnlyList<ModVersionMetadata> requested, IReadOnlyList<ModVersionMetadata> available) => new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(new InstallPlanningRequest(new Instance("Test", InstanceSource.Custom.Value), requested.Select(value => new RequestedMod(value, InstallReason.Manual)).ToList(), new FakeRepository(available)));
     private static ModDependency Required(string id, string? min = null, string? max = null) => new(id, ModDependencyKind.Required, min is null ? null : ModVersion.Parse(min), max is null ? null : ModVersion.Parse(max));
     private static InstalledMod Installed(string id, string version = "1.0.0", IReadOnlyList<ModDependency>? dependencies = null, ReleaseStatus status = ReleaseStatus.Stable) => new(id, ModVersion.Parse(version), InstallReason.Manual, DateTimeOffset.UtcNow, Release(id, version, dependencies, status: status));
-    private static ModVersionMetadata Release(string id, string version = "1.0.0", IReadOnlyList<ModDependency>? dependencies = null, bool yanked = false, int gameMinRevision = 2131, IReadOnlyList<string>? os = null, ReleaseStatus status = ReleaseStatus.Stable) => new(1, id, ModVersion.Parse(version), status, DateTimeOffset.UnixEpoch, gameMinRevision == 2131 ? "2026.7.4.2131" : $"2026.7.4.{gameMinRevision}", gameMinRevision, new DownloadInfo("https://example.com/mod.zip", new string('A', 64), 1, "application/zip"), 1, dependencies ?? [], os: os, yanked: yanked);
+    private static readonly DateTimeOffset GoneSince = new(2026, 9, 23, 10, 24, 0, TimeSpan.Zero);
+    private static ModVersionMetadata Release(string id, string version = "1.0.0", IReadOnlyList<ModDependency>? dependencies = null, bool yanked = false, int gameMinRevision = 2131, IReadOnlyList<string>? os = null, ReleaseStatus status = ReleaseStatus.Stable, DateTimeOffset? unavailableSince = null) => new(1, id, ModVersion.Parse(version), status, DateTimeOffset.UnixEpoch, gameMinRevision == 2131 ? "2026.7.4.2131" : $"2026.7.4.{gameMinRevision}", gameMinRevision, new DownloadInfo("https://example.com/mod.zip", new string('A', 64), 1, "application/zip", unavailableSince: unavailableSince), 1, dependencies ?? [], os: os, yanked: yanked);
 
     private sealed class FakeRepository(IReadOnlyList<ModVersionMetadata> releases) : IModRepository
     {

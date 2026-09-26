@@ -41,7 +41,7 @@ public sealed class ContentIndexModRepository : IContentIndexRepository, IModIdC
     {
         var listing = await FindListingAsync(modId, cancellationToken).ConfigureAwait(false);
         return listing?.Releases
-            .Where(release => !release.Yanked)
+            .Where(release => release.IsOffered)
             .OrderByDescending(release => release.Version)
             .FirstOrDefault();
     }
@@ -61,12 +61,25 @@ public sealed class ContentIndexModRepository : IContentIndexRepository, IModIdC
     {
         var listing = await FindListingAsync(modId, cancellationToken).ConfigureAwait(false);
         return listing?.Releases
-            .Where(release => !release.Yanked)
+            .Where(release => release.IsOffered)
             .Select(release => release.Version)
             .Distinct()
             .OrderByDescending(version => version)
             .ToArray()
             ?? Array.Empty<ModVersion>();
+    }
+
+    public async Task<IReadOnlyList<ModVersionMetadata>> GetReleaseHistoryAsync(
+        string modId,
+        CancellationToken cancellationToken = default)
+    {
+        var listing = await FindListingAsync(modId, cancellationToken).ConfigureAwait(false);
+        return listing?.Releases
+            .Where(release => !release.Yanked)
+            .DistinctBy(release => release.Version)
+            .OrderByDescending(release => release.Version)
+            .ToArray()
+            ?? Array.Empty<ModVersionMetadata>();
     }
 
     public async Task<IReadOnlyList<ModMetadata>> SearchAsync(

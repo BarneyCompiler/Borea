@@ -55,6 +55,30 @@ public sealed class ContentIndexModRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task ReleaseWhoseDownloadIsGone_IsNotOffered_ButStaysInTheHistoryAndForAnExactRead()
+    {
+        var mod = TestFixtures.FullModMetadata("active-mod", "index");
+        var releases = new[]
+        {
+            Release("active-mod", "1.0.0"),
+            Release("active-mod", "2.0.0", gone: true),
+            Release("active-mod", "3.0.0", yanked: true),
+        };
+        var reader = new FakeReader(Snapshot(new ContentIndexListing("active-mod", mod, releases, null)));
+        var repository = new ContentIndexModRepository(new FakeFetcher(ContentIndexFetchResult.Downloaded), reader, new TestPathProvider());
+
+        var latest = await repository.GetLatestReleaseAsync("active-mod");
+        var versions = await repository.GetAvailableVersionsAsync("active-mod");
+        var history = await repository.GetReleaseHistoryAsync("active-mod");
+        var gone = await repository.GetReleaseAsync("active-mod", ModVersion.Parse("2.0.0"));
+
+        Assert.Equal(ModVersion.Parse("1.0.0"), latest!.Version);
+        Assert.Equal(new[] { ModVersion.Parse("1.0.0") }, versions);
+        Assert.Equal(new[] { ModVersion.Parse("2.0.0"), ModVersion.Parse("1.0.0") }, history.Select(release => release.Version));
+        Assert.Equal(GoneSince, gone!.Download.UnavailableSince);
+    }
+
+    [Fact]
     public async Task GetAvailableModsAsync_NotModifiedWithinNewInterval_DoesNotReadAgain()
     {
         var time = new FakeTimeProvider();
@@ -335,7 +359,9 @@ public sealed class ContentIndexModRepositoryTests : IDisposable
         new ContentIndexGameVersions(1, "master-server", new[] { "2026.9.7.5402" }),
         Array.Empty<ContentIndexDiagnostic>());
 
-    private static ModVersionMetadata Release(string modId, string version, bool yanked = false) => new(
+    private static readonly DateTimeOffset GoneSince = new(2026, 9, 23, 10, 24, 0, TimeSpan.Zero);
+
+    private static ModVersionMetadata Release(string modId, string version, bool yanked = false, bool gone = false) => new(
         specVersion: 1,
         modId: modId,
         version: ModVersion.Parse(version),
@@ -347,7 +373,8 @@ public sealed class ContentIndexModRepositoryTests : IDisposable
             "https://example.test/mod.zip",
             new string('A', 64),
             1024,
-            "application/zip"),
+            "application/zip",
+            unavailableSince: gone ? GoneSince : null),
         installSizeBytes: 2048,
         dependencies: Array.Empty<Borea.Core.Dependencies.ModDependency>(),
         yanked: yanked,

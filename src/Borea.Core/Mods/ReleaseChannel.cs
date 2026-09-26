@@ -62,7 +62,7 @@ public static class ReleaseChannels
     }
 
     /// <summary>
-    /// The newest release that is not yanked and that <paramref name="channel"/> offers, or null.
+    /// The newest offered release that <paramref name="channel"/> includes, or null.
     /// A <see cref="ReleaseChannelModRepository"/> is read through its inner repository.
     /// </summary>
     public static async Task<ModVersionMetadata?> GetLatestReleaseInChannelAsync(
@@ -80,14 +80,14 @@ public static class ReleaseChannels
         if (latest is null)
             return null;
 
-        if (channel.Includes(latest.ReleaseStatus))
+        if (latest.IsOffered && channel.Includes(latest.ReleaseStatus))
             return latest;
 
         var versions = await repository.GetAvailableVersionsAsync(modId, cancellationToken).ConfigureAwait(false);
         foreach (var version in versions.OrderByDescending(value => value))
         {
             var release = await repository.GetReleaseAsync(modId, version, cancellationToken).ConfigureAwait(false);
-            if (release is { Yanked: false } && channel.Includes(release.ReleaseStatus))
+            if (release is { IsOffered: true } && channel.Includes(release.ReleaseStatus))
                 return release;
         }
 

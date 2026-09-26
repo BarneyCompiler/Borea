@@ -111,6 +111,16 @@ public sealed class ReleaseChannelTests
     }
 
     [Fact]
+    public async Task GetLatestReleaseInChannelAsync_SkipsAReleaseWhoseDownloadIsGone()
+    {
+        var repository = new FakeRepository(Release("1.0.0"), Release("1.1.0", gone: true));
+
+        var latest = await repository.GetLatestReleaseInChannelAsync("A", ReleaseChannel.Stable);
+
+        Assert.Equal(ModVersion.Parse("1.0.0"), latest!.Version);
+    }
+
+    [Fact]
     public async Task GetLatestReleaseInChannelAsync_NoReleaseInTheChannel_ReturnsNull()
     {
         var repository = new FakeRepository(Release("1.0.0-dev.1", ReleaseStatus.Dev));
@@ -165,7 +175,7 @@ public sealed class ReleaseChannelTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new ReleaseChannelModRepository(new FakeRepository(), (ReleaseChannel)42));
     }
 
-    private static ModVersionMetadata Release(string version, ReleaseStatus status = ReleaseStatus.Stable, bool yanked = false) => new(
+    private static ModVersionMetadata Release(string version, ReleaseStatus status = ReleaseStatus.Stable, bool yanked = false, bool gone = false) => new(
         1,
         "A",
         ModVersion.Parse(version),
@@ -173,12 +183,12 @@ public sealed class ReleaseChannelTests
         DateTimeOffset.UnixEpoch,
         "2026.7.4.2131",
         2131,
-        new DownloadInfo("https://example.com/mod.zip", new string('A', 64), 1, "application/zip"),
+        new DownloadInfo("https://example.com/mod.zip", new string('A', 64), 1, "application/zip", unavailableSince: gone ? DateTimeOffset.UnixEpoch : null),
         1,
         Array.Empty<ModDependency>(),
         yanked: yanked);
 
-    /// <summary>Like the index repository: yanked releases are skipped except for an exact read.</summary>
+    /// <summary>Like a source that does not know the gone mark: yanked releases are skipped except for an exact read.</summary>
     private sealed class FakeRepository(params ModVersionMetadata[] releases) : IModRepository
     {
         public int VersionReads { get; private set; }

@@ -33,7 +33,13 @@ public sealed class DownloadInfo
     /// </summary>
     public IReadOnlyList<string> Mirrors { get; }
 
-    public DownloadInfo(string url, string? sha256, long? sizeBytes, string contentType, IReadOnlyList<string>? mirrors = null)
+    /// <summary>
+    /// When the index found every URL of the archive gone from its host (RFC 0078), or null while
+    /// the archive downloads. Only a mirror or a copy with the same bytes can still serve it.
+    /// </summary>
+    public DateTimeOffset? UnavailableSince { get; }
+
+    public DownloadInfo(string url, string? sha256, long? sizeBytes, string contentType, IReadOnlyList<string>? mirrors = null, DateTimeOffset? unavailableSince = null)
     {
         if (string.IsNullOrWhiteSpace(url))
             throw new ArgumentException("Download url cannot be empty.", nameof(url));
@@ -52,6 +58,7 @@ public sealed class DownloadInfo
         SizeBytes = sizeBytes;
         ContentType = contentType;
         Mirrors = mirrors is null ? Array.Empty<string>() : new ReadOnlyCollection<string>(mirrors.ToArray());
+        UnavailableSince = unavailableSince;
     }
 
     /// <summary>

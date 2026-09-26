@@ -32,7 +32,9 @@ public sealed class HttpModDownloaderTests : IDisposable
 
     private static string Sha256Of(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 
-    private static ModVersionMetadata Release(string url, string? sha256, long? sizeBytes, params string[] mirrors) => new(
+    private static ModVersionMetadata Release(string url, string? sha256, long? sizeBytes, params string[] mirrors) => Release(url, sha256, sizeBytes, mirrors, null);
+
+    private static ModVersionMetadata Release(string url, string? sha256, long? sizeBytes, string[] mirrors, DateTimeOffset? unavailableSince) => new(
         specVersion: 1,
         modId: "ModA",
         version: ModVersion.Parse("1.0.0"),
@@ -40,7 +42,7 @@ public sealed class HttpModDownloaderTests : IDisposable
         releaseDate: new DateTimeOffset(2026, 8, 1, 12, 0, 0, TimeSpan.Zero),
         gameMin: "2026.7.4.2131",
         gameMinRevision: 2131,
-        download: new DownloadInfo(url, sha256, sizeBytes, "application/zip", mirrors),
+        download: new DownloadInfo(url, sha256, sizeBytes, "application/zip", mirrors, unavailableSince),
         installSizeBytes: null,
         dependencies: Array.Empty<ModDependency>());
 
@@ -290,6 +292,26 @@ public sealed class HttpModDownloaderTests : IDisposable
         Assert.Equal(new[] { GitHubUrl, MirrorUrl }, requested);
         Assert.Equal(MirrorUrl, result.Url);
         Assert.Equal(Archive, await File.ReadAllBytesAsync(_archivePath));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_DownloadGone_InstallsFromTheMirror_AndAsksTheHostLast()
+    {
+        var requested = new List<string>();
+        var downloader = new HttpModDownloader(Client(_ => FakeHttpMessageHandler.ByteResponse(Archive), requested));
+        var stamped = StampedRelease(GitHubUrl, MirrorUrl);
+        var gone = Release(GitHubUrl, stamped.Download.Sha256, stamped.Download.SizeBytes, [MirrorUrl], new DateTimeOffset(2026, 9, 23, 10, 24, 0, TimeSpan.Zero));
+
+        var result = await downloader.DownloadAsync(gone, _archivePath);
+
+        Assert.Equal(new[] { MirrorUrl }, requested);
+        Assert.Equal(MirrorUrl, result.Url);
+        Assert.Equal(Archive, await File.ReadAllBytesAsync(_archivePath));
+
+        requested.Clear();
+        downloader = new HttpModDownloader(Client(url => url == GitHubUrl ? FakeHttpMessageHandler.ByteResponse(Archive) : Status(HttpStatusCode.NotFound), requested));
+        Assert.Equal(GitHubUrl, (await downloader.DownloadAsync(gone, _archivePath)).Url);
+        Assert.Equal(new[] { MirrorUrl, GitHubUrl }, requested);
     }
 
     [Fact]

@@ -31,6 +31,9 @@ public sealed class ReleaseChannelModRepository : IModRepository
     public Task<IReadOnlyList<ModVersion>> GetAvailableVersionsAsync(string modId, CancellationToken cancellationToken = default)
         => Inner.GetAvailableVersionsAsync(modId, cancellationToken);
 
+    public Task<IReadOnlyList<ModVersionMetadata>> GetReleaseHistoryAsync(string modId, CancellationToken cancellationToken = default)
+        => Inner.GetReleaseHistoryAsync(modId, cancellationToken);
+
     public Task<IReadOnlyList<ModMetadata>> SearchAsync(string query, CancellationToken cancellationToken = default)
         => Inner.SearchAsync(query, cancellationToken);
 }

@@ -16,7 +16,9 @@ public sealed class ModVersionMetadataTests
         LoaderRequirement? loader = null,
         IReadOnlyList<ModDependency>? dependencies = null,
         int specVersion = SpecVersions.Highest,
-        string? changelogText = null) =>
+        string? changelogText = null,
+        DownloadInfo? download = null,
+        bool yanked = false) =>
         new(
             specVersion: specVersion,
             modId: "test-mod",
@@ -25,7 +27,7 @@ public sealed class ModVersionMetadataTests
             releaseDate: DateTimeOffset.UtcNow,
             gameMin: gameMin,
             gameMinRevision: gameMinRevision,
-            download: TestFixtures.SampleDownload(),
+            download: download ?? TestFixtures.SampleDownload(),
             installSizeBytes: 2048,
             dependencies: dependencies ?? Array.Empty<ModDependency>(),
             type: type,
@@ -33,7 +35,8 @@ public sealed class ModVersionMetadataTests
             gameMaxRevision: gameMaxRevision,
             install: install,
             loader: loader,
-            changelogText: changelogText);
+            changelogText: changelogText,
+            yanked: yanked);
 
     [Fact]
     public void Constructor_ValidInput_SetsAllProperties()
@@ -46,6 +49,17 @@ public sealed class ModVersionMetadataTests
         Assert.Equal(5117, metadata.GameMaxRevision);
         Assert.False(metadata.Yanked);
         Assert.Null(metadata.Listing);
+    }
+
+    [Fact]
+    public void IsOffered_OnlyForARelease_ThatIsNotYanked_AndWhoseDownloadIsNotGone()
+    {
+        var gone = new DownloadInfo("https://example.com/mod.zip", new string('A', 64), 1, "application/zip", unavailableSince: DateTimeOffset.UnixEpoch);
+
+        Assert.True(Build().IsOffered);
+        Assert.False(Build(yanked: true).IsOffered);
+        Assert.False(Build(download: gone).IsOffered);
+        Assert.Equal(DateTimeOffset.UnixEpoch, Build(download: gone).Download.UnavailableSince);
     }
 
     [Theory]

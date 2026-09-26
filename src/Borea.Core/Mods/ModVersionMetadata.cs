@@ -135,6 +135,12 @@ public sealed class ModVersionMetadata
     /// </summary>
     public string? YankedReason { get; }
 
+    /// <summary>
+    /// Whether Borea may pick this release for an install or an update by itself: it is not yanked,
+    /// and its download is not gone from its host (RFC 0078). An exact request can still name it.
+    /// </summary>
+    public bool IsOffered => !Yanked && Download.UnavailableSince is null;
+
     public ModVersionMetadata(
         int specVersion,
         string modId,

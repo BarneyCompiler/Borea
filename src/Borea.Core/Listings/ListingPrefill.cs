@@ -63,12 +63,12 @@ public static class ListingPrefill
         return newest is { } version ? Bound(version) : null;
     }
 
-    /// <summary>The newest release of <paramref name="id"/> in the snapshot that is stable and not yanked.</summary>
+    /// <summary>The newest release of <paramref name="id"/> in the snapshot that is stable and offered.</summary>
     public static string? NewestStableVersion(ContentIndexSnapshot? snapshot, string id)
     {
         var listing = snapshot?.Listings.FirstOrDefault(entry => ModIds.Equals(entry.Id, id));
         return listing?.Releases
-            .Where(release => release.ReleaseStatus == ReleaseStatus.Stable && !release.Yanked)
+            .Where(release => release.ReleaseStatus == ReleaseStatus.Stable && release.IsOffered)
             .Select(release => release.Version)
             .OrderDescending()
             .Select(version => (ModVersion?)version)

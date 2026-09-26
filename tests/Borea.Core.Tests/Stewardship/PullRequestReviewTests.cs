@@ -39,4 +39,34 @@ public sealed class PullRequestReviewTests
 
         Assert.Equal((fromFork, canRunChecks), (review.IsFromFork, review.CanRunChecks));
     }
+
+    public static TheoryData<PullRequestReview, PullRequestRefusal[]> Merges => new()
+    {
+        { Review(), [] },
+        { Review() with { Validate = new ValidateStatus(ValidateState.Failure) }, [PullRequestRefusal.Validate] },
+        { Review() with { Validate = new ValidateStatus(ValidateState.Pending) }, [PullRequestRefusal.Validate] },
+        { Review() with { Validate = new ValidateStatus(ValidateState.Missing) }, [PullRequestRefusal.Validate] },
+        { Review() with { Validate = null, ValidateFailure = new StewardException(StewardFailure.RateLimited) }, [PullRequestRefusal.Validate] },
+        { Review() with { Verdict = null }, [PullRequestRefusal.Verdict] },
+        { Review() with { State = PullRequestState.Merged, IsDraft = true, Validate = new ValidateStatus(ValidateState.Error), Verdict = null }, [PullRequestRefusal.NotOpen, PullRequestRefusal.Draft, PullRequestRefusal.Validate, PullRequestRefusal.Verdict] },
+    };
+
+    [Theory]
+    [MemberData(nameof(Merges))]
+    public void BlockersOf_MergeNeedsAnOpenPullRequestWithGreenValidateAndTheVerdict(PullRequestReview review, PullRequestRefusal[] blockers)
+    {
+        Assert.Equal(blockers, PullRequestMerge.BlockersOf(review));
+    }
+
+    [Theory]
+    [InlineData(PullRequestReviewKind.Approve, false)]
+    [InlineData(PullRequestReviewKind.RequestChanges, true)]
+    [InlineData(PullRequestReviewKind.Comment, true)]
+    public void NeedsBody_OnlyAnApprovalGoesWithoutText(PullRequestReviewKind kind, bool needsBody)
+    {
+        Assert.Equal(needsBody, PullRequestMerge.NeedsBody(kind));
+    }
+
+    private static PullRequestReview Review() =>
+        new(ContentIndex, 5, new Uri($"https://github.com/{ContentIndex}/pull/5"), "Pull 5", "alice", PullRequestState.Open, IsDraft: false, [], "main", "c0ffee", "alice/content-index", new ValidateStatus(ValidateState.Success), null, "Validated.", [], []);
 }

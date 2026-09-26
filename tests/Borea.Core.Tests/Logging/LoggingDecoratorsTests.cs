@@ -8,6 +8,7 @@ using Borea.Core.Logging;
 using Borea.Core.Mods;
 using Borea.Core.Planning;
 using Borea.Core.Settings;
+using Borea.Core.Stewardship;
 using Borea.Core.Tests.Mods;
 
 namespace Borea.Core.Tests.Logging;
@@ -325,6 +326,52 @@ public sealed class LoggingDecoratorsTests
 
         Assert.Same(failure, thrown);
         Assert.Equal(["Listing pull request of MyMod failed. PullRequest failed: Refused, Validation Failed"], _log.Messages);
+    }
+
+    [Fact]
+    public async Task PullRequestActions_WriteEachActionWithTheRepositoryNumberAndHeadCommit()
+    {
+        var actions = new LoggingPullRequestActions(new FakePullRequestActions(), _log);
+
+        await actions.ReviewAsync(Shown, PullRequestReviewKind.Approve, null);
+        await actions.MergeAsync(Shown, skipRequiredReview: true);
+        await actions.CloseAsync(Shown, "Duplicate.");
+
+        Assert.Equal(
+            [
+                "Approve review of KSAModding/content-index #5 at c0ffee done.",
+                "Merge without the required review of KSAModding/content-index #5 at c0ffee done.",
+                "Close of KSAModding/content-index #5 at c0ffee done.",
+            ],
+            _log.Messages);
+    }
+
+    [Fact]
+    public async Task PullRequestActions_Failure_WritesItAndRethrows()
+    {
+        var failure = new PullRequestRefusedException(PullRequestRefusal.Changed);
+        var actions = new LoggingPullRequestActions(new FakePullRequestActions { Failure = failure }, _log);
+
+        var thrown = await Assert.ThrowsAsync<PullRequestRefusedException>(() => actions.MergeAsync(Shown, skipRequiredReview: false));
+
+        Assert.Same(failure, thrown);
+        Assert.Equal(["Merge of KSAModding/content-index #5 at c0ffee failed. Changed"], _log.Messages);
+    }
+
+    private static PullRequestReview Shown { get; } =
+        new("KSAModding/content-index", 5, new Uri("https://github.com/KSAModding/content-index/pull/5"), "Add My Mod", "alice", PullRequestState.Open, IsDraft: false, [], "main", "c0ffee", "alice/content-index", null, null, null, [], []);
+
+    private sealed class FakePullRequestActions : IPullRequestActions
+    {
+        public Exception? Failure { get; init; }
+
+        public Task ReviewAsync(PullRequestReview pullRequest, PullRequestReviewKind kind, string? body, CancellationToken cancellationToken = default) => Answer();
+
+        public Task MergeAsync(PullRequestReview pullRequest, bool skipRequiredReview, CancellationToken cancellationToken = default) => Answer();
+
+        public Task CloseAsync(PullRequestReview pullRequest, string comment, CancellationToken cancellationToken = default) => Answer();
+
+        private Task Answer() => Failure is null ? Task.CompletedTask : Task.FromException(Failure);
     }
 
     private sealed class FakeListingPublisher : IListingPublisher

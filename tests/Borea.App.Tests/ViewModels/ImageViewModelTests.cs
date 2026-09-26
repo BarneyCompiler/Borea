@@ -229,7 +229,7 @@ public sealed class ImageViewModelTests
         return Assert.IsType<ListingImage>(harness.ViewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer").Icon);
     }
 
-    private static string Icon(string url) =>
+    internal static string Icon(string url) =>
         $$"""{ "url": "{{url}}", "sha256": "{{Digest}}", "width": 512, "height": 512, "size": 4096 }""";
 
     private static string PackVersion(string version, bool retracted = false)
@@ -243,7 +243,7 @@ public sealed class ImageViewModelTests
     private static string Description(string id) =>
         $$"""{ "id": "{{id}}", "url": "https://images.example/{{id}}.png", "sha256": "{{Digest}}", "width": 1600, "height": 900, "size": 400000 }""";
 
-    private static Func<string, string> WithImages(string listingId, string images) => json =>
+    internal static Func<string, string> WithImages(string listingId, string images) => json =>
     {
         const string authored = "\"authored\": {";
         var listing = json.IndexOf($"\"id\": \"{listingId}\",", StringComparison.Ordinal);

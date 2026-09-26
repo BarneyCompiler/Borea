@@ -258,11 +258,17 @@ public sealed class ListingImageView : Decorator
     private void Observe(ListingImage? image)
     {
         if (_observed is not null)
+        {
             _observed.PropertyChanged -= OnImageChanged;
+            _observed.RemoveView();
+        }
 
         _observed = image;
         if (image is not null)
+        {
             image.PropertyChanged += OnImageChanged;
+            image.AddView();
+        }
     }
 
     private void OnImageChanged(object? sender, PropertyChangedEventArgs e)

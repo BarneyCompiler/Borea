@@ -17,6 +17,7 @@ public sealed partial class ListingImage : ObservableObject
     private readonly MainViewModel _owner;
     private Task? _load;
     private long _failedAt;
+    private int _views;
 
     public ContentImage Record { get; }
 
@@ -72,6 +73,28 @@ public sealed partial class ListingImage : ObservableObject
 
         Failure = result.Failure;
         Bytes = result.IsLoaded ? result.Bytes.ToArray() : null;
+    }
+
+    /// <summary>Counts a view that shows the image, so the bytes of an icon stay while any view shows it.</summary>
+    internal void AddView()
+    {
+        if (_views++ == 0)
+            _owner.IdleIcons.Remove(this);
+    }
+
+    internal void RemoveView()
+    {
+        if (--_views == 0)
+            ParkIfIdle();
+    }
+
+    partial void OnBytesChanged(byte[]? value) => ParkIfIdle();
+
+    /// <summary>Only an icon gives its bytes back, because the images of a description go with their page.</summary>
+    private void ParkIfIdle()
+    {
+        if (_views == 0 && Record is IconImage && Bytes is { } bytes)
+            _owner.IdleIcons.Put(this, bytes.Length);
     }
 
     /// <summary>Forgets a failure that the image preference caused, so the image loads when a view shows it again.</summary>

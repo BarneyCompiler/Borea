@@ -23,6 +23,9 @@ public partial class MainViewModel
 
     internal TimeProvider ImageClock { get; set; } = TimeProvider.System;
 
+    // about three windows of rows at the largest icon file, and many more at a common one
+    internal IdleIconBytes IdleIcons { get; set; } = new(4 * 1024 * 1024);
+
     /// <summary>Turning it on lets the images it held back load when a view shows them again.</summary>
     public bool LoadImagesFromAuthorHosts
     {

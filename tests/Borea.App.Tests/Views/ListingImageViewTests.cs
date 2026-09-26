@@ -10,6 +10,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Borea.App.Tests.ViewModels;
 using Borea.App.ViewModels;
 using Borea.App.Views;
 using Borea.Core.Index;
@@ -389,6 +390,42 @@ public sealed class ListingImageViewTests
         });
 
         Assert.Equal((ListingImageView.DisplayState.Loading, ListingImageView.DisplayState.Placeholder), states);
+    }
+
+    [Fact]
+    public async Task IconOfATileARowAndAPageHeader_ShownTogether_LoadsOnceAndKeepsItsBytesWhileOneShowsIt()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: ImageViewModelTests.WithImages("AdvancedFlightComputer", $$"""{ "icon": {{ImageViewModelTests.Icon(Url)}} }"""));
+        harness.Images.Respond = _ => ContentImageResult.Loaded([1, 2, 3]);
+        harness.ViewModel.IdleIcons = new IdleIconBytes(0);
+
+        var kept = await HeadlessApp.RunAsync(harness, async () =>
+        {
+            var viewModel = harness.ViewModel;
+            await viewModel.EnsureDiscoverLoadedAsync();
+            var row = viewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer");
+            await row.OpenCommand.ExecuteAsync(null);
+            ListingImage?[] icons = [viewModel.RecentItems.Single(item => item.ModId == "AdvancedFlightComputer").Icon, row.Icon, viewModel.SelectedContent?.Icon];
+            var views = icons.Select(icon => new ListingImageView { Image = icon, Width = 40, Height = 40, Child = new Border() }).ToList();
+            var panel = new StackPanel();
+            panel.Children.AddRange(views);
+            var window = new Window { Width = 40, Height = 120, Content = panel };
+            window.Show();
+            var icon = row.Icon!;
+            while (!icon.IsLoaded)
+                await Task.Delay(10);
+
+            panel.Children.Remove(views[0]);
+            panel.Children.Remove(views[2]);
+            var whileTheRowShowsIt = icon.IsLoaded;
+            panel.Children.Clear();
+            var whenNoViewShowsIt = icon.IsLoaded;
+            window.Close();
+            return (Images: icons.Distinct().Count(), WhileTheRowShowsIt: whileTheRowShowsIt, WhenNoViewShowsIt: whenNoViewShowsIt);
+        });
+
+        Assert.Equal((1, true, false), kept);
+        Assert.Single(harness.Images.Requests);
     }
 
     [Fact]

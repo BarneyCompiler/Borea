@@ -12,7 +12,8 @@ internal static class ContentCommandFixtures
         string id = "flight-tools",
         string name = "Flight Tools",
         ModStatus status = ModStatus.Active,
-        string? supersededBy = null) => new(
+        string? supersededBy = null,
+        InstallDescriptor? install = null) => new(
             specVersion: 1,
             modId: id,
             source: "index",
@@ -29,7 +30,8 @@ internal static class ContentCommandFixtures
             tags: new[] { "utility" },
             description: "A longer description of the flight tools.",
             status: status,
-            supersededBy: supersededBy);
+            supersededBy: supersededBy,
+            install: install);
 
     public static ModVersionMetadata Release(
         string id = "flight-tools",

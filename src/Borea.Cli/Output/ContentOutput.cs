@@ -93,6 +93,26 @@ internal static class ContentOutput
         ? null
         : new IndexStatusView(status.RawState, status.Since, status.Reason);
 
+    /// <summary>
+    /// Writes the author's steps of RFC 0035 as a numbered list. They are prose that
+    /// Borea never acts on, and an absent list writes nothing, the same as an empty one.
+    /// </summary>
+    public static void WriteSteps(TextWriter output, string heading, IReadOnlyList<string>? steps)
+    {
+        if (steps is not { Count: > 0 })
+            return;
+
+        output.WriteLine(heading);
+        for (var index = 0; index < steps.Count; index++)
+        {
+            var number = $"  {index + 1}. ";
+            var lines = steps[index].Trim().ReplaceLineEndings("\n").Split('\n');
+            output.WriteLine(number + lines[0]);
+            foreach (var line in lines.Skip(1))
+                output.WriteLine(line.Length == 0 ? string.Empty : new string(' ', number.Length) + line);
+        }
+    }
+
     public static void WriteDiagnostics(TextWriter output, IReadOnlyList<DiagnosticView> diagnostics)
     {
         if (diagnostics.Count == 0)

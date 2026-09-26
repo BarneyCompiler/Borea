@@ -773,6 +773,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ContentRemoveConfirm => Resources.ContentRemoveConfirm;
 
+    public string ContentRemoveSteps => Resources.ContentRemoveSteps;
+
     public string ContentChangeVersion => Resources.ContentChangeVersion;
 
     public string ContentNotOnDisk => Resources.ContentNotOnDisk;
@@ -1211,6 +1213,11 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatInstallAlsoAddsMore(string mods, int more)
         => string.Format(CultureInfo.CurrentCulture, Resources.InstallAlsoAddsMoreFormat, mods, more);
 
+    public string FormatInstallStepsFor(string content)
+        => string.Format(CultureInfo.CurrentCulture, Resources.InstallStepsForFormat, content);
+
+    public string InstallStepsDismiss => Resources.InstallStepsDismiss;
+
     public string InstallChoicesRecommended => Resources.InstallChoicesRecommended;
 
     public string InstallChoicesSuggested => Resources.InstallChoicesSuggested;
@@ -1475,6 +1482,10 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ContentShowVersions => Resources.ContentShowVersions;
 
     public string ContentNoDescription => Resources.ContentNoDescription;
+
+    public string ContentInstallSteps => Resources.ContentInstallSteps;
+
+    public string ContentUninstallSteps => Resources.ContentUninstallSteps;
 
     public string ContentLoadingVersions => Resources.ContentLoadingVersions;
 

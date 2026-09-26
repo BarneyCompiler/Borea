@@ -618,6 +618,7 @@ public sealed partial class VersionItem : ObservableObject, IInstallRow
     [NotifyPropertyChangedFor(nameof(ConfirmInstallText))]
     [NotifyPropertyChangedFor(nameof(AddedModsText))]
     [NotifyPropertyChangedFor(nameof(AddedModsToolTip))]
+    [NotifyPropertyChangedFor(nameof(PlanSteps))]
     private InstallPlan? _pendingPlan;
 
     [ObservableProperty]
@@ -632,6 +633,9 @@ public sealed partial class VersionItem : ObservableObject, IInstallRow
     public string? AddedModsText => _owner.AddedModsText(PendingPlan, Choices);
 
     public string? AddedModsToolTip => _owner.AddedModsText(PendingPlan, Choices, all: true);
+
+    /// <summary>The install steps of every listing the waiting plan installs, which the confirmation shows.</summary>
+    public IReadOnlyList<StepList> PlanSteps => _owner.InstallStepsOf(PendingPlan);
 
     /// <summary>Mods install into an instance; a loader is set up from the settings. The installed version has nothing to add.</summary>
     public bool CanInstall => _release.Type == ContentType.Mod && !IsInstalled;
@@ -669,6 +673,7 @@ public sealed partial class VersionItem : ObservableObject, IInstallRow
         OnPropertyChanged(nameof(ConfirmInstallText));
         OnPropertyChanged(nameof(AddedModsText));
         OnPropertyChanged(nameof(AddedModsToolTip));
+        OnPropertyChanged(nameof(PlanSteps));
         OnPropertyChanged(nameof(InstallToolTip));
     }
 

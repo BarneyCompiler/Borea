@@ -117,6 +117,33 @@
         </StackPanel>
     </DataTemplate>
 
+    <!-- steps a listing asks the player to do by hand, as plain text in the author's words (RFC 0035) -->
+    <DataTemplate x:Key="StepList" x:DataType="vm:StepList">
+        <StackPanel Spacing="4">
+            <TextBlock Classes="label-md" Text="{Binding Heading}" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding Steps}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:NumberedStep">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                            <TextBlock Classes="body-sm secondary" Text="{Binding Number}" />
+                            <TextBlock Grid.Column="1" Classes="body-sm" Text="{Binding Text}" TextWrapping="Wrap" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- the panel of several step lists, such as one for each listing a plan installs -->
+    <ItemsPanelTemplate x:Key="StepListsPanel">
+        <StackPanel Spacing="8" />
+    </ItemsPanelTemplate>
+
     <!-- one row of c/table-versions on the instance page -->
     <!-- the body of one row of c/table-versions, which the row shows inside its button or, without a page, on its own -->
     <DataTemplate x:Key="ContentRowBody" x:DataType="vm:ContentItem">
@@ -132,6 +159,14 @@
                     <TextBlock Classes="body-sm secondary" Text="{Binding AuthorsText}" IsVisible="{Binding AuthorsText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     <TextBlock Classes="body-sm danger" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentNotOnDisk}" ToolTip.Tip="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentNotOnDiskDetail}" IsVisible="{Binding IsMissing}" />
                     <TextBlock Classes="body-sm danger" Text="{Binding RemoveConfirmText}" IsVisible="{Binding IsConfirmingRemove}" />
+                    <ContentControl Margin="0,4,0,0" Content="{Binding RemoveSteps}" ContentTemplate="{StaticResource StepList}">
+                        <ContentControl.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="IsConfirmingRemove" />
+                                <Binding Path="RemoveSteps" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                            </MultiBinding>
+                        </ContentControl.IsVisible>
+                    </ContentControl>
                     <TextBlock Classes="body-sm danger" Text="{Binding ManageConfirmText}" TextWrapping="Wrap" IsVisible="{Binding IsConfirmingManage}" />
                     <TextBlock Classes="body-sm danger" Text="{Binding ManageMissingText}" TextWrapping="Wrap" IsVisible="{Binding ManageMissingText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     <CheckBox IsChecked="{Binding InstallManageDependencies}" IsVisible="{Binding ManageInstallMissingText, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -306,10 +341,19 @@
                                     <Button Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.LibraryCancel}" Command="{Binding CancelRemoveCommand}" />
                                 </StackPanel>
                             </WrapPanel>
+                            <ContentControl Margin="0,0,4,8" Content="{Binding RemoveSteps}" ContentTemplate="{StaticResource StepList}">
+                                <ContentControl.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="IsConfirmingRemove" />
+                                        <Binding Path="RemoveSteps" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                                    </MultiBinding>
+                                </ContentControl.IsVisible>
+                            </ContentControl>
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,4,8" IsVisible="{Binding ProgressStatus, Converter={x:Static ObjectConverters.IsNotNull}}">
                                 <TextBlock Classes="body-sm secondary" Text="{Binding ProgressStatus}" ToolTip.Tip="{Binding ProgressStatus}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Classes="label-md" Text="{Binding ProgressDetail}" VerticalAlignment="Center" IsVisible="{Binding ProgressDetail, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             </Grid>
+                            <ItemsControl Margin="0,0,4,8" ItemsSource="{Binding PlanSteps}" ItemTemplate="{StaticResource StepList}" ItemsPanel="{StaticResource StepListsPanel}" IsVisible="{Binding !!PlanSteps.Count}" />
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,4,8" IsVisible="{Binding IsConfirmingInstall}">
                                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <TextBlock Classes="body-sm secondary" Text="{Binding AddedModsText}" ToolTip.Tip="{Binding AddedModsToolTip}" IsVisible="{Binding AddedModsText, Converter={x:Static ObjectConverters.IsNotNull}}" TextTrimming="CharacterEllipsis" />
@@ -321,6 +365,11 @@
                                 </StackPanel>
                             </Grid>
                             <TextBlock Classes="body-sm danger" Text="{Binding InstallError}" ToolTip.Tip="{Binding InstallError}" IsVisible="{Binding InstallError, Converter={x:Static ObjectConverters.IsNotNull}}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" Margin="0,0,4,8" />
+                            <!-- what the author still asks for after an install, until the player dismisses it -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,4,8" IsVisible="{Binding HasInstallStepsNotice}">
+                                <ItemsControl ItemsSource="{Binding InstallStepsNotice}" ItemTemplate="{StaticResource StepList}" ItemsPanel="{StaticResource StepListsPanel}" />
+                                <Button Grid.Column="1" Classes="text" VerticalAlignment="Top" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.InstallStepsDismiss}" Command="{Binding DismissInstallStepsNoticeCommand}" />
+                            </Grid>
                         </StackPanel>
                         <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Margin="0,0,4,0">
                             <Border Classes="chip" Classes.compatible="{Binding IsCompatible}" Classes.untested="{Binding IsUntested}" Classes.incompatible="{Binding IsIncompatible}" IsVisible="{Binding ShowsCompatibility}" VerticalAlignment="Center" Margin="0,0,8,0">
@@ -420,6 +469,7 @@
                                 <TextBlock Classes="body-sm secondary" Text="{Binding ProgressStatus}" ToolTip.Tip="{Binding ProgressStatus}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Classes="label-md" Text="{Binding ProgressDetail}" VerticalAlignment="Center" IsVisible="{Binding ProgressDetail, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             </Grid>
+                            <ItemsControl Margin="0,0,4,8" ItemsSource="{Binding PlanSteps}" ItemTemplate="{StaticResource StepList}" ItemsPanel="{StaticResource StepListsPanel}" IsVisible="{Binding !!PlanSteps.Count}" />
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,4,8" IsVisible="{Binding IsConfirmingInstall}">
                                 <TextBlock Classes="body-sm secondary" Text="{Binding InstallWarning}" ToolTip.Tip="{Binding InstallWarning}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" VerticalAlignment="Center" />
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
@@ -428,6 +478,11 @@
                                 </StackPanel>
                             </Grid>
                             <TextBlock Classes="body-sm danger" Text="{Binding InstallError}" ToolTip.Tip="{Binding InstallError}" IsVisible="{Binding InstallError, Converter={x:Static ObjectConverters.IsNotNull}}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" Margin="0,0,4,8" />
+                            <!-- what the authors of the members still ask for after an install, until the player dismisses it -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,4,8" IsVisible="{Binding HasInstallStepsNotice}">
+                                <ItemsControl ItemsSource="{Binding InstallStepsNotice}" ItemTemplate="{StaticResource StepList}" ItemsPanel="{StaticResource StepListsPanel}" />
+                                <Button Grid.Column="1" Classes="text" VerticalAlignment="Top" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.InstallStepsDismiss}" Command="{Binding DismissInstallStepsNoticeCommand}" />
+                            </Grid>
                         </StackPanel>
                         <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Margin="0,0,4,0">
                             <Border Classes="chip" Classes.compatible="{Binding IsCompatible}" Classes.untested="{Binding IsUntested}" Classes.incompatible="{Binding IsIncompatible}" IsVisible="{Binding ShowsCompatibility}" VerticalAlignment="Center" Margin="0,0,8,0">

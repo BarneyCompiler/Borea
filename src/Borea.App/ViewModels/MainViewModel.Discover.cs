@@ -812,6 +812,7 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
     [NotifyPropertyChangedFor(nameof(ConfirmInstallText))]
     [NotifyPropertyChangedFor(nameof(AddedModsText))]
     [NotifyPropertyChangedFor(nameof(AddedModsToolTip))]
+    [NotifyPropertyChangedFor(nameof(PlanSteps))]
     private InstallPlan? _pendingPlan;
 
     [ObservableProperty]
@@ -827,6 +828,23 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
     public string? AddedModsText => _owner.AddedModsText(PendingPlan, Choices);
 
     public string? AddedModsToolTip => _owner.AddedModsText(PendingPlan, Choices, all: true);
+
+    /// <summary>The install steps of every listing the waiting plan installs, which the confirmation shows.</summary>
+    public IReadOnlyList<StepList> PlanSteps => _owner.InstallStepsOf(PendingPlan);
+
+    /// <summary>The install steps a finished install left on the row, until the player dismisses them.</summary>
+    public IReadOnlyList<StepList> InstallStepsNotice => _owner.InstallStepsNotice(ModId);
+
+    public bool HasInstallStepsNotice => InstallStepsNotice.Count > 0;
+
+    /// <summary>The install steps of the listing, for the Description tab.</summary>
+    public StepList? InstallSteps => MainViewModel.Steps(_owner.Localization.ContentInstallSteps, _listing.Install?.Steps);
+
+    /// <summary>The uninstall steps of the listing, for the Description tab.</summary>
+    public StepList? UninstallSteps => MainViewModel.Steps(_owner.Localization.ContentUninstallSteps, _listing.Install?.Uninstall);
+
+    /// <summary>The uninstall steps under what Borea removes itself, for the remove confirmation.</summary>
+    public StepList? RemoveSteps => MainViewModel.Steps(_owner.Localization.ContentRemoveSteps, _listing.Install?.Uninstall);
 
     private Func<string>? _linkRequest;
 
@@ -942,9 +960,20 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
         OnPropertyChanged(nameof(ConfirmInstallText));
         OnPropertyChanged(nameof(AddedModsText));
         OnPropertyChanged(nameof(AddedModsToolTip));
+        OnPropertyChanged(nameof(PlanSteps));
+        OnPropertyChanged(nameof(InstallStepsNotice));
+        OnPropertyChanged(nameof(InstallSteps));
+        OnPropertyChanged(nameof(UninstallSteps));
+        OnPropertyChanged(nameof(RemoveSteps));
         OnPropertyChanged(nameof(InstalledAutomationName));
         OnPropertyChanged(nameof(LinkRequestText));
         OnPropertyChanged(nameof(FavoriteText));
+    }
+
+    internal void RefreshInstallStepsNotice()
+    {
+        OnPropertyChanged(nameof(InstallStepsNotice));
+        OnPropertyChanged(nameof(HasInstallStepsNotice));
     }
 
     internal void ShowLinkRequest(Func<string>? request)
@@ -996,6 +1025,9 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
 
     [RelayCommand]
     private void CancelInstall() => MainViewModel.CancelInstall(this);
+
+    [RelayCommand]
+    private void DismissInstallStepsNotice() => _owner.DismissInstallStepsNotice(ModId);
 
     [RelayCommand(CanExecute = nameof(CanRemove))]
     private void BeginRemove()

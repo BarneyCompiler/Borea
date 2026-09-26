@@ -141,7 +141,7 @@ public partial class MainViewModel
     }
 
     /// <summary>Mods and packs share one id namespace, so a mod link that names a pack still finds it.</summary>
-    private (DiscoverItem? Listing, PackItem? Pack) FindIndexContent(string id)
+    internal (DiscoverItem? Listing, PackItem? Pack) FindIndexContent(string id)
         => (_listings.FirstOrDefault(item => item.Source == "index" && ModIds.Equals(item.ModId, id)),
             _packs.FirstOrDefault(pack => pack.Metadata.Source == "index" && ModIds.Equals(pack.PackId, id)));
 

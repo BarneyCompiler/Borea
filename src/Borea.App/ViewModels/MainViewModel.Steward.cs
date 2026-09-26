@@ -51,6 +51,9 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(CanEditIndexStatus));
         OnPropertyChanged(nameof(CanEditContentStatus));
         _stewardPage?.Review?.RefreshRights();
+
+        // a report says whether the account that is now signed in filed it or owns its listing
+        _stewardPage?.Reports.RefreshRights();
     }
 
     [RelayCommand]
@@ -111,12 +114,13 @@ public partial class MainViewModel
     }
 
     /// <summary>Opens the confirmation and checks the change against the base branch. Another open confirmation stays until it is closed.</summary>
-    internal void BeginIndexStatusChange(IndexStatusChange change)
+    /// <param name="report">The report that the change answers, which its pull request names, or null.</param>
+    internal void BeginIndexStatusChange(IndexStatusChange change, IndexReport? report = null)
     {
         if (StewardChange is not null || !CanEditIndexStatus)
             return;
 
-        var dialog = new IndexStatusDialog(this, change);
+        var dialog = new IndexStatusDialog(this, report is null ? change : change with { Report = report.Number }, report);
         StewardChange = dialog;
         dialog.Start();
     }
@@ -150,6 +154,10 @@ public partial class MainViewModel
     }
 
     private void LeaveStewardPage() => CurrentWindowSteward = false;
+
+    /// <summary>Whether the signed-in account filed the report, which makes the steward a party to it.</summary>
+    internal bool IsReporter(IndexReport report) =>
+        GitHubLogin is { } login && string.Equals(login, report.Author, StringComparison.OrdinalIgnoreCase);
 
     internal string IndexStatusStateText(string state) => state switch
     {
@@ -191,14 +199,17 @@ public partial class MainViewModel
             _ => StewardErrorText(failure.Error),
         });
 
-    /// <summary>Why one repository of the Watcher tab could not be read. The issues are read without the token, so a refusal is no missing App.</summary>
-    internal string StewardWatcherFailureText(WatcherIssuesFailure failure) => Localization.FormatStewardWatcherFailed(
-        failure.Repository,
-        failure.Error.Failure switch
+    /// <summary>Why one repository of the Watcher tab could not be read.</summary>
+    internal string StewardWatcherFailureText(WatcherIssuesFailure failure) => StewardIssuesFailureText(failure.Repository, failure.Error);
+
+    /// <summary>Why the issues of a repository could not be read. They are read without the token, so a refusal is no missing App.</summary>
+    internal string StewardIssuesFailureText(string repository, StewardException exception) => Localization.FormatStewardWatcherFailed(
+        repository,
+        exception.Failure switch
         {
             StewardFailure.Forbidden => Localization.StewardWatcherForbidden,
             StewardFailure.NotFound => Localization.StewardQueueNotFound,
-            _ => StewardErrorText(failure.Error),
+            _ => StewardErrorText(exception),
         });
 
     /// <summary>Why a pull request could not be read or acted on. The errors of the status edits name content-index, so these name the pull request or its repository.</summary>

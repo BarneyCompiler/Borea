@@ -11,7 +11,7 @@ namespace Borea.App.ViewModels;
 
 /// <summary>
 /// The Steward page, opened from the GitHub account in Settings. Its Queue tab lists the pull requests that wait for a steward,
-/// and each one opens its review in place of the tabs.
+/// and each one opens its review in place of the tabs. Its Reports tab lists the takedown and id dispute reports.
 /// Its Status tab lists the states of index-status.toml on the base branch with Lift on each, which is the only way back
 /// for a delisted listing, because it has no content page. Its Watcher tab lists the issues of the watcher and its watchdog.
 /// A tab reads GitHub when it shows for the first time.
@@ -25,10 +25,13 @@ public sealed partial class StewardPage : ObservableObject
     {
         _owner = owner;
         Queue = new StewardQueueTab(owner);
+        Reports = new StewardReportsTab(owner);
         Watcher = new StewardWatcherTab(owner);
     }
 
     public StewardQueueTab Queue { get; }
+
+    public StewardReportsTab Reports { get; }
 
     public StewardWatcherTab Watcher { get; }
 
@@ -41,11 +44,14 @@ public sealed partial class StewardPage : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsQueueTab))]
+    [NotifyPropertyChangedFor(nameof(IsReportsTab))]
     [NotifyPropertyChangedFor(nameof(IsStatusTab))]
     [NotifyPropertyChangedFor(nameof(IsWatcherTab))]
     private StewardPageTab _tab;
 
     public bool IsQueueTab => Tab == StewardPageTab.Queue;
+
+    public bool IsReportsTab => Tab == StewardPageTab.Reports;
 
     public bool IsStatusTab => Tab == StewardPageTab.Status;
 
@@ -87,6 +93,7 @@ public sealed partial class StewardPage : ObservableObject
     internal Task RefreshTabAsync() => Review is { } review ? review.RefreshAsync() : Tab switch
     {
         StewardPageTab.Queue => Queue.RefreshAsync(),
+        StewardPageTab.Reports => Reports.RefreshAsync(),
         StewardPageTab.Watcher => Watcher.RefreshAsync(),
         _ => RefreshAsync(),
     };
@@ -98,6 +105,7 @@ public sealed partial class StewardPage : ObservableObject
         return tab switch
         {
             StewardPageTab.Queue => Queue.IsLoaded ? Task.CompletedTask : Queue.RefreshAsync(),
+            StewardPageTab.Reports => Reports.IsLoaded ? Task.CompletedTask : Reports.RefreshAsync(),
             StewardPageTab.Watcher => Watcher.IsLoaded ? Task.CompletedTask : Watcher.RefreshAsync(),
             _ => IsLoaded ? Task.CompletedTask : RefreshAsync(),
         };
@@ -119,6 +127,9 @@ public sealed partial class StewardPage : ObservableObject
     private Task ShowQueue() => ShowTabAsync(StewardPageTab.Queue);
 
     [RelayCommand]
+    private Task ShowReports() => ShowTabAsync(StewardPageTab.Reports);
+
+    [RelayCommand]
     private Task ShowStatus() => ShowTabAsync(StewardPageTab.Status);
 
     [RelayCommand]
@@ -130,6 +141,7 @@ public sealed partial class StewardPage : ObservableObject
     internal void RefreshText()
     {
         Queue.RefreshText();
+        Reports.RefreshText();
         Watcher.RefreshText();
         Review?.RefreshText();
         OnPropertyChanged(nameof(QueueTabText));
@@ -210,6 +222,7 @@ public sealed partial class StewardPullRequest(MainViewModel owner, IndexStatusP
 public enum StewardPageTab
 {
     Queue,
+    Reports,
     Status,
     Watcher,
 }

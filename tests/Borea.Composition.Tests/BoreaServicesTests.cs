@@ -109,6 +109,7 @@ public sealed class BoreaServicesTests : IDisposable
         Assert.IsType<GitHubPullRequestReviews>(first.PullRequestReviews);
         Assert.Same(first.PullRequestReviews, Assert.IsType<LoggingPullRequestActions>(first.PullRequestActions).Inner);
         Assert.IsType<GitHubWatcherIssues>(first.WatcherIssues);
+        Assert.IsType<GitHubIndexReports>(first.IndexReports);
     }
 
     [Fact]

@@ -58,6 +58,7 @@ internal sealed class ViewModelHarness : IDisposable
     private Borea.Core.Stewardship.IWatcherIssues? _watcherIssues;
     private Borea.Core.Stewardship.IPullRequestReviews? _pullRequestReviews;
     private Borea.Core.Stewardship.IPullRequestActions? _pullRequestActions;
+    private Borea.Core.Stewardship.IIndexReports? _indexReports;
     private Borea.Core.Updates.ISelfUpdater? _selfUpdater;
 
     public const string OfflineMessage = "The content index host is offline.";
@@ -103,9 +104,10 @@ internal sealed class ViewModelHarness : IDisposable
     /// <param name="watcherIssues">Lists the issues of the watcher and its watchdog. Null builds one that reads GitHub without the token.</param>
     /// <param name="pullRequestReviews">Reads one pull request for a steward. Null builds one on the GitHub session.</param>
     /// <param name="pullRequestActions">Acts on one pull request for a steward. Null builds one on the GitHub session.</param>
-    public static async Task<ViewModelHarness> CreateAsync(Func<BoreaServices, Task>? seed = null, Func<HttpRequestMessage, HttpResponseMessage?>? respond = null, Func<string, string>? editSnapshot = null, bool indexOffline = false, bool indexEtag = false, Action<ViewModelHarness>? candidates = null, Borea.Storage.Launch.IProcessStarter? processStarter = null, bool waitForDetection = true, string? sharedProfileRoot = null, IGitHubSession? gitHub = null, IListingPublisher? listingPublisher = null, Borea.Core.Updates.ISelfUpdater? selfUpdater = null, Borea.Core.Stewardship.IIndexStatusEditor? indexStatusEditor = null, Borea.Core.Stewardship.IStewardQueue? stewardQueue = null, Borea.Core.Stewardship.IWatcherIssues? watcherIssues = null, Borea.Core.Stewardship.IPullRequestReviews? pullRequestReviews = null, Borea.Core.Stewardship.IPullRequestActions? pullRequestActions = null)
+    /// <param name="indexReports">Lists the takedown and id dispute reports. Null builds one that reads GitHub without the token.</param>
+    public static async Task<ViewModelHarness> CreateAsync(Func<BoreaServices, Task>? seed = null, Func<HttpRequestMessage, HttpResponseMessage?>? respond = null, Func<string, string>? editSnapshot = null, bool indexOffline = false, bool indexEtag = false, Action<ViewModelHarness>? candidates = null, Borea.Storage.Launch.IProcessStarter? processStarter = null, bool waitForDetection = true, string? sharedProfileRoot = null, IGitHubSession? gitHub = null, IListingPublisher? listingPublisher = null, Borea.Core.Updates.ISelfUpdater? selfUpdater = null, Borea.Core.Stewardship.IIndexStatusEditor? indexStatusEditor = null, Borea.Core.Stewardship.IStewardQueue? stewardQueue = null, Borea.Core.Stewardship.IWatcherIssues? watcherIssues = null, Borea.Core.Stewardship.IPullRequestReviews? pullRequestReviews = null, Borea.Core.Stewardship.IPullRequestActions? pullRequestActions = null, Borea.Core.Stewardship.IIndexReports? indexReports = null)
     {
-        var harness = new ViewModelHarness { _respond = respond, _editSnapshot = editSnapshot, IndexOffline = indexOffline, IndexEtag = indexEtag, _processStarter = processStarter, _sharedProfileRoot = sharedProfileRoot, _gitHub = gitHub, _listingPublisher = listingPublisher, _selfUpdater = selfUpdater, _indexStatusEditor = indexStatusEditor, _stewardQueue = stewardQueue, _watcherIssues = watcherIssues, _pullRequestReviews = pullRequestReviews, _pullRequestActions = pullRequestActions };
+        var harness = new ViewModelHarness { _respond = respond, _editSnapshot = editSnapshot, IndexOffline = indexOffline, IndexEtag = indexEtag, _processStarter = processStarter, _sharedProfileRoot = sharedProfileRoot, _gitHub = gitHub, _listingPublisher = listingPublisher, _selfUpdater = selfUpdater, _indexStatusEditor = indexStatusEditor, _stewardQueue = stewardQueue, _watcherIssues = watcherIssues, _pullRequestReviews = pullRequestReviews, _pullRequestActions = pullRequestActions, _indexReports = indexReports };
         Directory.CreateDirectory(harness.Root);
         candidates?.Invoke(harness);
         harness.Services = await harness.BuildServicesAsync();
@@ -153,7 +155,7 @@ internal sealed class ViewModelHarness : IDisposable
     };
 
     public Task<BoreaServices> BuildServicesAsync() =>
-        BoreaServices.BuildAsync(Root, new IndexOnlyHandler(this), SpaceDock, Candidates, processStarter: _processStarter, images: Images, sharedProfileRoot: _sharedProfileRoot ?? Path.Combine(Root, "GameProfile"), isGameProcessRunning: () => IsGameProcessRunning(), isOtherBoreaRunning: () => IsOtherBoreaRunning(), gitHub: _gitHub, listingPublisher: _listingPublisher, selfUpdater: _selfUpdater, indexStatusEditor: _indexStatusEditor, stewardQueue: _stewardQueue, watcherIssues: _watcherIssues, pullRequestReviews: _pullRequestReviews, pullRequestActions: _pullRequestActions);
+        BoreaServices.BuildAsync(Root, new IndexOnlyHandler(this), SpaceDock, Candidates, processStarter: _processStarter, images: Images, sharedProfileRoot: _sharedProfileRoot ?? Path.Combine(Root, "GameProfile"), isGameProcessRunning: () => IsGameProcessRunning(), isOtherBoreaRunning: () => IsOtherBoreaRunning(), gitHub: _gitHub, listingPublisher: _listingPublisher, selfUpdater: _selfUpdater, indexStatusEditor: _indexStatusEditor, stewardQueue: _stewardQueue, watcherIssues: _watcherIssues, pullRequestReviews: _pullRequestReviews, pullRequestActions: _pullRequestActions, indexReports: _indexReports);
 
     /// <summary>
     /// Completes when no background work of the view model is in flight. Work that

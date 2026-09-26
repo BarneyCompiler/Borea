@@ -192,6 +192,18 @@
   <data name="StewardActionClose" xml:space="preserve">
     <value>Cast it adrift</value>
   </data>
+  <data name="StewardTabReports" xml:space="preserve">
+    <value>Grievances</value>
+  </data>
+  <data name="StewardReportsEmpty" xml:space="preserve">
+    <value>Nary a grievance be nailed to the mast.</value>
+  </data>
+  <data name="StewardReportAnswer" xml:space="preserve">
+    <value>Holler back on GitHub</value>
+  </data>
+  <data name="StewardReporterWarning" xml:space="preserve">
+    <value>Ye nailed this grievance to the mast yerself. POLICY.md asks a steward with a stake in a quarrel to leave it to another steward.</value>
+  </data>
   <data name="StewardTabWatcher" xml:space="preserve">
     <value>Crow's nest</value>
   </data>

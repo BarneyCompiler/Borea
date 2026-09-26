@@ -495,6 +495,69 @@
   <data name="StewardMergeDraft" xml:space="preserve">
     <value>Merge is off for a draft.</value>
   </data>
+  <data name="StewardTabReports" xml:space="preserve">
+    <value>Reports</value>
+  </data>
+  <data name="StewardReportsHint" xml:space="preserve">
+    <value>Takedown requests and id disputes that people file with the forms of KSAModding/content-index, the oldest first. Borea reads them without your sign-in, so you answer, close and reopen a report on GitHub.</value>
+  </data>
+  <data name="StewardReportsLoading" xml:space="preserve">
+    <value>Reading the reports from GitHub...</value>
+  </data>
+  <data name="StewardReportsEmpty" xml:space="preserve">
+    <value>No takedown request and no id dispute is open.</value>
+  </data>
+  <data name="StewardReportTakedown" xml:space="preserve">
+    <value>Takedown</value>
+  </data>
+  <data name="StewardReportDispute" xml:space="preserve">
+    <value>Id dispute</value>
+  </data>
+  <data name="StewardReportByFormat" xml:space="preserve">
+    <value>filed by {0}, {1}</value>
+  </data>
+  <data name="StewardReportUnreadableIdFormat" xml:space="preserve">
+    <value>Borea cannot read an id in "{0}", so the status actions are off.</value>
+  </data>
+  <data name="StewardReportMissingFormat" xml:space="preserve">
+    <value>The report has no section "{0}". Somebody changed its text by hand.</value>
+  </data>
+  <data name="StewardReportGround" xml:space="preserve">
+    <value>Ground</value>
+  </data>
+  <data name="StewardReportWhatIsWrong" xml:space="preserve">
+    <value>What is wrong</value>
+  </data>
+  <data name="StewardReportReporter" xml:space="preserve">
+    <value>Who the reporter is</value>
+  </data>
+  <data name="StewardReportDisputed" xml:space="preserve">
+    <value>What is disputed</value>
+  </data>
+  <data name="StewardReportForums" xml:space="preserve">
+    <value>Forums thread of the reporter</value>
+  </data>
+  <data name="StewardReportClaim" xml:space="preserve">
+    <value>Claim</value>
+  </data>
+  <data name="StewardReportOtherParty" xml:space="preserve">
+    <value>The other party</value>
+  </data>
+  <data name="StewardReportOpenForums" xml:space="preserve">
+    <value>Open the forums thread</value>
+  </data>
+  <data name="StewardReportAnswer" xml:space="preserve">
+    <value>Answer on GitHub</value>
+  </data>
+  <data name="StewardReporterWarning" xml:space="preserve">
+    <value>You filed this report. POLICY.md asks a steward who is a party to a case to leave it to another steward.</value>
+  </data>
+  <data name="StewardReportClosesFormat" xml:space="preserve">
+    <value>The pull request says Closes #{0}, so its merge closes report #{0}.</value>
+  </data>
+  <data name="StewardReportStaysOpenFormat" xml:space="preserve">
+    <value>The pull request names report #{0}, which stays open until a steward decides.</value>
+  </data>
   <data name="StewardTabWatcher" xml:space="preserve">
     <value>Watcher</value>
   </data>
@@ -631,7 +694,7 @@
     <value>Borea could not check whether another open pull request changes index-status.toml.</value>
   </data>
   <data name="StewardOwnerWarning" xml:space="preserve">
-    <value>You own this. POLICY.md asks a steward who is a party to a dispute to leave it to another steward.</value>
+    <value>You own this. POLICY.md asks a steward who is a party to a takedown or a dispute to leave it to another steward.</value>
   </data>
   <data name="StewardOwnerOwnRequest" xml:space="preserve">
     <value>You own this, so it is your own request, which POLICY.md lets a steward carry out.</value>

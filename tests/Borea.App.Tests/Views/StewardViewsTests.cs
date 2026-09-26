@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using Borea.App.Tests.ViewModels;
 using Borea.App.Views;
+using Borea.Core.Listings;
 using Borea.Core.Stewardship;
 using StewardPageView = Borea.App.Views.Pages.StewardPage;
 
@@ -17,6 +18,7 @@ public sealed class StewardViewsTests
     private readonly FakeIndexStatusEditor _editor = new();
     private readonly FakeStewardQueue _queue = new();
     private readonly FakeWatcherIssues _watcher = new();
+    private readonly FakePullRequestReviews _reviews = new();
 
     [Fact]
     public async Task StewardPage_ShowsEachStateWithLiftAndTheOpenPullRequests()
@@ -151,6 +153,62 @@ public sealed class StewardViewsTests
     }
 
     [Fact]
+    public async Task ReviewPage_ShowsThePullRequestInPlaceOfTheTabs_WithItsDocumentAndFiles()
+    {
+        const string Listing = "spec_version = 1\nid = \"MyMod\"\nname = \"My Mod\"\nabstract = \"Adds a thing.\"\ndescription = \"It adds a thing.\"\n";
+        _queue.Items.Add(FakeStewardQueue.Item(5));
+        using var harness = await CreateAsync();
+        var pull = FakePullRequestReviews.Review(5, headRepository: "alice/content-index") with { Title = "Add My Mod", Verdict = "Validated, and ownership is not verified." };
+        _reviews.Reviews[("KSAModding/content-index", 5)] = pull with
+        {
+            Files = [FakePullRequestReviews.File(pull, "listings/MyMod.toml", "@@ -0,0 +1,2 @@\n+id = \"MyMod\""), FakePullRequestReviews.File(pull, "packs/my-pack/icon.png", null)],
+            Documents =
+            [
+                new PullRequestDocument("listings/MyMod.toml", StewardQueueKind.Listing, Listing, harness.Services.ListingFormat.Read(Listing), null, new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.Owner, Repository: "alice/MyMod")),
+                new PullRequestDocument("listings/Broken.toml", StewardQueueKind.Listing, "name = ", null, "Expected a value.", null),
+            ],
+        };
+        var viewModel = harness.ViewModel;
+        viewModel.OpenStewardPageCommand.Execute(null);
+        await viewModel.StewardPage.Queue.WhenLoadedAsync();
+        await viewModel.StewardPage.Queue.Items[0].OpenCommand.ExecuteAsync(null);
+
+        var texts = await HeadlessApp.RunAsync(harness, () =>
+        {
+            var window = new Window { Width = 1280, Height = 832, Content = new StewardPageView(), DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                var shown = window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text);
+                var markdown = window.GetVisualDescendants().OfType<MarkdownView>().Where(view => view.IsEffectivelyVisible).Select(view => view.Markdown);
+                return Task.FromResult(shown.Concat(markdown).ToList());
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Contains("content-index #5", texts);
+        Assert.Contains("Add My Mod", texts);
+        Assert.Contains("from alice/content-index", texts);
+        Assert.Contains("Head commit 0123456", texts);
+        Assert.Contains("validate: passed", texts);
+        Assert.Contains(harness.Localization.StewardReviewRunChecks, texts);
+        Assert.Contains("Validated, and ownership is not verified.", texts);
+        Assert.Contains("My Mod", texts);
+        Assert.Contains("Adds a thing.", texts);
+        Assert.Contains("It adds a thing.", texts);
+        Assert.Contains("alice owns alice/MyMod.", texts);
+        Assert.Contains("The document does not parse: Expected a value.", texts);
+        Assert.Contains("Changed files (2)", texts);
+        Assert.Contains("+id = \"MyMod\"", texts);
+        Assert.Contains(harness.Localization.StewardReviewNoPatch, texts);
+        Assert.DoesNotContain(harness.Localization.StewardQueueHint, texts);
+    }
+
+    [Fact]
     public async Task IndexStatusModal_NamesTheChangeAndOpensThePullRequestOnAClick()
     {
         _editor.Check = _ => new IndexStatusCheck(null, [new IndexStatusPullRequest(4, new Uri("https://github.com/KSAModding/content-index/pull/4"), "Dispute Other", "bob")], ["alice"], IsOwner: false);
@@ -200,7 +258,7 @@ public sealed class StewardViewsTests
     private async Task<ViewModelHarness> CreateAsync()
     {
         _session.SignInDirectly();
-        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher);
+        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher, pullRequestReviews: _reviews);
         await harness.ViewModel.WhenStewardRoleCheckedAsync();
         return harness;
     }

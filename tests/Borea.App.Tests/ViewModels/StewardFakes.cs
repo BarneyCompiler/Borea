@@ -95,6 +95,31 @@ internal sealed class FakeStewardQueue : IStewardQueue
     }
 }
 
+/// <summary>Answers each review from <see cref="Reviews"/> and records every read.</summary>
+internal sealed class FakePullRequestReviews : IPullRequestReviews
+{
+    public Dictionary<(string Repository, int Number), PullRequestReview> Reviews { get; } = [];
+
+    public List<(string Repository, int Number)> Reads { get; } = [];
+
+    public StewardException? Failure { get; set; }
+
+    public const string Head = "0123456789abcdef0123456789abcdef01234567";
+
+    /// <summary>A pull request of alice with no files, no documents, a green validate and no verdict.</summary>
+    public static PullRequestReview Review(int number, string repository = "KSAModding/content-index", string? headRepository = null) =>
+        new(repository, number, new Uri($"https://github.com/{repository}/pull/{number}"), $"Pull {number}", "alice", PullRequestState.Open, IsDraft: false, [], "main", Head, headRepository ?? repository, new ValidateStatus(ValidateState.Success), null, null, [], []);
+
+    public static PullRequestFile File(PullRequestReview review, string path, string? patch, string status = "added", string? previousPath = null) =>
+        new(path, status, previousPath, 4, 1, patch, PullRequestFile.DiffUrlOf(review.Url, path));
+
+    public Task<PullRequestReview> ReadAsync(string repository, int number, CancellationToken cancellationToken = default)
+    {
+        Reads.Add((repository, number));
+        return Failure is { } failure ? Task.FromException<PullRequestReview>(failure) : Task.FromResult(Reviews[(repository, number)]);
+    }
+}
+
 /// <summary>Answers the Watcher tab from its lists and counts the reads.</summary>
 internal sealed class FakeWatcherIssues : IWatcherIssues
 {

@@ -144,7 +144,7 @@ public sealed partial class StewardQueueTab : ObservableObject
     }
 }
 
-/// <summary>One pull request of the queue. It opens on GitHub, where the steward reviews it.</summary>
+/// <summary>One pull request of the queue. It opens its review, or GitHub when it changes a file that the steward reviews there.</summary>
 /// <param name="allOpen">The queue lists every open pull request, so the entry says whether it waits for a steward.</param>
 public sealed partial class StewardQueueEntry(MainViewModel owner, StewardQueueItem item, bool allOpen)
 {
@@ -165,5 +165,12 @@ public sealed partial class StewardQueueEntry(MainViewModel owner, StewardQueueI
     public bool HasVerdict => Item.Verdict is not null;
 
     [RelayCommand]
-    private void Open() => owner.StewardPage.Queue.Error = owner.TryOpenWithSystem(Item.Url.AbsoluteUri) ?? owner.StewardPage.Queue.Error;
+    private Task Open()
+    {
+        if (!Item.HasOtherFiles)
+            return owner.StewardPage.OpenReviewAsync(Item);
+
+        owner.StewardPage.Queue.Error = owner.TryOpenWithSystem(Item.Url.AbsoluteUri) ?? owner.StewardPage.Queue.Error;
+        return Task.CompletedTask;
+    }
 }

@@ -2,6 +2,7 @@ using Borea.App.ViewModels;
 using Borea.Core.Instances;
 using Borea.Core.ModPacks;
 using Borea.Core.Mods;
+using Borea.Core.Settings;
 
 namespace Borea.App.Tests.ViewModels;
 
@@ -190,6 +191,154 @@ public sealed class GameSettingsPresetTests
         var created = (await harness.Services.Instances.GetAllAsync()).Single(item => item.Name == "Without settings");
         Assert.False(File.Exists(harness.Services.Paths.GetInstanceSettingsPath(created.InstanceId)));
         Assert.Contains(viewModel.Toasts.Items, toast => toast.Message == harness.Localization.FormatToastPresetNotApplied("Without settings"));
+    }
+
+    [Fact]
+    public async Task LoadsThatOverlap_WhereTheFirstReadEndsLast_ListEachPresetOnce()
+    {
+        using var harness = await CreateAsync(SeedPresetAsync);
+        var viewModel = harness.ViewModel;
+        await viewModel.WhenGameSettingsPresetsLoadedAsync();
+        var saved = await harness.Services.GameSettingsPresets.ListAsync();
+        var held = HoldReads(harness);
+
+        viewModel.BeginCreateInstanceCommand.Execute(null);
+        viewModel.CancelNameModalCommand.Execute(null);
+        viewModel.BeginCreateInstanceCommand.Execute(null);
+        held.Reads[1].SetResult(saved);
+        held.Reads[0].SetResult(saved);
+        await viewModel.WhenGameSettingsPresetsLoadedAsync();
+
+        Assert.Equal(new Guid?[] { null, saved[0].Id }, viewModel.GameSettingsPresets.Select(item => item.Id));
+        Assert.Equal(new Guid?[] { saved[0].Id }, viewModel.SavedGameSettingsPresets.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task LoadThatEndsAfterANewerOne_DoesNotReplaceTheNewerResult()
+    {
+        using var harness = await CreateAsync(SeedPresetAsync);
+        var viewModel = harness.ViewModel;
+        await viewModel.WhenGameSettingsPresetsLoadedAsync();
+        var saved = await harness.Services.GameSettingsPresets.ListAsync();
+        var older = new GameSettingsPreset(Guid.NewGuid(), "Windowed", Borea.Core.Game.GameVersion.Parse("2026.8.3.5117"));
+        var held = HoldReads(harness);
+
+        viewModel.BeginCreateInstanceCommand.Execute(null);
+        viewModel.CancelNameModalCommand.Execute(null);
+        viewModel.BeginCreateInstanceCommand.Execute(null);
+        held.Reads[1].SetResult(saved);
+        held.Reads[0].SetResult([older]);
+        await viewModel.WhenGameSettingsPresetsLoadedAsync();
+
+        Assert.Equal(new Guid?[] { null, saved[0].Id }, viewModel.GameSettingsPresets.Select(item => item.Id));
+        Assert.Equal(new Guid?[] { saved[0].Id }, viewModel.SavedGameSettingsPresets.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task FirstRead_ThatHasNotEnded_ShowsNoPreset()
+    {
+        using var harness = await CreateAsync(SeedPresetAsync);
+        var viewModel = harness.ViewModel;
+        await viewModel.WhenGameSettingsPresetsLoadedAsync();
+        var saved = await harness.Services.GameSettingsPresets.ListAsync();
+        viewModel.GameSettingsPresets.Clear();
+        var held = HoldReads(harness);
+
+        viewModel.BeginCreateInstanceCommand.Execute(null);
+
+        var none = Assert.Single(viewModel.GameSettingsPresets);
+        Assert.Null(none.Id);
+        Assert.Same(none, viewModel.SelectedGameSettingsPreset);
+        held.Reads[0].SetResult(saved);
+        await viewModel.WhenGameSettingsPresetsLoadedAsync();
+        Assert.Equal(new Guid?[] { null, saved[0].Id }, viewModel.GameSettingsPresets.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task Reload_KeepsTheSelectedPreset_WhenItStillExists()
+    {
+        using var harness = await CreateAsync(SeedPresetAsync);
+        var viewModel = harness.ViewModel;
+        var picked = await PickThePresetAsync(viewModel);
+
+        await viewModel.LoadGameSettingsPresetsAsync();
+
+        var selected = Assert.IsType<GameSettingsPresetItem>(viewModel.SelectedGameSettingsPreset);
+        Assert.Equal(picked.Id, selected.Id);
+        Assert.Contains(selected, viewModel.GameSettingsPresets);
+    }
+
+    [Fact]
+    public async Task Reload_SelectsNoPreset_WhenTheSelectedOneIsGone()
+    {
+        using var harness = await CreateAsync(SeedPresetAsync);
+        var viewModel = harness.ViewModel;
+        var picked = await PickThePresetAsync(viewModel);
+        await harness.Services.GameSettingsPresets.DeleteAsync(picked.Id!.Value);
+
+        await viewModel.LoadGameSettingsPresetsAsync();
+
+        Assert.Same(viewModel.GameSettingsPresets[0], viewModel.SelectedGameSettingsPreset);
+        Assert.Null(viewModel.SelectedGameSettingsPreset?.Id);
+    }
+
+    [Fact]
+    public async Task NewInstance_OpenedAgain_StartsAtNoPreset()
+    {
+        using var harness = await CreateAsync(SeedPresetAsync);
+        var viewModel = harness.ViewModel;
+        await PickThePresetAsync(viewModel);
+        viewModel.CancelNameModalCommand.Execute(null);
+
+        viewModel.BeginCreateInstanceCommand.Execute(null);
+        await viewModel.WhenGameSettingsPresetsLoadedAsync();
+
+        Assert.Same(viewModel.GameSettingsPresets[0], viewModel.SelectedGameSettingsPreset);
+        Assert.Null(viewModel.SelectedGameSettingsPreset?.Id);
+    }
+
+    /// <summary>Opens the new instance modal and picks the one saved preset.</summary>
+    private static async Task<GameSettingsPresetItem> PickThePresetAsync(MainViewModel viewModel)
+    {
+        viewModel.BeginCreateInstanceCommand.Execute(null);
+        await viewModel.WhenGameSettingsPresetsLoadedAsync();
+        var picked = viewModel.GameSettingsPresets.Single(item => item.Id is not null);
+        viewModel.SelectedGameSettingsPreset = picked;
+        return picked;
+    }
+
+    /// <summary>Makes every later load of the view model read from a <see cref="HeldPresetReads"/>.</summary>
+    private static HeldPresetReads HoldReads(ViewModelHarness harness)
+    {
+        var held = new HeldPresetReads(harness.Services.GameSettingsPresets);
+        harness.ViewModel.GameSettingsPresetLoadSource = _ => held;
+        return held;
+    }
+
+    /// <summary>A preset store whose reads end only when the test sets their result, in the order it chooses.</summary>
+    private sealed class HeldPresetReads(IGameSettingsPresetRepository inner) : IGameSettingsPresetRepository
+    {
+        /// <summary>One entry per read, in the order the reads started.</summary>
+        public List<TaskCompletionSource<IReadOnlyList<GameSettingsPreset>>> Reads { get; } = [];
+
+        public Task<IReadOnlyList<GameSettingsPreset>> ListAsync(CancellationToken cancellationToken = default)
+        {
+            var read = new TaskCompletionSource<IReadOnlyList<GameSettingsPreset>>();
+            Reads.Add(read);
+            return read.Task;
+        }
+
+        public Task<GameSettingsPreset?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
+            inner.GetAsync(id, cancellationToken);
+
+        public Task ApplyAsync(Guid presetId, Guid instanceId, CancellationToken cancellationToken = default) =>
+            inner.ApplyAsync(presetId, instanceId, cancellationToken);
+
+        public Task<GameSettingsPreset> SaveAsync(string name, Borea.Core.Game.GameVersion gameVersion, string sourceSettingsTomlPath, CancellationToken cancellationToken = default) =>
+            inner.SaveAsync(name, gameVersion, sourceSettingsTomlPath, cancellationToken);
+
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
+            inner.DeleteAsync(id, cancellationToken);
     }
 
     /// <summary>One pack of the index, for the flow that creates an instance from it.</summary>

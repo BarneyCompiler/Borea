@@ -1476,6 +1476,15 @@
   <data name="ListingStartEmpty" xml:space="preserve">
     <value>Ohne Quelle beginnen</value>
   </data>
+  <data name="ListingPackTitle" xml:space="preserve">
+    <value>Neues Modpack</value>
+  </data>
+  <data name="ListingPackHint" xml:space="preserve">
+    <value>Ein Pack legt eingetragene Mods auf genaue Releases fest, damit Spieler genau die Auswahl installieren, die du getestet hast. Borea schreibt eine Version des Packs.</value>
+  </data>
+  <data name="ListingStartPack" xml:space="preserve">
+    <value>Modpack beginnen</value>
+  </data>
   <data name="ListingChangeTitle" xml:space="preserve">
     <value>Eingetragene Mod ändern</value>
   </data>
@@ -1557,6 +1566,9 @@
   <data name="ListingIdHint" xml:space="preserve">
     <value>Der Ordnername, unter dem deine Mod installiert wird. Er lässt sich später nicht ändern.</value>
   </data>
+  <data name="ListingPackIdHint" xml:space="preserve">
+    <value>Die ID deines Packs. Sie lässt sich später nicht ändern.</value>
+  </data>
   <data name="ListingName" xml:space="preserve">
     <value>Name</value>
   </data>
@@ -1617,6 +1629,12 @@
   <data name="ListingGameHint" xml:space="preserve">
     <value>So, wie das Spiel sie anzeigt, zum Beispiel 2026.9.10.5438, oder ein Monat wie 2026.9.</value>
   </data>
+  <data name="ListingGameMinProposalFormat" xml:space="preserve">
+    <value>Die festgelegten Releases brauchen das Spiel ab {0}, deshalb schlägt Borea {0} als älteste Spielversion vor.</value>
+  </data>
+  <data name="ListingUseGameMin" xml:space="preserve">
+    <value>Diese Version verwenden</value>
+  </data>
   <data name="ListingUsesLoader" xml:space="preserve">
     <value>Braucht einen Mod-Loader</value>
   </data>
@@ -1631,6 +1649,51 @@
   </data>
   <data name="ListingLoaderMaxHint" xml:space="preserve">
     <value>Lass das leer, außer die Mod funktioniert mit neueren Loader-Versionen nicht mehr. Jedes Release, das mit dieser Grenze gestempelt wird, behält sie, weil ein Release später nur strenger werden kann.</value>
+  </data>
+  <data name="ListingPack" xml:space="preserve">
+    <value>Pack-Version</value>
+  </data>
+  <data name="ListingPackVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="ListingPackVersionHint" xml:space="preserve">
+    <value>Jede Version ist eine neue Datei, die sich nach dem Eintragen nicht mehr ändert, zum Beispiel 1.0.0.</value>
+  </data>
+  <data name="ListingReleasedAt" xml:space="preserve">
+    <value>Veröffentlicht am</value>
+  </data>
+  <data name="ListingReleasedAtHint" xml:space="preserve">
+    <value>In UTC, zum Beispiel 2026-09-25T12:00:00Z.</value>
+  </data>
+  <data name="ListingChangelog" xml:space="preserve">
+    <value>Änderungen</value>
+  </data>
+  <data name="ListingChangelogHint" xml:space="preserve">
+    <value>Ein Link oder ein kurzer Text zu dieser Version. Optional.</value>
+  </data>
+  <data name="ListingMembers" xml:space="preserve">
+    <value>Mods im Pack</value>
+  </data>
+  <data name="ListingMembersHint" xml:space="preserve">
+    <value>Wähle eingetragene Mods. Jede wird auf ein Release festgelegt, und das neueste Release steht zuerst.</value>
+  </data>
+  <data name="ListingSearchMembers" xml:space="preserve">
+    <value>Eingetragene Mods nach Name, ID oder Autor suchen</value>
+  </data>
+  <data name="ListingAddMember" xml:space="preserve">
+    <value>Hinzufügen</value>
+  </data>
+  <data name="ListingMemberRelease" xml:space="preserve">
+    <value>Release</value>
+  </data>
+  <data name="ListingMemberNotListedFormat" xml:space="preserve">
+    <value>{0} ist keine Mod, die der Index führt, deshalb kann kein Client diese Festlegung installieren.</value>
+  </data>
+  <data name="ListingMemberNotOfferedFormat" xml:space="preserve">
+    <value>{0} {1} ist zurückgezogen oder nicht im Index, deshalb kann kein Client diese Festlegung installieren.</value>
+  </data>
+  <data name="ListingMemberGoneFormat" xml:space="preserve">
+    <value>{0} {1} ist seit {2} nicht mehr herunterladbar, deshalb installiert ein Client diese Festlegung nur von einem Spiegel oder aus einer Kopie, die er schon hat.</value>
   </data>
   <data name="ListingDependenciesHint" xml:space="preserve">
     <value>Nur, was die mod.toml deines Archivs nicht sagen kann, zum Beispiel Versionsgrenzen oder einen Konflikt.</value>
@@ -1783,7 +1846,10 @@
     <value>Pull Request auf GitHub öffnen</value>
   </data>
   <data name="ListingNewPullRequestText" xml:space="preserve">
-    <value>GitHub öffnet eine neue Datei in deiner eigenen Kopie von content-index mit diesem Text und danach das Formular für den Pull Request. Der Pull Request wird von selbst gemergt, wenn du den Release-Host kontrollierst: Das Repository gehört dir, hat das Topic ksa-index-&lt;dein GitHub-Name&gt; oder enthält .github/ksa-content-index.toml. Eine SpaceDock-Mod beweist das über das GitHub-Repository in ihrem Quellcode-Link.</value>
+    <value>GitHub öffnet eine neue Datei in deiner eigenen Kopie von content-index und danach das Formular für den Pull Request. GitHub füllt diesen Text ein, wenn er in den Link passt. Ist er zu lang, kopiert Borea ihn, und du fügst ihn in die Seite ein. Der Pull Request wird von selbst gemergt, wenn du den Release-Host kontrollierst: Das Repository gehört dir, hat das Topic ksa-index-&lt;dein GitHub-Name&gt; oder enthält .github/ksa-content-index.toml. Eine SpaceDock-Mod beweist das über das GitHub-Repository in ihrem Quellcode-Link.</value>
+  </data>
+  <data name="ListingPackPullRequestTextFormat" xml:space="preserve">
+    <value>GitHub öffnet die neue Datei {0} in deiner eigenen Kopie von content-index. Eine Pack-Datei ist fast immer zu lang für den Link, deshalb kopiert Borea sie, und du fügst sie in die Seite ein und öffnest den Pull Request. Die erste Version eines neuen Packs braucht außerdem eine owner.json mit deinem GitHub-Konto im selben Ordner, und ein Steward nimmt sie an. Spätere Versionen von diesem Konto werden von selbst gemergt.</value>
   </data>
   <data name="ListingEditPullRequestText" xml:space="preserve">
     <value>GitHub öffnet die eingetragene Datei zum Bearbeiten, und Borea kopiert den neuen Text. Füge ihn über dem alten Text ein und öffne den Pull Request. Die Prüfungen beweisen, dass du den Release-Host kontrollierst, den der Eintrag jetzt nennt.</value>

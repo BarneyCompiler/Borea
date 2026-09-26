@@ -105,11 +105,16 @@ public sealed partial class ListingEditor : ObservableObject
     public bool IsNew => !IsEdit;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanUseLoader))]
+    [NotifyPropertyChangedFor(nameof(CanUseLoader), nameof(IsPack), nameof(NewTitle), nameof(PullRequestText), nameof(UsesBrowserOnly), nameof(OffersSignedInPublish))]
     private string _type = ListingDraft.ModType;
 
     /// <summary>A mod-loader carries no [loader].</summary>
     public bool CanUseLoader => Type == ListingDraft.ModType;
+
+    /// <summary>A pack version has no release host, loader, dependencies or install, and pins members instead.</summary>
+    public bool IsPack => Type == ListingDraft.ModPackType;
+
+    public string NewTitle => IsPack ? Localization.ListingPackTitle : Localization.ListingNewTitle;
 
     [ObservableProperty]
     private string _id = string.Empty;
@@ -224,6 +229,7 @@ public sealed partial class ListingEditor : ObservableObject
 
     /// <summary>The draft as the fields describe it now.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PullRequestText))]
     private ListingDraft _draft = new();
 
     /// <summary>The listing file the draft gives, in the layout of content-index.</summary>
@@ -237,7 +243,9 @@ public sealed partial class ListingEditor : ObservableObject
     /// <summary>The page the last pull request action opened.</summary>
     internal ListingPullRequestPage? LastPullRequestPage { get; private set; }
 
-    public string PullRequestText => IsEdit ? Localization.ListingEditPullRequestText : Localization.ListingNewPullRequestText;
+    public string PullRequestText => IsPack
+        ? Localization.FormatListingPackPullRequestText(Draft.Path)
+        : IsEdit ? Localization.ListingEditPullRequestText : Localization.ListingNewPullRequestText;
 
     public bool CanOpenPullRequest => !HasErrors && ModIds.IsValid(Draft.Id);
 
@@ -264,6 +272,7 @@ public sealed partial class ListingEditor : ObservableObject
 
         SetListedMods(_snapshot);
         FillCuratedTags(Draft.Tags);
+        FillMembers(Draft.Mods);
 
         if (services.ListingValidator.SchemaOrigin != ListingSchemaOrigin.Downloaded)
         {
@@ -462,7 +471,8 @@ public sealed partial class ListingEditor : ObservableObject
 
         try
         {
-            var fileName = await window.SaveTextFileAsync(Localization.ListingSaveAs, $"{(Draft.Id.Length > 0 ? Draft.Id : "listing")}.toml", Localization.ListingFileType, DocumentText);
+            var name = Draft.IsPack ? Draft.Version : Draft.Id;
+            var fileName = await window.SaveTextFileAsync(Localization.ListingSaveAs, $"{(name.Length > 0 ? name : "listing")}.toml", Localization.ListingFileType, DocumentText);
             if (fileName is not null)
                 _owner.ShowSuccessToast(() => Localization.FormatListingSaved(fileName));
         }
@@ -486,12 +496,12 @@ public sealed partial class ListingEditor : ObservableObject
         }
 
         var page = IsEdit
-            ? ListingPullRequestLinks.Edit(_base.Id)
-            : ListingPullRequestLinks.NewFile(Draft.Id, DocumentText);
+            ? ListingPullRequestLinks.Edit(_base.Path)
+            : ListingPullRequestLinks.NewFile(Draft.Path, DocumentText);
         var error = _owner.OpenListingPage(page.Url.AbsoluteUri);
         if (error is not null && page.CarriesText)
         {
-            page = ListingPullRequestLinks.NewFileWithoutText(Draft.Id);
+            page = ListingPullRequestLinks.NewFileWithoutText(Draft.Path);
             error = _owner.OpenListingPage(page.Url.AbsoluteUri);
         }
 
@@ -535,7 +545,9 @@ public sealed partial class ListingEditor : ObservableObject
         GameMin = ListingPrefill.DefaultGameMin(_owner.Services?.InstalledVersion.GetInstalledVersion()?.Version, _snapshot) ?? string.Empty,
     };
 
-    private void Load(ListingDraft draft, string? listedText = null)
+    /// <summary>Fills the form from a draft and goes to the form step.</summary>
+    /// <param name="listedText">The listed file the draft came from, whose layout the written file keeps.</param>
+    internal void Load(ListingDraft draft, string? listedText = null)
     {
         _tagProposal?.Cancel();
         _loading = true;
@@ -569,6 +581,10 @@ public sealed partial class ListingEditor : ObservableObject
             LoaderMax = draft.Loader?.Max ?? string.Empty;
             IsDeprecated = draft.Status == "deprecated";
             SupersededBy = draft.SupersededBy ?? string.Empty;
+            PackVersion = draft.Version;
+            ReleasedAt = draft.ReleasedAt ?? string.Empty;
+            Changelog = draft.Changelog ?? string.Empty;
+            FillMembers(draft.Mods);
             FillCuratedTags(draft.Tags);
             var curated = CuratedTags.Select(chip => chip.Tag).ToHashSet(StringComparer.Ordinal);
             FreeTags = string.Join(", ", draft.Tags.Where(tag => !curated.Contains(tag)));
@@ -657,8 +673,12 @@ public sealed partial class ListingEditor : ObservableObject
         if (CuratedTags.Count > 0)
             FillCuratedTags([]);
         OnPropertyChanged(nameof(PullRequestText));
+        OnPropertyChanged(nameof(NewTitle));
+        // the proposal keeps its value, so its setter does not raise the text again
+        OnPropertyChanged(nameof(GameMinProposalText));
         RefreshPullRequestText();
         FindListed();
+        FillMembers(Draft.Mods);
         Refresh();
     }
 
@@ -675,7 +695,7 @@ public sealed partial class ListingEditor : ObservableObject
         links.AddRange(_base.Links.Where(link => !KnownLinks.Contains(link.Key, StringComparer.Ordinal)));
 
         long? spaceDock = null;
-        if (ReleasesSpaceDock.Trim().Length > 0)
+        if (!IsPack && ReleasesSpaceDock.Trim().Length > 0)
         {
             if (long.TryParse(ReleasesSpaceDock.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var number))
                 spaceDock = number;
@@ -683,12 +703,18 @@ public sealed partial class ListingEditor : ObservableObject
                 pageIssues.Add(new ListingIssue(ListingIssueSeverity.Error, "releases.spacedock", Localization.FormatListingSpaceDockNotNumber(ReleasesSpaceDock.Trim())));
         }
 
-        var releases = ReleasesGitHub.Trim().Length > 0 || spaceDock is not null
+        var releases = !IsPack && (ReleasesGitHub.Trim().Length > 0 || spaceDock is not null)
             ? new ListingReleases(Empty(ReleasesGitHub), spaceDock, NeedsAuthority ? ReleasesAuthority : null, Empty(ReleasesSince))
             : null;
 
         var free = FreeTags.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var tags = CuratedTags.Where(chip => chip.IsSelected).Select(chip => chip.Tag).Concat(free).Distinct(StringComparer.Ordinal).ToList();
+
+        var mods = Members.Select(row => row.ToMember()).ToList();
+        if (IsPack)
+            pageIssues.AddRange(PackIssues(mods));
+        else
+            GameMinProposal = null;
 
         return _base with
         {
@@ -707,9 +733,13 @@ public sealed partial class ListingEditor : ObservableObject
             GameMin = GameMin.Trim(),
             GameMax = Empty(GameMax),
             Loader = CanUseLoader && UsesLoader ? new ListingLoader(LoaderId.Trim(), LoaderMin.Trim(), Empty(LoaderMax)) : null,
-            Dependencies = Dependencies.Select(row => row.ToDependency()).ToList(),
+            Dependencies = IsPack ? [] : Dependencies.Select(row => row.ToDependency()).ToList(),
             Icon = Icon?.ToRecord(),
             DescriptionImages = DescriptionImages.Select(row => row.ToRecord()).ToList(),
+            Version = PackVersion.Trim(),
+            ReleasedAt = Empty(ReleasedAt),
+            Changelog = Changelog.Trim().Length == 0 ? null : Changelog.Replace("\r\n", "\n", StringComparison.Ordinal).Trim(),
+            Mods = mods,
         };
     }
 

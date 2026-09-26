@@ -1,6 +1,7 @@
 using Borea.Core.Dependencies;
 using Borea.Core.Index;
 using Borea.Core.Listings;
+using Borea.Core.ModPacks;
 using Borea.Core.Mods;
 using Borea.Core.Tags;
 using Borea.Storage.Listings;
@@ -257,6 +258,41 @@ public sealed class ListingValidatorTests
     }
 
     [Fact]
+    public void Validate_ForumsThreadOfAPack_GivesTheThreadNote()
+    {
+        var draft = Valid() with { Links = [new ListingLink("forums", "https://forums.ahwoo.com/forums/kitten-space-agency/mod-releases/planning-pack.1281/")] };
+
+        var note = Assert.Single(Check(draft).Issues, issue => issue.Location == "links.forums");
+
+        Assert.Equal(ListingIssueSeverity.Note, note.Severity);
+        Assert.StartsWith("thread 1281 is also the forums thread of packs/planning-pack/1.0.1.toml", note.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_WrittenPackDraft_PassesTheSchema()
+    {
+        var draft = new ListingDraft
+        {
+            Id = "my-pack",
+            Type = ListingDraft.ModPackType,
+            Name = "My Pack",
+            Authors = ["Maxi"],
+            Abstract = "Pins a few mods.",
+            License = "MIT",
+            Tags = ["gameplay"],
+            Links = [new ListingLink("forums", "https://forums.ahwoo.com/threads/my-pack.9/")],
+            GameMin = "2026.9.10.5438",
+            Version = "1.0.0",
+            ReleasedAt = "2026-09-25T12:00:00Z",
+            Mods = [new ListingPackMember("AdvancedFlightComputer", "0.8.0")],
+        };
+
+        var result = _validator.Validate(_format.Read(_format.Write(draft.ToDocument())), new ListingCheckContext(Snapshot()));
+
+        Assert.Empty(result.Issues);
+    }
+
+    [Fact]
     public void Validate_AbstractLength_CountsCodePoints()
     {
         var draft = Valid() with { Abstract = string.Concat(Enumerable.Repeat("\U0001F680", 280)) };
@@ -359,10 +395,13 @@ public sealed class ListingValidatorTests
         var starMap = new ModMetadata(1, "StarMap", "index", "StarMap", ["KlaasWhite"], "Abstract.", "MIT",
             new Dictionary<string, string> { ["forums"] = "https://forums.ahwoo.com/threads/starmap-mod-loader.384/" }, "2026.8.3.5117", ContentType.ModLoader);
         var tags = new CuratedTagVocabulary(1, [new CuratedTag("gameplay", "Gameplay", "Mechanics.", "Gameplay"), new CuratedTag("library", "Library", "Code.")]);
+        var pack = new ModPackMetadata(1, "planning-pack", "index", "Planning", ["Beik"], "Abstract.", "MIT",
+            new Dictionary<string, string> { ["forums"] = "https://forums.ahwoo.com/threads/planning-pack.1281/" }, "2026.9.10.5438",
+            new ModVersion(1, 0, 1), DateTimeOffset.UnixEpoch, [new ModPackEntry("AdvancedFlightComputer", new ModVersion(0, 8, 0))]);
         return new ContentIndexSnapshot(
             1,
             [new ContentIndexListing("AdvancedFlightComputer", afc, Array.Empty<ModVersionMetadata>(), null), new ContentIndexListing("StarMap", starMap, Array.Empty<ModVersionMetadata>(), null)],
-            [],
+            [new ContentIndexPack("planning-pack", [new ContentIndexPackVersion(pack, null)], null)],
             new ContentIndexGameVersions(1, "test", ["2026.8.19.5261", "2026.9.7.5402", "2026.9.10.5438"]),
             [],
             tags);

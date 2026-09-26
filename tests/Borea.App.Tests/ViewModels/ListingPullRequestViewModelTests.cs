@@ -90,6 +90,29 @@ public sealed class ListingPullRequestViewModelTests
     }
 
     [Fact]
+    public async Task SignedIn_PackDraft_OffersOnlyTheBrowserPathAndPublishesNothing()
+    {
+        _session.SignIn();
+        using var harness = await CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        editor.OwnershipDelay = TimeSpan.Zero;
+        await harness.ViewModel.OpenListingAsync();
+        ListingEditorTests.FillPack(editor);
+
+        await editor.OwnershipCheck;
+        await editor.PublishCommand.ExecuteAsync(null);
+
+        Assert.True(editor.IsSignedIn);
+        Assert.True(editor.CanOpenPullRequest, string.Join("\n", editor.Errors));
+        Assert.True(editor.UsesBrowserOnly);
+        Assert.False(editor.OffersSignedInPublish);
+        Assert.False(editor.CanPublish);
+        Assert.Null(editor.Ownership);
+        Assert.Empty(_publisher.Checks);
+        Assert.Empty(_publisher.Submissions);
+    }
+
+    [Fact]
     public async Task SignedIn_NoProof_NamesTheStepAndOpensTheRepository()
     {
         _session.SignIn();

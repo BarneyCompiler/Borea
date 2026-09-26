@@ -982,6 +982,12 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ListingStartEmpty => Resources.ListingStartEmpty;
 
+    public string ListingPackTitle => Resources.ListingPackTitle;
+
+    public string ListingPackHint => Resources.ListingPackHint;
+
+    public string ListingStartPack => Resources.ListingStartPack;
+
     public string ListingChangeTitle => Resources.ListingChangeTitle;
 
     public string ListingChangeHint => Resources.ListingChangeHint;
@@ -1021,6 +1027,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ListingId => Resources.ListingId;
 
     public string ListingIdHint => Resources.ListingIdHint;
+
+    public string ListingPackIdHint => Resources.ListingPackIdHint;
 
     public string ListingName => Resources.ListingName;
 
@@ -1062,6 +1070,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ListingGameHint => Resources.ListingGameHint;
 
+    public string ListingUseGameMin => Resources.ListingUseGameMin;
+
     public string ListingUsesLoader => Resources.ListingUsesLoader;
 
     public string ListingLoaderId => Resources.ListingLoaderId;
@@ -1071,6 +1081,30 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ListingLoaderMax => Resources.ListingLoaderMax;
 
     public string ListingLoaderMaxHint => Resources.ListingLoaderMaxHint;
+
+    public string ListingPack => Resources.ListingPack;
+
+    public string ListingPackVersion => Resources.ListingPackVersion;
+
+    public string ListingPackVersionHint => Resources.ListingPackVersionHint;
+
+    public string ListingReleasedAt => Resources.ListingReleasedAt;
+
+    public string ListingReleasedAtHint => Resources.ListingReleasedAtHint;
+
+    public string ListingChangelog => Resources.ListingChangelog;
+
+    public string ListingChangelogHint => Resources.ListingChangelogHint;
+
+    public string ListingMembers => Resources.ListingMembers;
+
+    public string ListingMembersHint => Resources.ListingMembersHint;
+
+    public string ListingSearchMembers => Resources.ListingSearchMembers;
+
+    public string ListingAddMember => Resources.ListingAddMember;
+
+    public string ListingMemberRelease => Resources.ListingMemberRelease;
 
     public string ListingDependenciesHint => Resources.ListingDependenciesHint;
 
@@ -1911,6 +1945,21 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatListingSpaceDockNotNumber(string value)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingSpaceDockNotNumberFormat, value);
+
+    public string FormatListingGameMinProposal(string gameMin)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingGameMinProposalFormat, gameMin);
+
+    public string FormatListingMemberNotListed(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberNotListedFormat, id);
+
+    public string FormatListingMemberNotOffered(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberNotOfferedFormat, id, version);
+
+    public string FormatListingMemberGone(string id, string version, string date)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberGoneFormat, id, version, date);
+
+    public string FormatListingPackPullRequestText(string path)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackPullRequestTextFormat, path);
 
     public string FormatListingSaved(string fileName)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingSavedFormat, fileName);

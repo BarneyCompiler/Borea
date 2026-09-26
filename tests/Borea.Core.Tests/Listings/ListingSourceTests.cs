@@ -125,7 +125,7 @@ public sealed class ListingSourceTests
     [Fact]
     public void NewFile_ShortDocument_CarriesTheText()
     {
-        var page = ListingPullRequestLinks.NewFile("MyMod", "id = \"MyMod\"\n");
+        var page = ListingPullRequestLinks.NewFile("listings/MyMod.toml", "id = \"MyMod\"\n");
 
         Assert.True(page.CarriesText);
         Assert.Equal("https://github.com/KSAModding/content-index/new/main?filename=listings/MyMod.toml&value=id%20%3D%20%22MyMod%22%0A", page.Url.AbsoluteUri);
@@ -134,16 +134,30 @@ public sealed class ListingSourceTests
     [Fact]
     public void NewFile_DocumentLongerThanTheLimit_OpensThePageWithoutTheText()
     {
-        var page = ListingPullRequestLinks.NewFile("MyMod", new string('x', ListingPullRequestLinks.MaxUrlLength));
+        var page = ListingPullRequestLinks.NewFile("listings/MyMod.toml", new string('x', ListingPullRequestLinks.MaxUrlLength));
 
         Assert.False(page.CarriesText);
         Assert.Equal("https://github.com/KSAModding/content-index/new/main?filename=listings/MyMod.toml", page.Url.AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public void NewFile_PackVersion_CarriesTheTextUpToTwoThousandCharacters(int over, bool carries)
+    {
+        const string page = "https://github.com/KSAModding/content-index/new/main?filename=packs/my-pack/1.0.0-beta.1%2Bbuild.toml";
+
+        var result = ListingPullRequestLinks.NewFile("packs/my-pack/1.0.0-beta.1+build.toml", new string('x', 2000 - page.Length - "&value=".Length + over));
+
+        Assert.Equal(carries, result.CarriesText);
+        Assert.StartsWith(page, result.Url.AbsoluteUri, StringComparison.Ordinal);
+        Assert.Equal(carries ? 2000 : page.Length, result.Url.AbsoluteUri.Length);
+    }
+
     [Fact]
     public void Edit_OpensTheEditPageOfTheListedFile()
     {
-        var page = ListingPullRequestLinks.Edit("StarMap");
+        var page = ListingPullRequestLinks.Edit("listings/StarMap.toml");
 
         Assert.False(page.CarriesText);
         Assert.Equal("https://github.com/KSAModding/content-index/edit/main/listings/StarMap.toml", page.Url.AbsoluteUri);

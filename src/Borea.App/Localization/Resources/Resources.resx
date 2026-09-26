@@ -1476,6 +1476,15 @@
   <data name="ListingStartEmpty" xml:space="preserve">
     <value>Start without a source</value>
   </data>
+  <data name="ListingPackTitle" xml:space="preserve">
+    <value>New mod pack</value>
+  </data>
+  <data name="ListingPackHint" xml:space="preserve">
+    <value>A pack pins listed mods to exact releases, so players install the set that you tested. Borea writes one version of the pack.</value>
+  </data>
+  <data name="ListingStartPack" xml:space="preserve">
+    <value>Start a mod pack</value>
+  </data>
   <data name="ListingChangeTitle" xml:space="preserve">
     <value>Change a listed mod</value>
   </data>
@@ -1557,6 +1566,9 @@
   <data name="ListingIdHint" xml:space="preserve">
     <value>The folder name your mod installs as. It cannot change later.</value>
   </data>
+  <data name="ListingPackIdHint" xml:space="preserve">
+    <value>The id of your pack. It cannot change later.</value>
+  </data>
   <data name="ListingName" xml:space="preserve">
     <value>Name</value>
   </data>
@@ -1617,6 +1629,12 @@
   <data name="ListingGameHint" xml:space="preserve">
     <value>As the game shows it, such as 2026.9.10.5438, or a month such as 2026.9.</value>
   </data>
+  <data name="ListingGameMinProposalFormat" xml:space="preserve">
+    <value>The pinned releases need game {0} or newer, so Borea proposes {0} as the oldest game version.</value>
+  </data>
+  <data name="ListingUseGameMin" xml:space="preserve">
+    <value>Use this version</value>
+  </data>
   <data name="ListingUsesLoader" xml:space="preserve">
     <value>Needs a mod loader</value>
   </data>
@@ -1631,6 +1649,51 @@
   </data>
   <data name="ListingLoaderMaxHint" xml:space="preserve">
     <value>Leave this empty unless the mod stops working with newer loader versions. Every release stamped while this is set keeps the limit, because a release can only get stricter later.</value>
+  </data>
+  <data name="ListingPack" xml:space="preserve">
+    <value>Pack version</value>
+  </data>
+  <data name="ListingPackVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="ListingPackVersionHint" xml:space="preserve">
+    <value>Each version is a new file that never changes after it is listed, such as 1.0.0.</value>
+  </data>
+  <data name="ListingReleasedAt" xml:space="preserve">
+    <value>Released at</value>
+  </data>
+  <data name="ListingReleasedAtHint" xml:space="preserve">
+    <value>In UTC, such as 2026-09-25T12:00:00Z.</value>
+  </data>
+  <data name="ListingChangelog" xml:space="preserve">
+    <value>Changelog</value>
+  </data>
+  <data name="ListingChangelogHint" xml:space="preserve">
+    <value>A link or a short text about this version. Optional.</value>
+  </data>
+  <data name="ListingMembers" xml:space="preserve">
+    <value>Members</value>
+  </data>
+  <data name="ListingMembersHint" xml:space="preserve">
+    <value>Pick listed mods. Each one is pinned to one release, and the newest release comes first.</value>
+  </data>
+  <data name="ListingSearchMembers" xml:space="preserve">
+    <value>Search listed mods by name, id or author</value>
+  </data>
+  <data name="ListingAddMember" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="ListingMemberRelease" xml:space="preserve">
+    <value>Release</value>
+  </data>
+  <data name="ListingMemberNotListedFormat" xml:space="preserve">
+    <value>{0} is not a mod that the index lists, so no client can install this pin.</value>
+  </data>
+  <data name="ListingMemberNotOfferedFormat" xml:space="preserve">
+    <value>{0} {1} is yanked or not in the index, so no client can install this pin.</value>
+  </data>
+  <data name="ListingMemberGoneFormat" xml:space="preserve">
+    <value>{0} {1} is no longer downloadable since {2}, so a client installs this pin only from a mirror or a copy it already has.</value>
   </data>
   <data name="ListingDependenciesHint" xml:space="preserve">
     <value>Only what the mod.toml of your archive cannot say, such as version bounds or a conflict.</value>
@@ -1783,7 +1846,10 @@
     <value>Open pull request on GitHub</value>
   </data>
   <data name="ListingNewPullRequestText" xml:space="preserve">
-    <value>GitHub opens a new file in your own copy of content-index with this text filled in, and then the pull request form. The pull request merges itself when you control the release host: the repository is yours, has the topic ksa-index-&lt;your GitHub name&gt;, or contains .github/ksa-content-index.toml. A SpaceDock mod proves this through the GitHub repository in its source code link.</value>
+    <value>GitHub opens a new file in your own copy of content-index, and then the pull request form. GitHub fills in this text when it fits in the link. When it is too long, Borea copies it, and you paste it into the page. The pull request merges itself when you control the release host: the repository is yours, has the topic ksa-index-&lt;your GitHub name&gt;, or contains .github/ksa-content-index.toml. A SpaceDock mod proves this through the GitHub repository in its source code link.</value>
+  </data>
+  <data name="ListingPackPullRequestTextFormat" xml:space="preserve">
+    <value>GitHub opens the new file {0} in your own copy of content-index. A pack file is almost always too long for the link, so Borea copies it, and you paste it into the page and open the pull request. The first version of a new pack also needs an owner.json with your GitHub account in the same folder, and a steward accepts it. Later versions from that account merge themselves.</value>
   </data>
   <data name="ListingEditPullRequestText" xml:space="preserve">
     <value>GitHub opens the listed file for editing, and Borea copies the new text. Paste it over the old text and open the pull request. The checks prove that you control the release host the listing names now.</value>

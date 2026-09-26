@@ -183,6 +183,41 @@ public sealed class LoaderCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task Install_ExactReleaseWhoseDownloadIsGone_WarnsWithTheDate()
+    {
+        var installer = new FakeLoaderInstaller();
+        _host.LoaderInstaller = installer;
+        _host.Mods.Listings.Add(LoaderFixtures.Listing());
+        _host.Mods.Releases.Add(LoaderFixtures.Release(version: "0.4.6", unavailableSince: new DateTimeOffset(2026, 9, 23, 10, 24, 0, TimeSpan.Zero)));
+
+        var run = await _host.RunAsync("loader", "install", "StarMap", "--version", "0.4.6");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Contains("warning: The download of StarMap 0.4.6 is gone from its host since 2026-09-23", run.Error);
+        Assert.Equal("0.4.6", Assert.Single(installer.Calls).Release.Version.ToString());
+    }
+
+    [Fact]
+    public async Task Adopt_InstalledReleaseWhoseDownloadIsGone_StillGetsItsVersion()
+    {
+        var adopter = new FakeLoaderAdopter { RawVersion = "0.4.6" };
+        _host.LoaderAdopter = adopter;
+        _host.Mods.Listings.Add(LoaderFixtures.Listing());
+        _host.Mods.Releases.Add(LoaderFixtures.Release(version: "0.4.5"));
+        _host.Mods.Releases.Add(LoaderFixtures.Release(version: "0.4.6", unavailableSince: new DateTimeOffset(2026, 9, 23, 10, 24, 0, TimeSpan.Zero)));
+        // the index offers no release whose download is gone
+        _host.Mods.AvailableVersions = (_, _) => Task.FromResult<IReadOnlyList<ModVersion>>([ModVersion.Parse("0.4.5")]);
+
+        var adopt = await _host.RunAsync("loader", "adopt", "StarMap", _host.Root);
+        var list = await _host.RunAsync("loader", "list", "--versions");
+
+        Assert.Equal(0, adopt.ExitCode);
+        Assert.Contains("Loader version: 0.4.6", adopt.Output);
+        Assert.Empty(adopt.Error);
+        Assert.Equal($"StarMap{Environment.NewLine}  0.4.5{Environment.NewLine}", list.Output);
+    }
+
+    [Fact]
     public async Task Uninstall_ReportsWhetherTheDirectoryWasRemoved()
     {
         var uninstaller = new FakeLoaderUninstaller
@@ -290,6 +325,21 @@ public sealed class LoaderCommandTests : IDisposable
                 new DownloadResult(release.Download.Url, 100, "ABC"),
                 "StarMapConfig.json",
                 Replaced: false));
+        }
+    }
+
+    /// <summary>Matches the file version <see cref="RawVersion"/> against the releases the command passes.</summary>
+    private sealed class FakeLoaderAdopter : ILoaderAdopter
+    {
+        public required string RawVersion { get; init; }
+
+        public Task<LoaderAdoptionResult> AdoptAsync(ModMetadata loader, IReadOnlyList<ModVersionMetadata> releases, string directory, CancellationToken cancellationToken = default)
+            => InspectAsync(loader, releases, directory, cancellationToken);
+
+        public Task<LoaderAdoptionResult> InspectAsync(ModMetadata loader, IReadOnlyList<ModVersionMetadata> releases, string directory, CancellationToken cancellationToken = default)
+        {
+            var version = releases.FirstOrDefault(release => release.Version == ModVersion.Parse(RawVersion))?.Version;
+            return Task.FromResult(new LoaderAdoptionResult(loader.ModId, directory, RawVersion, version, ConfiguredGameDirectory: null, GameDirectoryMatches: null, Warnings: []));
         }
     }
 

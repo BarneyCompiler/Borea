@@ -2,6 +2,7 @@ using System.CommandLine;
 using Borea.Cli.Output;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
+using Borea.Core.Planning;
 
 namespace Borea.Cli.Commands;
 
@@ -43,8 +44,8 @@ internal static class LoaderCommand
                 var result = parseResult.GetValue(versionsOption);
                 if (result)
                 {
-                    var releases = await LoaderLookup.GetReleasesAsync(cli.Mods, modloader.ModId, ct);
-                    var versions = releases.Where(v => !v.Yanked).DistinctBy(v => v.Version).OrderByDescending(v => v.Version).ToList();
+                    var releases = await cli.Mods.GetReleaseHistoryAsync(modloader.ModId, ct);
+                    var versions = releases.Where(v => v.IsOffered).DistinctBy(v => v.Version).OrderByDescending(v => v.Version).ToList();
 
                     foreach (var version in versions)
                     {
@@ -95,6 +96,9 @@ internal static class LoaderCommand
 
             if (release.Yanked)
                 throw new InvalidOperationException($"Release {release.Version} of {listing.ModId} is yanked and cannot be installed.");
+
+            if (release.Download.UnavailableSince is { } since)
+                error.WriteLine($"warning: {new PlanningMessage(listing.ModId, PlanningMessageKind.Unavailable) { Version = release.Version, Since = since }.Message}");
 
             // no silent downgrade from an installed release outside the channel
             if (rawVersion is null
@@ -177,7 +181,8 @@ internal static class LoaderCommand
         CancellationToken cancellationToken)
     {
         var listing = await LoaderLookup.GetListingAsync(services.Mods, loaderId, cancellationToken).ConfigureAwait(false);
-        var releases = await LoaderLookup.GetReleasesAsync(services.Mods, listing.ModId, cancellationToken).ConfigureAwait(false);
+        // the history keeps a release whose download is gone, so an installed copy of it still gets its version
+        var releases = await services.Mods.GetReleaseHistoryAsync(listing.ModId, cancellationToken).ConfigureAwait(false);
         var result = await services.LoaderAdopter
             .AdoptAsync(listing, releases, directory, cancellationToken)
             .ConfigureAwait(false);

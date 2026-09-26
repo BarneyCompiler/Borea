@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Borea.App.Tests.ViewModels;
+using Borea.App.ViewModels;
 using Borea.App.Views;
 using CommunityToolkit.Mvvm.Input;
 
@@ -176,6 +177,37 @@ public sealed class MiddleClickScrollTests
         }));
 
         Assert.Equal(0, offset);
+    }
+
+    [Fact]
+    public async Task LinkChipsOfTheContentPage_AreLinks()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        await viewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer").OpenCommand.ExecuteAsync(null);
+
+        var types = await HeadlessApp.RunAsync(harness, () =>
+        {
+            var page = new Borea.App.Views.Pages.ContentPage();
+            var window = new Window { Width = 1280, Height = 900, DataContext = viewModel, Content = page };
+            window.Show();
+            try
+            {
+                page.UpdateLayout();
+                return Task.FromResult(page.GetVisualDescendants().OfType<Button>()
+                    .Where(button => button.CommandParameter is ContentLink)
+                    .Select(AutomationProperties.GetControlTypeOverride)
+                    .ToList());
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.NotEmpty(types);
+        Assert.All(types, type => Assert.Equal(AutomationControlType.Hyperlink, type));
     }
 
     [Fact]

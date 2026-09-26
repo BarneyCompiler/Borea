@@ -2055,6 +2055,9 @@
   <data name="DiscoverRefresh" xml:space="preserve">
     <value>Refresh</value>
   </data>
+  <data name="DiscoverBackToTop" xml:space="preserve">
+    <value>Back to top</value>
+  </data>
   <data name="TimeJustNow" xml:space="preserve">
     <value>just now</value>
   </data>

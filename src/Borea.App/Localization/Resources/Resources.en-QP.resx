@@ -1416,6 +1416,9 @@
   <data name="DiscoverRefresh" xml:space="preserve">
     <value>Freshen up</value>
   </data>
+  <data name="DiscoverBackToTop" xml:space="preserve">
+    <value>Back to the crow's nest</value>
+  </data>
   <data name="TimeJustNow" xml:space="preserve">
     <value>just now</value>
   </data>

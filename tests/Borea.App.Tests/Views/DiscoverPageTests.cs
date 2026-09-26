@@ -174,6 +174,75 @@ public sealed class DiscoverPageTests
         Assert.True(after.Bottom <= 500, $"The count ends at {after.Bottom} px, below the window.");
     }
 
+    [Fact]
+    public async Task BackToTop_ShowsPastOneViewport_AndAClickTakesTheListUpWithItsSearchFiltersAndRows()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: json => ViewModelHarness.WithCopies(json, "KSArmory", 60));
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        viewModel.SearchText = "KSArmory";
+        viewModel.HideInstalled = true;
+        var rows = viewModel.DiscoverItems.ToList();
+
+        var seen = await RenderAsync(harness, 1280, page =>
+        {
+            var (scroller, button) = BackToTop(page);
+            var atTop = button.IsEffectivelyVisible;
+            scroller.Offset = new Vector(0, scroller.Viewport.Height / 2);
+            var nearTop = button.IsEffectivelyVisible;
+            scroller.Offset = new Vector(0, 2 * scroller.Viewport.Height);
+            var farDown = (button.IsEffectivelyVisible, scroller.Offset.Y);
+            Click(button);
+            return (atTop, nearTop, farDown, AfterClick: button.IsEffectivelyVisible, Offset: scroller.Offset.Y);
+        });
+
+        Assert.False(seen.atTop);
+        Assert.False(seen.nearTop);
+        Assert.True(seen.farDown.IsEffectivelyVisible);
+        Assert.True(seen.farDown.Y > 0, "The list must be long enough to scroll two viewports, or the test proves nothing.");
+        Assert.False(seen.AfterClick);
+        Assert.Equal(0, seen.Offset);
+        Assert.Equal("KSArmory", viewModel.SearchText);
+        Assert.True(viewModel.HideInstalled);
+        Assert.Equal(61, rows.Count);
+        Assert.Equal(rows, viewModel.DiscoverItems);
+    }
+
+    [Fact]
+    public async Task BackToTop_ShowsItsLabelAndAName_AndTheKeyboardReachesItAndGoesOnFromTheTop()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: json => ViewModelHarness.WithCopies(json, "KSArmory", 60));
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+
+        var seen = await RenderAsync(harness, 1280, page =>
+        {
+            var (scroller, button) = BackToTop(page);
+            var window = (Window)TopLevel.GetTopLevel(page)!;
+            scroller.Offset = new Vector(0, 2 * scroller.Viewport.Height);
+            window.UpdateLayout();
+
+            // the button sits between the list and the side panel in the tab order
+            SidePanel(page).GetVisualDescendants().OfType<TextBox>().First().Focus(NavigationMethod.Tab);
+            window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.Shift);
+            window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.Shift);
+            var reached = button.IsFocused;
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            var refresh = page.GetVisualDescendants().OfType<Button>().Single(candidate => candidate.Command == viewModel.RefreshContentIndexCommand);
+            var label = button.GetVisualDescendants().OfType<TextBlock>().Single().Text;
+            return (Tip: ToolTip.GetTip(button), Label: label, Name: AutomationProperties.GetName(button), reached, Offset: scroller.Offset.Y, TopFocused: refresh.IsFocused);
+        });
+
+        // the label is on the button, so a tooltip would only repeat it
+        Assert.Null(seen.Tip);
+        Assert.Equal(harness.Localization.DiscoverBackToTop, seen.Label);
+        Assert.Equal(harness.Localization.DiscoverBackToTop, seen.Name);
+        Assert.True(seen.reached);
+        Assert.Equal(0, seen.Offset);
+        Assert.True(seen.TopFocused);
+    }
+
     /// <summary>Renders Discover next to a navigation rail, as the main window does.</summary>
     private static Task<T> RenderAsync<T>(ViewModelHarness harness, double windowWidth, Func<DiscoverPage, T> read, double windowHeight = 832) =>
         HeadlessApp.RunAsync(harness, () =>
@@ -204,6 +273,10 @@ public sealed class DiscoverPageTests
             SidePanelButton(page, viewModel.ClearDiscoverGameMinCommand).IsEffectivelyEnabled,
             SidePanelButton(page, viewModel.ClearDiscoverGameMaxCommand).IsEffectivelyEnabled);
     }
+
+    /// <summary>The scroll viewer of the list, which is the first one of the page, and the button that takes it back to the top.</summary>
+    private static (ScrollViewer Scroller, ScrollToTopButton Button) BackToTop(Visual page) =>
+        (page.GetVisualDescendants().OfType<ScrollViewer>().First(), page.GetVisualDescendants().OfType<ScrollToTopButton>().Single());
 
     private static Border SidePanel(Visual page) =>
         page.GetVisualDescendants().OfType<Border>().Single(border => border.Classes.Contains("side-panel"));

@@ -141,6 +141,9 @@
     <!-- modal: a steward change of index-status.toml -->
     <views:IndexStatusModal IsVisible="{Binding IsStewardChangeOpen}" />
 
+    <!-- modal: a steward amendment of release files -->
+    <views:ReleaseAmendmentModal IsVisible="{Binding IsStewardAmendmentOpen}" />
+
     <!-- modal: a steward action on the pull request of the review -->
     <views:PullRequestActionModal IsVisible="{Binding IsStewardActionOpen}" />
 

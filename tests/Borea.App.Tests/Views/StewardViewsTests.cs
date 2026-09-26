@@ -21,6 +21,7 @@ public sealed class StewardViewsTests
     private readonly FakeIndexReports _reports = new();
     private readonly FakePullRequestReviews _reviews = new();
     private readonly FakePullRequestActions _actions = new();
+    private readonly FakeReleaseAmendments _amendments = new();
 
     [Fact]
     public async Task StewardPage_ShowsEachStateWithLiftAndTheOpenPullRequests()
@@ -239,6 +240,59 @@ public sealed class StewardViewsTests
     }
 
     [Fact]
+    public async Task ReleaseAmendmentModal_ShowsTheReleasesAndThePreviewPerFile_AndOpensThePullRequestOnAClick()
+    {
+        _amendments.Yanked.Add("1.1.0");
+        using var harness = await CreateAsync();
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        await viewModel.OpenContentAsync(viewModel.DiscoverItems.First(item => item.ModId == "MeasureTools"));
+        viewModel.AmendContentReleasesCommand.Execute(null);
+        var dialog = viewModel.StewardAmendment!;
+        await dialog.WhenDoneAsync();
+        dialog.IsScopeUpTo = true;
+        dialog.UpTo = "1.2.0";
+        dialog.Yank = true;
+        dialog.Reason = "The archive carries malware.";
+        await dialog.PreviewCommand.ExecuteAsync(null);
+
+        var texts = await HeadlessApp.RunAsync(harness, async () =>
+        {
+            var modal = new ReleaseAmendmentModal();
+            var window = new Window { Width = 1280, Height = 832, Content = modal, DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                var shown = modal.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+                var open = modal.GetVisualDescendants().OfType<Button>().Single(button => button.IsEffectivelyVisible && (button.Content as TextBlock)?.Text == harness.Localization.ListingPublish);
+                var point = open.TranslatePoint(new Point(open.Bounds.Width / 2, open.Bounds.Height / 2), window)!.Value;
+                window.MouseDown(point, MouseButton.Left);
+                window.MouseUp(point, MouseButton.Left);
+                await dialog.WhenDoneAsync();
+                window.UpdateLayout();
+                shown.AddRange(modal.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text));
+                return shown;
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Contains("Amend releases of MeasureTools", texts);
+        Assert.Contains(harness.Localization.StewardAmendExplanation, texts);
+        Assert.Contains(harness.Localization.StewardAmendPreviewHeading, texts);
+        Assert.Contains("releases/MeasureTools/1.2.0.json", texts);
+        Assert.Contains("+  \"yanked\": true", texts);
+        Assert.Contains("releases/MeasureTools/1.1.0.json", texts);
+        Assert.Contains(harness.Localization.StewardAmendUnchanged, texts);
+        Assert.Contains("The pull request mentions @alice, so the owner is told.", texts);
+        Assert.Contains("Pull request #1 is open. It waits for a steward to merge it.", texts);
+        Assert.Single(_amendments.Opened);
+    }
+
+    [Fact]
     public async Task ReviewPage_ShowsThePullRequestInPlaceOfTheTabs_WithItsDocumentAndFiles()
     {
         const string Listing = "spec_version = 1\nid = \"MyMod\"\nname = \"My Mod\"\nabstract = \"Adds a thing.\"\ndescription = \"It adds a thing.\"\n";
@@ -428,7 +482,7 @@ public sealed class StewardViewsTests
     private async Task<ViewModelHarness> CreateAsync()
     {
         _session.SignInDirectly();
-        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher, pullRequestReviews: _reviews, pullRequestActions: _actions, indexReports: _reports);
+        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher, pullRequestReviews: _reviews, pullRequestActions: _actions, indexReports: _reports, releaseAmendments: _amendments);
         await harness.ViewModel.WhenStewardRoleCheckedAsync();
         return harness;
     }

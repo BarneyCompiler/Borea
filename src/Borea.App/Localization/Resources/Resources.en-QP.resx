@@ -264,6 +264,123 @@
   <data name="StewardOwnerWarning" xml:space="preserve">
     <value>This be yer own booty. POLICY.md asks a steward with a stake in a quarrel to leave it to another steward.</value>
   </data>
+  <data name="StewardAmend" xml:space="preserve">
+    <value>Mend the cargo</value>
+  </data>
+  <data name="StewardAmendTitleFormat" xml:space="preserve">
+    <value>Mend the cargo o' {0}</value>
+  </data>
+  <data name="StewardAmendExplanation" xml:space="preserve">
+    <value>Borea mends only what the chosen barrels claim, and sends one pull request to KSAModding/content-index-releases. A steward only ever tightens the ropes. The pull request waits in the queue till validate passes, and a steward hauls it aboard.</value>
+  </data>
+  <data name="StewardAmendLoading" xml:space="preserve">
+    <value>Countin' the barrels on GitHub...</value>
+  </data>
+  <data name="StewardAmendReleases" xml:space="preserve">
+    <value>Cargo</value>
+  </data>
+  <data name="StewardAmendChecked" xml:space="preserve">
+    <value>The marked barrels</value>
+  </data>
+  <data name="StewardAmendUpTo" xml:space="preserve">
+    <value>Every barrel up to an' with</value>
+  </data>
+  <data name="StewardAmendAll" xml:space="preserve">
+    <value>Every barrel in the hold</value>
+  </data>
+  <data name="StewardAmendChange" xml:space="preserve">
+    <value>What to mend</value>
+  </data>
+  <data name="StewardAmendGameMin" xml:space="preserve">
+    <value>Raise the lowest game version (game_min)</value>
+  </data>
+  <data name="StewardAmendGameMax" xml:space="preserve">
+    <value>Set or lower the highest game version (game_max)</value>
+  </data>
+  <data name="StewardAmendGameHint" xml:space="preserve">
+    <value>A game build like 2026.8.22.5348, or a moon like 2026.8, which gives its first build as game_min and its last build as game_max.</value>
+  </data>
+  <data name="StewardAmendLoaderMin" xml:space="preserve">
+    <value>Raise the loader min</value>
+  </data>
+  <data name="StewardAmendLoaderMax" xml:space="preserve">
+    <value>Set or lower the loader max</value>
+  </data>
+  <data name="StewardAmendYank" xml:space="preserve">
+    <value>Toss these barrels overboard</value>
+  </data>
+  <data name="StewardAmendDependencies" xml:space="preserve">
+    <value>Crewmates</value>
+  </data>
+  <data name="StewardAmendDependenciesHint" xml:space="preserve">
+    <value>A missin' crewmate comes aboard with its kind. A crewmate the barrels name gets a tighter min or max.</value>
+  </data>
+  <data name="StewardAmendAddDependency" xml:space="preserve">
+    <value>Bring a missin' crewmate aboard</value>
+  </data>
+  <data name="StewardAmendBoundDependency" xml:space="preserve">
+    <value>Tighten a crewmate's rope</value>
+  </data>
+  <data name="StewardAmendReasonHint" xml:space="preserve">
+    <value>One sentence for the pull request. When barrels go overboard, every sailor reads it too.</value>
+  </data>
+  <data name="StewardAmendPreview" xml:space="preserve">
+    <value>Spy through the glass</value>
+  </data>
+  <data name="StewardAmendPreviewing" xml:space="preserve">
+    <value>Readin' the cargo lists on GitHub...</value>
+  </data>
+  <data name="StewardAmendPreviewHeading" xml:space="preserve">
+    <value>What gets mended</value>
+  </data>
+  <data name="StewardAmendUnchanged" xml:space="preserve">
+    <value>Already says so, matey.</value>
+  </data>
+  <data name="StewardAmendNothing" xml:space="preserve">
+    <value>Every chosen barrel already says so, so there be naught to send.</value>
+  </data>
+  <data name="StewardAmendChanged" xml:space="preserve">
+    <value>The cargo lists changed on GitHub since ye spied them. Spy the new ones, then send the pull request.</value>
+  </data>
+  <data name="StewardAmendRefusedInvalidChange" xml:space="preserve">
+    <value>Borea cannot read these orders. Check the versions and the names.</value>
+  </data>
+  <data name="StewardAmendRefusedMonthNotOver" xml:space="preserve">
+    <value>A moon for game_max must be over, for only then be its last build known. Name a build.</value>
+  </data>
+  <data name="StewardAmendRefusedUnknownMonth" xml:space="preserve">
+    <value>The ship's log has no build in that moon.</value>
+  </data>
+  <data name="StewardAmendRefusedUnknownRelease" xml:space="preserve">
+    <value>A chosen barrel has no cargo list on GitHub.</value>
+  </data>
+  <data name="StewardAmendNoReleases" xml:space="preserve">
+    <value>content-index-releases holds no stamped barrel o' this cargo yet.</value>
+  </data>
+  <data name="StewardAmendRefusedNotStamperFile" xml:space="preserve">
+    <value>A cargo list be not one the stamper wrote. Mend it by hand on GitHub.</value>
+  </data>
+  <data name="StewardAmendRefusedNoLoader" xml:space="preserve">
+    <value>A barrel names no loader, so there be no loader rope to tighten.</value>
+  </data>
+  <data name="StewardAmendRefusedNoDependency" xml:space="preserve">
+    <value>A barrel names no such crewmate. Bring it aboard as a missin' one.</value>
+  </data>
+  <data name="StewardAmendRefusedWidens" xml:space="preserve">
+    <value>That loosens the ropes. A steward only tightens them, and only the captain of the bounty loosens them.</value>
+  </data>
+  <data name="StewardAmendRefusedOutsideClass" xml:space="preserve">
+    <value>The lookouts of content-index-releases would turn these orders away.</value>
+  </data>
+  <data name="StewardAmendErrorNotSteward" xml:space="preserve">
+    <value>GitHub does not let this sailor slip past the rules of content-index-releases, so it cannot do this.</value>
+  </data>
+  <data name="StewardAmendErrorNotFound" xml:space="preserve">
+    <value>GitHub found no KSAModding/content-index-releases, or no cargo list in it.</value>
+  </data>
+  <data name="StewardAmendErrorUnreadableFormat" xml:space="preserve">
+    <value>A scroll of content-index-releases has a shape that Borea cannot read. {0}</value>
+  </data>
   <data name="LibraryFolderMoving" xml:space="preserve">
     <value>Haulin' the List o' Loot to a new treasure chest...</value>
   </data>

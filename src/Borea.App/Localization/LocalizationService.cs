@@ -803,6 +803,86 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string StewardErrorUnexpected => Resources.StewardErrorUnexpected;
 
+    public string StewardAmend => Resources.StewardAmend;
+
+    public string FormatStewardAmendTitle(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardAmendTitleFormat, id);
+
+    public string StewardAmendExplanation => Resources.StewardAmendExplanation;
+
+    public string StewardAmendLoading => Resources.StewardAmendLoading;
+
+    public string StewardAmendReleases => Resources.StewardAmendReleases;
+
+    public string StewardAmendChecked => Resources.StewardAmendChecked;
+
+    public string StewardAmendUpTo => Resources.StewardAmendUpTo;
+
+    public string StewardAmendAll => Resources.StewardAmendAll;
+
+    public string StewardAmendChange => Resources.StewardAmendChange;
+
+    public string StewardAmendGameMin => Resources.StewardAmendGameMin;
+
+    public string StewardAmendGameMax => Resources.StewardAmendGameMax;
+
+    public string StewardAmendGameHint => Resources.StewardAmendGameHint;
+
+    public string StewardAmendLoaderMin => Resources.StewardAmendLoaderMin;
+
+    public string StewardAmendLoaderMax => Resources.StewardAmendLoaderMax;
+
+    public string StewardAmendYank => Resources.StewardAmendYank;
+
+    public string StewardAmendDependencies => Resources.StewardAmendDependencies;
+
+    public string StewardAmendDependenciesHint => Resources.StewardAmendDependenciesHint;
+
+    public string StewardAmendAddDependency => Resources.StewardAmendAddDependency;
+
+    public string StewardAmendBoundDependency => Resources.StewardAmendBoundDependency;
+
+    public string StewardAmendReasonHint => Resources.StewardAmendReasonHint;
+
+    public string StewardAmendPreview => Resources.StewardAmendPreview;
+
+    public string StewardAmendPreviewing => Resources.StewardAmendPreviewing;
+
+    public string StewardAmendPreviewHeading => Resources.StewardAmendPreviewHeading;
+
+    public string StewardAmendUnchanged => Resources.StewardAmendUnchanged;
+
+    public string StewardAmendNothing => Resources.StewardAmendNothing;
+
+    public string StewardAmendChanged => Resources.StewardAmendChanged;
+
+    public string StewardAmendRefusedInvalidChange => Resources.StewardAmendRefusedInvalidChange;
+
+    public string StewardAmendRefusedMonthNotOver => Resources.StewardAmendRefusedMonthNotOver;
+
+    public string StewardAmendRefusedUnknownMonth => Resources.StewardAmendRefusedUnknownMonth;
+
+    public string StewardAmendRefusedUnknownRelease => Resources.StewardAmendRefusedUnknownRelease;
+
+    public string StewardAmendNoReleases => Resources.StewardAmendNoReleases;
+
+    public string StewardAmendRefusedNotStamperFile => Resources.StewardAmendRefusedNotStamperFile;
+
+    public string StewardAmendRefusedNoLoader => Resources.StewardAmendRefusedNoLoader;
+
+    public string StewardAmendRefusedNoDependency => Resources.StewardAmendRefusedNoDependency;
+
+    public string StewardAmendRefusedWidens => Resources.StewardAmendRefusedWidens;
+
+    public string StewardAmendRefusedOutsideClass => Resources.StewardAmendRefusedOutsideClass;
+
+    public string StewardAmendErrorNotSteward => Resources.StewardAmendErrorNotSteward;
+
+    public string StewardAmendErrorNotFound => Resources.StewardAmendErrorNotFound;
+
+    public string FormatStewardAmendErrorUnreadable(string detail)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardAmendErrorUnreadableFormat, detail);
+
     public string SettingsGitHubSignOutHint => Resources.SettingsGitHubSignOutHint;
 
     public string SettingsGitHubSignOut => Resources.SettingsGitHubSignOut;

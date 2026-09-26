@@ -753,6 +753,123 @@
   <data name="StewardErrorUnexpected" xml:space="preserve">
     <value>GitHub hat eine Antwort gegeben, die Borea nicht versteht.</value>
   </data>
+  <data name="StewardAmend" xml:space="preserve">
+    <value>Releases ändern</value>
+  </data>
+  <data name="StewardAmendTitleFormat" xml:space="preserve">
+    <value>Releases von {0} ändern</value>
+  </data>
+  <data name="StewardAmendExplanation" xml:space="preserve">
+    <value>Borea ändert nur, was die gewählten Releases angeben, und öffnet einen Pull Request in KSAModding/content-index-releases. Ein Steward schränkt ein Release nur ein. Der Pull Request wartet in der Warteschlange, bis validate besteht, und ein Steward mergt ihn.</value>
+  </data>
+  <data name="StewardAmendLoading" xml:space="preserve">
+    <value>Lese die Releases auf GitHub...</value>
+  </data>
+  <data name="StewardAmendReleases" xml:space="preserve">
+    <value>Releases</value>
+  </data>
+  <data name="StewardAmendChecked" xml:space="preserve">
+    <value>Die angehakten Releases</value>
+  </data>
+  <data name="StewardAmendUpTo" xml:space="preserve">
+    <value>Jedes Release bis einschließlich</value>
+  </data>
+  <data name="StewardAmendAll" xml:space="preserve">
+    <value>Jedes Release</value>
+  </data>
+  <data name="StewardAmendChange" xml:space="preserve">
+    <value>Änderung</value>
+  </data>
+  <data name="StewardAmendGameMin" xml:space="preserve">
+    <value>Niedrigste Spielversion anheben (game_min)</value>
+  </data>
+  <data name="StewardAmendGameMax" xml:space="preserve">
+    <value>Höchste Spielversion setzen oder senken (game_max)</value>
+  </data>
+  <data name="StewardAmendGameHint" xml:space="preserve">
+    <value>Ein Spiel-Build wie 2026.8.22.5348 oder ein Monat wie 2026.8, der seinen ersten Build als game_min und seinen letzten Build als game_max ergibt.</value>
+  </data>
+  <data name="StewardAmendLoaderMin" xml:space="preserve">
+    <value>Loader-Minimum anheben</value>
+  </data>
+  <data name="StewardAmendLoaderMax" xml:space="preserve">
+    <value>Loader-Maximum setzen oder senken</value>
+  </data>
+  <data name="StewardAmendYank" xml:space="preserve">
+    <value>Diese Releases zurückziehen</value>
+  </data>
+  <data name="StewardAmendDependencies" xml:space="preserve">
+    <value>Abhängigkeiten</value>
+  </data>
+  <data name="StewardAmendDependenciesHint" xml:space="preserve">
+    <value>Eine fehlende Abhängigkeit kommt mit ihrer Art dazu. Eine Abhängigkeit, die die Releases angeben, bekommt ein engeres Minimum oder Maximum.</value>
+  </data>
+  <data name="StewardAmendAddDependency" xml:space="preserve">
+    <value>Fehlende Abhängigkeit hinzufügen</value>
+  </data>
+  <data name="StewardAmendBoundDependency" xml:space="preserve">
+    <value>Abhängigkeit einschränken</value>
+  </data>
+  <data name="StewardAmendReasonHint" xml:space="preserve">
+    <value>Ein Satz für den Pull Request. Bei einem Zurückziehen sehen ihn auch Spieler.</value>
+  </data>
+  <data name="StewardAmendPreview" xml:space="preserve">
+    <value>Vorschau</value>
+  </data>
+  <data name="StewardAmendPreviewing" xml:space="preserve">
+    <value>Lese die Release-Dateien auf GitHub...</value>
+  </data>
+  <data name="StewardAmendPreviewHeading" xml:space="preserve">
+    <value>Was sich ändert</value>
+  </data>
+  <data name="StewardAmendUnchanged" xml:space="preserve">
+    <value>Sagt das schon.</value>
+  </data>
+  <data name="StewardAmendNothing" xml:space="preserve">
+    <value>Jedes gewählte Release sagt das schon, also gibt es nichts zu senden.</value>
+  </data>
+  <data name="StewardAmendChanged" xml:space="preserve">
+    <value>Die Release-Dateien haben sich seit der Vorschau auf GitHub geändert. Prüfe die neue Vorschau und öffne dann den Pull Request.</value>
+  </data>
+  <data name="StewardAmendRefusedInvalidChange" xml:space="preserve">
+    <value>Borea kann diese Änderung nicht lesen. Prüfe die Versionen und die IDs.</value>
+  </data>
+  <data name="StewardAmendRefusedMonthNotOver" xml:space="preserve">
+    <value>Ein Monat für game_max muss vorbei sein, weil erst dann sein letzter Build bekannt ist. Nenne einen Build.</value>
+  </data>
+  <data name="StewardAmendRefusedUnknownMonth" xml:space="preserve">
+    <value>Die Liste der Spielversionen hat keinen Build in diesem Monat.</value>
+  </data>
+  <data name="StewardAmendRefusedUnknownRelease" xml:space="preserve">
+    <value>Ein gewähltes Release hat keine Release-Datei auf GitHub.</value>
+  </data>
+  <data name="StewardAmendNoReleases" xml:space="preserve">
+    <value>content-index-releases hat noch kein gestempeltes Release dieses Listings.</value>
+  </data>
+  <data name="StewardAmendRefusedNotStamperFile" xml:space="preserve">
+    <value>Eine Release-Datei ist keine, die der Stamper schreibt. Ändere sie von Hand auf GitHub.</value>
+  </data>
+  <data name="StewardAmendRefusedNoLoader" xml:space="preserve">
+    <value>Ein Release gibt keinen Loader an, also hat es keine Loader-Grenze zum Ändern.</value>
+  </data>
+  <data name="StewardAmendRefusedNoDependency" xml:space="preserve">
+    <value>Ein Release gibt diese Abhängigkeit nicht an. Füge sie als fehlende Abhängigkeit hinzu.</value>
+  </data>
+  <data name="StewardAmendRefusedWidens" xml:space="preserve">
+    <value>Das erweitert ein Release. Ein Steward schränkt ein Release nur ein, und eine Erweiterung kommt vom Besitzer des Eintrags.</value>
+  </data>
+  <data name="StewardAmendRefusedOutsideClass" xml:space="preserve">
+    <value>Die Prüfungen von content-index-releases würden diese Änderung ablehnen.</value>
+  </data>
+  <data name="StewardAmendErrorNotSteward" xml:space="preserve">
+    <value>GitHub lässt dieses Konto die Regeln von content-index-releases nicht umgehen, deshalb kann es das nicht tun.</value>
+  </data>
+  <data name="StewardAmendErrorNotFound" xml:space="preserve">
+    <value>GitHub hat KSAModding/content-index-releases oder eine Release-Datei darin nicht gefunden.</value>
+  </data>
+  <data name="StewardAmendErrorUnreadableFormat" xml:space="preserve">
+    <value>Eine Datei von content-index-releases hat eine Form, die Borea nicht liest. {0}</value>
+  </data>
   <data name="SettingsGitHubSignOutHint" xml:space="preserve">
     <value>Beim Abmelden vergisst Borea den Zugriff. Widerrufen kannst du ihn auf GitHub.</value>
   </data>

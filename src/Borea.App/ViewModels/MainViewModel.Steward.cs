@@ -8,8 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace Borea.App.ViewModels;
 
 /// <summary>
-/// The Steward page and the steward actions of the content and pack pages. They show only to a steward of content-index,
-/// which only decides what Borea shows, because GitHub enforces the rights.
+/// The Steward page and the steward actions of the content and pack pages. Each action shows only to a steward of the index repository
+/// that it changes, which only decides what Borea shows, because GitHub enforces the rights.
 /// </summary>
 public partial class MainViewModel
 {
@@ -23,6 +23,11 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsStewardChangeOpen))]
     private IndexStatusDialog? _stewardChange;
 
+    /// <summary>The open amendment of the release files of a listing, or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStewardAmendmentOpen))]
+    private ReleaseAmendmentDialog? _stewardAmendment;
+
     /// <summary>The open confirmation of an action on the pull request of the review, or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsStewardActionOpen))]
@@ -34,11 +39,16 @@ public partial class MainViewModel
 
     public bool IsStewardActionOpen => StewardAction is not null;
 
+    public bool IsStewardAmendmentOpen => StewardAmendment is not null;
+
     /// <summary>Editing index-status.toml needs the bypass of content-index itself.</summary>
     public bool CanEditIndexStatus => IsGitHubSignedIn && _services?.StewardRole.Current is { ContentIndex: true };
 
     /// <summary>A listing of the content index, as opposed to one that only SpaceDock knows.</summary>
     public bool CanEditContentStatus => CanEditIndexStatus && SelectedContent?.Source == "index";
+
+    /// <summary>Amending the release files of a listing of the content index needs the bypass of content-index-releases.</summary>
+    public bool CanAmendContentReleases => IsStewardOf(StewardAccess.ReleasesRepository) && SelectedContent?.Source == "index";
 
     /// <summary>The actions on a pull request need the bypass of its own repository.</summary>
     internal bool IsStewardOf(string repository) =>
@@ -50,6 +60,7 @@ public partial class MainViewModel
     {
         OnPropertyChanged(nameof(CanEditIndexStatus));
         OnPropertyChanged(nameof(CanEditContentStatus));
+        OnPropertyChanged(nameof(CanAmendContentReleases));
         _stewardPage?.Review?.RefreshRights();
 
         // a report says whether the account that is now signed in filed it or owns its listing
@@ -111,6 +122,31 @@ public partial class MainViewModel
     {
         if (CanEditIndexStatus && SelectedPack is { } pack)
             BeginIndexStatusChange(IndexStatusChange.Retract(pack.PackId, pack.Version, string.Empty));
+    }
+
+    /// <summary>Opens the amendment of the releases of the listing the page shows, and reads its releases. Another open amendment stays until it is closed.</summary>
+    [RelayCommand]
+    private void AmendContentReleases()
+    {
+        if (StewardAmendment is not null || !CanAmendContentReleases || SelectedContent is not { } item)
+            return;
+
+        var dialog = new ReleaseAmendmentDialog(this, item.ModId);
+        StewardAmendment = dialog;
+        dialog.Start();
+    }
+
+    internal void CloseReleaseAmendment(ReleaseAmendmentDialog dialog)
+    {
+        if (ReferenceEquals(StewardAmendment, dialog))
+            StewardAmendment = null;
+    }
+
+    /// <summary>The queue shows the new pull request once the checks of content-index-releases label it.</summary>
+    internal void OnReleaseAmendmentOpened()
+    {
+        if (StewardPage.Queue.IsLoaded)
+            _ = StewardPage.Queue.RefreshAsync();
     }
 
     /// <summary>Opens the confirmation and checks the change against the base branch. Another open confirmation stays until it is closed.</summary>
@@ -176,6 +212,29 @@ public partial class MainViewModel
         IndexStatusRefusal.NotAPack => Localization.FormatStewardRefusedNotAPack(id),
         IndexStatusRefusal.UnknownVersion => Localization.FormatStewardRefusedUnknownVersion(id, version ?? string.Empty),
         _ => Localization.StewardRefusedNotInFile,
+    };
+
+    internal string ReleaseAmendmentRefusalText(ReleaseAmendmentRefusal refusal) => refusal switch
+    {
+        ReleaseAmendmentRefusal.MonthNotOver => Localization.StewardAmendRefusedMonthNotOver,
+        ReleaseAmendmentRefusal.UnknownMonth => Localization.StewardAmendRefusedUnknownMonth,
+        ReleaseAmendmentRefusal.UnknownRelease => Localization.StewardAmendRefusedUnknownRelease,
+        ReleaseAmendmentRefusal.NotStamperFile => Localization.StewardAmendRefusedNotStamperFile,
+        ReleaseAmendmentRefusal.NoLoader => Localization.StewardAmendRefusedNoLoader,
+        ReleaseAmendmentRefusal.NoDependency => Localization.StewardAmendRefusedNoDependency,
+        ReleaseAmendmentRefusal.Widens => Localization.StewardAmendRefusedWidens,
+        ReleaseAmendmentRefusal.OutsideClass => Localization.StewardAmendRefusedOutsideClass,
+        _ => Localization.StewardAmendRefusedInvalidChange,
+    };
+
+    /// <summary>Why the releases could not be read or amended. The errors of the status edits name content-index, so these name content-index-releases.</summary>
+    internal string ReleaseAmendmentErrorText(StewardException exception) => exception.Failure switch
+    {
+        StewardFailure.NotSteward => Localization.StewardAmendErrorNotSteward,
+        StewardFailure.NotFound => Localization.StewardAmendErrorNotFound,
+        StewardFailure.Forbidden => Localization.StewardQueueForbidden,
+        StewardFailure.UnreadableFile => Localization.FormatStewardAmendErrorUnreadable(exception.Detail ?? string.Empty).TrimEnd(),
+        _ => StewardErrorText(exception),
     };
 
     internal string StewardQueueKindText(StewardQueueKind kind) => kind switch

@@ -84,6 +84,70 @@ internal sealed class FakeIndexStatusEditor : IIndexStatusEditor
     }
 }
 
+/// <summary>
+/// Amends release files that each say {"version": "..."} in memory: a change yanks them, and a release that is already yanked stays as it is.
+/// It records each request it previews and each preview it opens.
+/// </summary>
+internal sealed class FakeReleaseAmendments : IReleaseAmendments
+{
+    public List<string> Releases { get; } = ["1.2.0", "1.1.0", "1.0.0"];
+
+    /// <summary>The releases that are already yanked on main.</summary>
+    public HashSet<string> Yanked { get; } = [];
+
+    public List<ReleaseAmendmentRequest> Previewed { get; } = [];
+
+    public List<ReleaseAmendmentPreview> Opened { get; } = [];
+
+    public List<string> Owners { get; } = ["alice"];
+
+    public Exception? ReleasesFailure { get; set; }
+
+    public Exception? PreviewFailure { get; set; }
+
+    /// <summary>Thrown by the next open only, as when main changed once.</summary>
+    public Exception? OpenFailure { get; set; }
+
+    public TaskCompletionSource? HoldOpen { get; set; }
+
+    public Task<IReadOnlyList<string>> ReleasesAsync(string listingId, CancellationToken cancellationToken = default) =>
+        ReleasesFailure is { } failure ? Task.FromException<IReadOnlyList<string>>(failure) : Task.FromResult<IReadOnlyList<string>>([.. Releases]);
+
+    public Task<ReleaseAmendmentPreview> PreviewAsync(ReleaseAmendmentRequest request, CancellationToken cancellationToken = default)
+    {
+        Previewed.Add(request);
+        return PreviewFailure is { } failure ? Task.FromException<ReleaseAmendmentPreview>(failure) : Task.FromResult(Derive(request));
+    }
+
+    public async Task<ReleaseAmendmentPullRequest> OpenAsync(ReleaseAmendmentPreview preview, CancellationToken cancellationToken = default)
+    {
+        if (HoldOpen is { } hold)
+            await hold.Task;
+        if (OpenFailure is { } failure)
+        {
+            OpenFailure = null;
+            throw failure;
+        }
+
+        Opened.Add(preview);
+        return new ReleaseAmendmentPullRequest(Opened.Count, new Uri($"https://github.com/KSAModding/content-index-releases/pull/{Opened.Count}"), preview.Title);
+    }
+
+    public ReleaseAmendmentPreview Derive(ReleaseAmendmentRequest request)
+    {
+        var selected = request.Selection.Versions ?? (request.Selection.UpToVersion is { } upTo ? Releases.SkipWhile(version => version != upTo).ToList() : Releases);
+        var files = selected.Select(version => new ReleaseFilePreview(
+            version,
+            $"releases/{request.ListingId}/{version}.json",
+            Text(version, Yanked.Contains(version)),
+            Yanked.Contains(version) ? null : Text(version, yanked: true))).ToList();
+        return new ReleaseAmendmentPreview(request, files, [.. Owners]);
+    }
+
+    private static string Text(string version, bool yanked) =>
+        yanked ? $"{{\n  \"version\": \"{version}\",\n  \"yanked\": true\n}}\n" : $"{{\n  \"version\": \"{version}\"\n}}\n";
+}
+
 /// <summary>Answers the queue from its lists and records each filter it was asked for.</summary>
 internal sealed class FakeStewardQueue : IStewardQueue
 {

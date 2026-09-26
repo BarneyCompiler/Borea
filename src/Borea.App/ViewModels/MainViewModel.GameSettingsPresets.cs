@@ -1,7 +1,9 @@
+using Borea.Composition;
 using Borea.Core.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -45,38 +47,72 @@ public partial class MainViewModel
 
     internal Task WhenGameSettingsPresetsLoadedAsync() => _gameSettingsPresetLoad;
 
-    /// <summary>Starts a read without awaiting it, for a caller that only opens a modal.</summary>
+    /// <summary>Where a load of the presets reads them.</summary>
+    internal Func<BoreaServices, IGameSettingsPresetRepository> GameSettingsPresetLoadSource { get; set; } = services => services.GameSettingsPresets;
+
+    /// <summary>Counts the loads, so that a load which a newer one started after drops its result.</summary>
+    private int _gameSettingsPresetLoadCount;
+
+    /// <summary>
+    /// Starts a read without awaiting it, for a caller that only opens a modal.
+    /// The picker starts at "No preset" again.
+    /// </summary>
     private void StartGameSettingsPresetLoad()
     {
+        SelectedGameSettingsPreset = GameSettingsPresets.FirstOrDefault();
         var previous = _gameSettingsPresetLoad;
         var load = LoadGameSettingsPresetsAsync();
         _gameSettingsPresetLoad = previous.IsCompleted ? load : Task.WhenAll(previous, load);
     }
 
-    /// <summary>Reads the saved presets into both lists. A folder Borea cannot read is left out.</summary>
+    /// <summary>
+    /// Reads the saved presets and then replaces both lists. A folder Borea cannot
+    /// read is left out. The selected preset stays selected while it is still saved.
+    /// </summary>
     internal async Task LoadGameSettingsPresetsAsync()
     {
+        var load = ++_gameSettingsPresetLoadCount;
+        if (GameSettingsPresets.Count == 0)
+        {
+            // a modal that opens during the first read of a session shows "No preset", not an empty picker
+            var first = GameSettingsPresetItem.None(this);
+            GameSettingsPresets.Add(first);
+            SelectedGameSettingsPreset = first;
+        }
+
+        IReadOnlyList<GameSettingsPreset> presets = [];
+        string? error = null;
+        if (_services is not null)
+        {
+            try
+            {
+                presets = await GameSettingsPresetLoadSource(_services).ListAsync();
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                error = exception.Message;
+            }
+        }
+
+        if (load != _gameSettingsPresetLoadCount)
+            return;
+
+        if (error is not null)
+            GameSettingsPresetError = error;
+
+        // the picker can clear its selection when its items go, so read it first
+        var selectedId = SelectedGameSettingsPreset?.Id;
         GameSettingsPresets.Clear();
         SavedGameSettingsPresets.Clear();
         var none = GameSettingsPresetItem.None(this);
         GameSettingsPresets.Add(none);
-        SelectedGameSettingsPreset = none;
-        if (_services is null)
-            return;
+        foreach (var preset in presets.OrderBy(preset => preset.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            GameSettingsPresets.Add(new GameSettingsPresetItem(this, preset));
+            SavedGameSettingsPresets.Add(new GameSettingsPresetItem(this, preset));
+        }
 
-        try
-        {
-            var presets = await _services.GameSettingsPresets.ListAsync();
-            foreach (var preset in presets.OrderBy(preset => preset.Name, StringComparer.CurrentCultureIgnoreCase))
-            {
-                GameSettingsPresets.Add(new GameSettingsPresetItem(this, preset));
-                SavedGameSettingsPresets.Add(new GameSettingsPresetItem(this, preset));
-            }
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            GameSettingsPresetError = exception.Message;
-        }
+        SelectedGameSettingsPreset = GameSettingsPresets.FirstOrDefault(item => item.Id == selectedId) ?? none;
     }
 
     /// <summary>Opens the modal that saves the settings of <paramref name="instanceId"/> as a preset.</summary>

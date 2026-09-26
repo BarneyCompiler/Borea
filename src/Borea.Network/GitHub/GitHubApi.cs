@@ -188,17 +188,17 @@ internal sealed class GitHubApi
 
     /// <summary>The items of a list endpoint that answers with a JSON array, page by page, up to the first page with fewer than <see cref="PageSize"/> items.</summary>
     /// <param name="url">The endpoint with its own query, without per_page and page.</param>
-    public IAsyncEnumerable<T> GetPagesAsync<T>(string url, CancellationToken cancellationToken) =>
-        GetPagesAsync<List<T>, T>(url, page => page, cancellationToken);
+    public IAsyncEnumerable<T> GetPagesAsync<T>(string url, CancellationToken cancellationToken, bool anonymous = false) =>
+        GetPagesAsync<List<T>, T>(url, page => page, cancellationToken, anonymous);
 
     /// <summary>The same for an endpoint that wraps the array in an object, which <paramref name="items"/> opens.</summary>
-    public async IAsyncEnumerable<TItem> GetPagesAsync<TPage, TItem>(string url, Func<TPage, IReadOnlyCollection<TItem>> items, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<TItem> GetPagesAsync<TPage, TItem>(string url, Func<TPage, IReadOnlyCollection<TItem>> items, [EnumeratorCancellation] CancellationToken cancellationToken, bool anonymous = false)
     {
         ArgumentNullException.ThrowIfNull(items);
         var separator = url.Contains('?', StringComparison.Ordinal) ? '&' : '?';
         for (var page = 1; page <= MaxPages; page++)
         {
-            var found = items(await GetAsync<TPage>($"{url}{separator}per_page={PageSize}&page={page.ToString(CultureInfo.InvariantCulture)}", cancellationToken).ConfigureAwait(false));
+            var found = items(await GetAsync<TPage>($"{url}{separator}per_page={PageSize}&page={page.ToString(CultureInfo.InvariantCulture)}", cancellationToken, anonymous).ConfigureAwait(false));
             foreach (var item in found)
                 yield return item;
 

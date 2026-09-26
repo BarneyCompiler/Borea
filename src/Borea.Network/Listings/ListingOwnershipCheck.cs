@@ -142,7 +142,8 @@ public sealed partial class ListingOwnershipCheck : IListingOwnershipCheck
             .ToList();
     }
 
-    private static bool IsListingPath(string? path)
+    /// <summary>Whether <paramref name="path"/> is a listing document that <see cref="CheckPullRequestAsync"/> takes, which needs a lower-case .toml as the checks do.</summary>
+    internal static bool IsListingPath(string? path)
     {
         var folder = ListingDraft.ListingsFolder + "/";
         var name = path is not null && path.StartsWith(folder, StringComparison.Ordinal) ? path[folder.Length..] : null;

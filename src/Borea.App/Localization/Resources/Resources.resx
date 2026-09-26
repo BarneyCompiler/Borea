@@ -2494,7 +2494,13 @@
     <value>More tags</value>
   </data>
   <data name="ListingMoreTagsHint" xml:space="preserve">
-    <value>Lowercase words joined by -, separated by commas.</value>
+    <value>Separate the tags with commas. Borea stores each tag in lowercase, with - between the words.</value>
+  </data>
+  <data name="ListingMoreTagsStoredFormat" xml:space="preserve">
+    <value>Stored as: {0}</value>
+  </data>
+  <data name="ListingTagInvalidFormat" xml:space="preserve">
+    <value>'{0}' cannot be a tag. A tag is lowercase letters and digits in words joined by -, such as space-station.</value>
   </data>
   <data name="ListingIcon" xml:space="preserve">
     <value>Icon</value>

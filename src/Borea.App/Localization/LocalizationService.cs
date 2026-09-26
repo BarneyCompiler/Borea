@@ -1653,6 +1653,12 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ListingMoreTagsHint => Resources.ListingMoreTagsHint;
 
+    public string FormatListingMoreTagsStored(string tags)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingMoreTagsStoredFormat, tags);
+
+    public string FormatListingTagInvalid(string entry)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingTagInvalidFormat, entry);
+
     public string ListingIcon => Resources.ListingIcon;
 
     public string ListingIconHint => Resources.ListingIconHint;

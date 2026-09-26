@@ -431,6 +431,7 @@
                                 <TextBlock Classes="heading-sm" Text="{Binding Localization.ListingMoreTags}" Margin="0,8,0,0" />
                                 <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingMoreTagsHint}" TextWrapping="Wrap" />
                                 <TextBox Classes="field" Text="{Binding ListingEditor.FreeTags}" AutomationProperties.Name="{Binding Localization.ListingMoreTags}" />
+                                <TextBlock Classes="body-sm secondary" Text="{Binding ListingEditor.FreeTagsStoredText}" TextWrapping="Wrap" IsVisible="{Binding ListingEditor.FreeTagsStoredText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             </StackPanel>
                         </Border>
 

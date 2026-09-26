@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Borea.Core.Listings;
+using Borea.Core.Tags;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Borea.App.ViewModels;
@@ -68,7 +69,7 @@ public sealed partial class ListingEditor
 
     public IReadOnlyList<string> PreviewTags =>
         CuratedTags.Where(chip => chip.IsSelected).Select(chip => chip.Name)
-            .Concat(FreeTags.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Concat(Draft.Tags.Where(tag => !CuratedTags.Any(chip => chip.Tag == tag)).Select(TagText.Display))
             .ToList();
 
     private void RefreshOverview(IReadOnlyList<ListingIssue> issues)

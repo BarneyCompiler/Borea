@@ -969,6 +969,30 @@
   <data name="GameSaveDeletedFormat" xml:space="preserve">
     <value>{0} in den Ordner Backups verschoben. Unter Backups wiederherstellen.</value>
   </data>
+  <data name="GameSaveRenameSaveTitle" xml:space="preserve">
+    <value>Spielstand umbenennen</value>
+  </data>
+  <data name="GameSaveRenameVehicleTitle" xml:space="preserve">
+    <value>Fahrzeug umbenennen</value>
+  </data>
+  <data name="GameSaveNameRules" xml:space="preserve">
+    <value>Das Spiel zeigt den Eintrag unter diesem Namen. Ein Name darf Buchstaben, Ziffern, einzelne Leerzeichen, - und _ enthalten und höchstens 64 Zeichen lang sein.</value>
+  </data>
+  <data name="GameSaveNameInvalidFormat" xml:space="preserve">
+    <value>Das Spiel akzeptiert diesen Namen nicht. Versuche {0}.</value>
+  </data>
+  <data name="GameSaveNameNeedsLetter" xml:space="preserve">
+    <value>Ein Name braucht mindestens einen Buchstaben oder eine Ziffer.</value>
+  </data>
+  <data name="GameSaveSaveNameTaken" xml:space="preserve">
+    <value>Ein anderer Spielstand in dieser Instanz hat diesen Namen.</value>
+  </data>
+  <data name="GameSaveVehicleNameTaken" xml:space="preserve">
+    <value>Ein anderes Fahrzeug in dieser Instanz hat diesen Namen.</value>
+  </data>
+  <data name="GameSaveRenamedFormat" xml:space="preserve">
+    <value>{0} in {1} umbenannt.</value>
+  </data>
   <data name="GameSaveCloseGame" xml:space="preserve">
     <value>Schließe zuerst das Spiel.</value>
   </data>

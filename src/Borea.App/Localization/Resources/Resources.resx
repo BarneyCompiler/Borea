@@ -969,6 +969,30 @@
   <data name="GameSaveDeletedFormat" xml:space="preserve">
     <value>Moved {0} into the Backups folder. Restore it under Backups.</value>
   </data>
+  <data name="GameSaveRenameSaveTitle" xml:space="preserve">
+    <value>Rename save</value>
+  </data>
+  <data name="GameSaveRenameVehicleTitle" xml:space="preserve">
+    <value>Rename vehicle</value>
+  </data>
+  <data name="GameSaveNameRules" xml:space="preserve">
+    <value>The game lists it under this name. A name can have letters, digits, single spaces, - and _, and at most 64 characters.</value>
+  </data>
+  <data name="GameSaveNameInvalidFormat" xml:space="preserve">
+    <value>The game does not accept this name. Try {0}.</value>
+  </data>
+  <data name="GameSaveNameNeedsLetter" xml:space="preserve">
+    <value>A name needs at least one letter or digit.</value>
+  </data>
+  <data name="GameSaveSaveNameTaken" xml:space="preserve">
+    <value>Another save in this instance has this name.</value>
+  </data>
+  <data name="GameSaveVehicleNameTaken" xml:space="preserve">
+    <value>Another vehicle in this instance has this name.</value>
+  </data>
+  <data name="GameSaveRenamedFormat" xml:space="preserve">
+    <value>Renamed {0} to {1}.</value>
+  </data>
   <data name="GameSaveCloseGame" xml:space="preserve">
     <value>Close the game first.</value>
   </data>

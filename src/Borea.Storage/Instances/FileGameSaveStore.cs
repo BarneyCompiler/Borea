@@ -1,6 +1,8 @@
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using Borea.Core.Instances;
 using Borea.Core.Paths;
+using Borea.Storage.Files;
 using Tomlyn;
 using Tomlyn.Model;
 
@@ -9,7 +11,7 @@ namespace Borea.Storage.Instances;
 /// <summary>
 /// Reads each folder the way SaveMetaData.FromDirectory does.
 /// </summary>
-public sealed class FileGameSaveStore : IGameSaveStore
+public sealed partial class FileGameSaveStore : IGameSaveStore
 {
     private const string MetadataFileName = "meta.toml";
 
@@ -91,6 +93,9 @@ public sealed class FileGameSaveStore : IGameSaveStore
             return _backups.MoveInAsync(instanceId, entry.Kind, entry.Path, GameSaveBackupReason.Deleted);
         }, cancellationToken);
 
+    public Task<GameSaveRenameOutcome> RenameAsync(Guid instanceId, GameSaveEntry entry, string newName, CancellationToken cancellationToken = default)
+        => Task.Run(() => RenameCoreAsync(RequireInInstance(instanceId, entry), newName, cancellationToken), cancellationToken);
+
     private string GetSharedProfileFolder(GameSaveKind kind) => FindFolder(Path.Combine(_paths.GetSharedProfileRoot(), FolderName(kind)));
 
     private static string FolderName(GameSaveKind kind) => GameSaveBackupFolder.FolderName(kind);
@@ -155,18 +160,18 @@ public sealed class FileGameSaveStore : IGameSaveStore
     }
 
     internal static (string? Name, DateTimeOffset? Updated, string? Build) ParseMetadata(string text)
+        => ParseTable(text) is { } table ? (Text(table, "name"), Updated(table), Text(table, "version")) : default;
+
+    private static TomlTable? ParseTable(string text)
     {
-        TomlTable table;
         try
         {
-            table = TomlSerializer.Deserialize<TomlTable>(text) ?? new TomlTable();
+            return TomlSerializer.Deserialize<TomlTable>(text) ?? new TomlTable();
         }
         catch (TomlException)
         {
-            return default;
+            return null;
         }
-
-        return (Text(table, "name"), Updated(table), Text(table, "version"));
     }
 
     private static string? Text(TomlTable table, string key) => table.TryGetValue(key, out var value) ? value as string : null;
@@ -276,6 +281,84 @@ public sealed class FileGameSaveStore : IGameSaveStore
         }
 
         return GameSaveCopyOutcome.Copied;
+    }
+
+    /// <summary>
+    /// Writes meta.toml first and moves the folder second, because the move is the
+    /// step that fails when a file in the folder is open. A failed move writes the
+    /// old meta.toml back.
+    /// </summary>
+    private static async Task<GameSaveRenameOutcome> RenameCoreAsync(GameSaveEntry entry, string newName, CancellationToken cancellationToken)
+    {
+        if (!GameSaveName.IsValid(newName))
+            return GameSaveRenameOutcome.InvalidName;
+
+        var source = new DirectoryInfo(entry.Path);
+        var folder = source.Parent!.FullName;
+        var others = List(folder, entry.Kind, cancellationToken).Where(other => !PathComparer.Equals(other.FolderName, source.Name));
+        if (others.Any(other => string.Equals(other.Name, newName, StringComparison.OrdinalIgnoreCase) || string.Equals(other.FolderName, newName, StringComparison.OrdinalIgnoreCase)))
+            return GameSaveRenameOutcome.NameTaken;
+
+        var metadataPath = Path.Combine(source.FullName, MetadataFileName);
+        byte[] original;
+        try
+        {
+            original = File.ReadAllBytes(metadataPath);
+        }
+        catch (FileNotFoundException exception)
+        {
+            throw new InvalidOperationException($"{source.FullName} has no {MetadataFileName}, so the game does not list it and there is no name to change.", exception);
+        }
+
+        string text;
+        using (var reader = new StreamReader(new MemoryStream(original)))
+            text = reader.ReadToEnd();
+
+        var renamed = WithName(text, newName)
+            ?? throw new InvalidOperationException($"Borea cannot change the name in {metadataPath} without changing the rest of the file.");
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await AtomicFile.WriteAllTextAsync(metadataPath, renamed, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!string.Equals(source.Name, newName, StringComparison.Ordinal))
+                Directory.Move(source.FullName, Path.Combine(folder, newName));
+        }
+        catch
+        {
+            await AtomicFile.WriteAllBytesAsync(metadataPath, original).ConfigureAwait(false);
+            throw;
+        }
+
+        return GameSaveRenameOutcome.Renamed;
+    }
+
+    [GeneratedRegex(@"^[ \t]*name[ \t]*=[ \t]*(?:""(?:[^""\\\r\n]|\\.)*""|'[^'\r\n]*')", RegexOptions.Multiline)]
+    private static partial Regex NameLine();
+
+    /// <summary>
+    /// The text with only the value of the top-level "name" changed, so the file keeps
+    /// every other value in the form the game wrote it. Null when the text is not TOML,
+    /// or when the edit would change anything else.
+    /// </summary>
+    internal static string? WithName(string text, string name)
+    {
+        if (ParseTable(text) is not { } before)
+            return null;
+
+        // a name is letters, digits, spaces, "-" and "_", so it needs no escapes
+        var value = $"name = \"{name}\"";
+        var line = NameLine().Match(text);
+        var renamed = line.Success
+            ? string.Concat(text.AsSpan(0, line.Index), value, text.AsSpan(line.Index + line.Length))
+            : value + (text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n") + text;
+
+        if (ParseTable(renamed) is not { } after || !string.Equals(Text(after, "name"), name, StringComparison.Ordinal))
+            return null;
+
+        before.Remove("name");
+        after.Remove("name");
+        return string.Equals(TomlSerializer.Serialize(before), TomlSerializer.Serialize(after), StringComparison.Ordinal) ? renamed : null;
     }
 
     private static void CopyFolder(DirectoryInfo source, string destination, CancellationToken cancellationToken)

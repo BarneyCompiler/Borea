@@ -195,6 +195,8 @@ The exit code is 0 when the command completed, 1 when the operation failed and t
 | `borea instance adopt <instance> <folder> --archive <path>` | Record a mod folder that Borea did not install as the index release its archive matches. |
 | `borea instance take-ownership <instance> <mod-id> [--with-dependencies] [--without-dependencies]` | Install the release a mod is recorded as over its folder, so Borea owns its files and can update and remove it. Files in the folder that the release does not hold are lost. A required dependency that the instance does not have stops the command, unless `--with-dependencies` installs it first or `--without-dependencies` goes on without it. |
 | `borea instance import-profile <name> [--dry-run]` | Create an instance from copies of the mods in the shared profile, with the same load order and enabled state. The shared profile stays as it is. |
+| `borea instance rename-save <instance> <save> <new-name>` | Give a save a new name. Borea writes it into the save's `meta.toml` and renames its folder to match. The game accepts letters, digits, single spaces, `-` and `_`, at most 64 characters. Close the game first. |
+| `borea instance rename-vehicle <instance> <vehicle> <new-name>` | Give a saved vehicle a new name, in the same way. |
 | `borea instance backups <instance>` | Print the backups of the saves and vehicles of an instance, newest first, with when and why each was made and its size. |
 | `borea instance restore-backup <instance> <backup> [--replace]` | Put a backup back where it came from. `--replace` first moves a save or vehicle of the same name into the backups. Close the game first. |
 | `borea instance delete-backup <instance> <backup>` | Delete a backup for good. |

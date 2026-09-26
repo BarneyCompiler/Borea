@@ -130,6 +130,72 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>Opens the name modal to rename <paramref name="item"/>.</summary>
+    internal void BeginRenameGameSave(GameSaveItem item)
+    {
+        item.CloseEdits();
+        InstanceError = null;
+        ModalInstanceName = item.Name;
+        RenamingGameSave = item;
+    }
+
+    /// <summary>Keeps the modal open with the reason when the rename is refused or fails.</summary>
+    private async Task RenameGameSaveFromModalAsync(GameSaveItem item)
+    {
+        var name = ModalInstanceName.Trim();
+        if (name == item.Name && name == item.FolderName)
+        {
+            RenamingGameSave = null;
+            return;
+        }
+
+        var error = await TryRenameGameSaveAsync(item, name);
+        if (error is not null)
+        {
+            if (RenamingGameSave == item)
+                InstanceError = error;
+            else
+                ShowErrorToast(() => Localization.FormatToastRenameFailed(item.Name), error);
+            return;
+        }
+
+        if (RenamingGameSave == item)
+            RenamingGameSave = null;
+        ShowSuccessToast(() => Localization.FormatGameSaveRenamed(item.Name, name));
+        await LoadGameSavesAsync(item.Section);
+    }
+
+    /// <summary>Null when the item has the new name.</summary>
+    private async Task<string?> TryRenameGameSaveAsync(GameSaveItem item, string name)
+    {
+        if (_services is not { } services)
+            return null;
+
+        using var libraryUse = TryUseLibrary();
+        if (libraryUse is null)
+            return Localization.LibraryFolderBusy;
+
+        // the game reads the list once at start and writes its next save under the name it read
+        if (services.Launcher.IsRunning(item.InstanceId) || services.IsGameProcessRunning())
+            return Localization.GameSaveCloseGame;
+
+        try
+        {
+            return await services.GameSaves.RenameAsync(item.InstanceId, item.Entry, name) switch
+            {
+                GameSaveRenameOutcome.InvalidName => GameSaveName.Sanitize(name) is { Length: > 0 } sanitized
+                    ? Localization.FormatGameSaveNameInvalid(sanitized)
+                    : Localization.GameSaveNameNeedsLetter,
+                GameSaveRenameOutcome.NameTaken => item.IsVehicle ? Localization.GameSaveVehicleNameTaken : Localization.GameSaveSaveNameTaken,
+                _ => null,
+            };
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            return exception.Message;
+        }
+    }
+
     internal void BeginCopyGameSave(GameSaveItem item)
     {
         item.CloseEdits();
@@ -509,6 +575,9 @@ public sealed partial class GameSaveItem : ObservableObject
 
     [RelayCommand]
     private void BeginCopy() => _owner.BeginCopyGameSave(this);
+
+    [RelayCommand]
+    private void BeginRename() => _owner.BeginRenameGameSave(this);
 
     [RelayCommand]
     private Task CopyAsync() => _owner.CopyGameSaveAsync(this, replace: false);

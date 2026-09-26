@@ -28,6 +28,14 @@ public interface IGameSaveStore
 
     /// <summary>Moves the folder into the backups and returns its new path.</summary>
     Task<string> DeleteAsync(Guid instanceId, GameSaveEntry entry, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes <paramref name="newName"/> into meta.toml and renames the folder to match.
+    /// The game lists the item by the name in meta.toml and writes its next save of the
+    /// item into a folder of that name, so a folder of another name stays behind as a
+    /// second copy.
+    /// </summary>
+    Task<GameSaveRenameOutcome> RenameAsync(Guid instanceId, GameSaveEntry entry, string newName, CancellationToken cancellationToken = default);
 }
 
 public enum GameSaveCopyOutcome
@@ -36,4 +44,18 @@ public enum GameSaveCopyOutcome
 
     /// <summary>The instance holds a folder of that name, so nothing was copied.</summary>
     Exists,
+}
+
+public enum GameSaveRenameOutcome
+{
+    Renamed,
+
+    /// <summary>The game would change the name, see <see cref="GameSaveName"/>. Nothing was changed.</summary>
+    InvalidName,
+
+    /// <summary>
+    /// Another item of the same kind in the instance has the name or a folder of that
+    /// name, in any letter case, so the game would show only one of the two. Nothing was changed.
+    /// </summary>
+    NameTaken,
 }

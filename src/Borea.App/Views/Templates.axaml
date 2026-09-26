@@ -157,6 +157,7 @@
                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Classes="heading-sm" Text="{Binding Name}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" ToolTip.Tip="{Binding NoPageText}" />
                     <TextBlock Classes="body-sm secondary" Text="{Binding AuthorsText}" IsVisible="{Binding AuthorsText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Classes="body-sm secondary" Text="{Binding GoneText}" ToolTip.Tip="{Binding GoneText}" TextTrimming="CharacterEllipsis" IsVisible="{Binding GoneText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     <TextBlock Classes="body-sm danger" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentNotOnDisk}" ToolTip.Tip="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentNotOnDiskDetail}" IsVisible="{Binding IsMissing}" />
                     <TextBlock Classes="body-sm danger" Text="{Binding RemoveConfirmText}" IsVisible="{Binding IsConfirmingRemove}" />
                     <ContentControl Margin="0,4,0,0" Content="{Binding RemoveSteps}" ContentTemplate="{StaticResource StepList}">

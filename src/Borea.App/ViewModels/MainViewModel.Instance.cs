@@ -178,7 +178,8 @@ public partial class MainViewModel
             // a release from SpaceDock carries no listing, so the name comes from the catalog
             var listing = mod.Metadata.Listing is null ? await ResolveListingAsync(mod.ModId) : null;
             var indexed = _listings.FirstOrDefault(entry => ModIds.Equals(entry.ModId, mod.ModId));
-            content.Add(new ContentItem(this, _selectedInstanceEntity!, mod, enabled.Contains(mod.ModId), listing, indexed, indexed?.Icon));
+            var goneSince = indexed is null ? null : await UnavailableSinceAsync(mod);
+            content.Add(new ContentItem(this, _selectedInstanceEntity!, mod, enabled.Contains(mod.ModId), listing, indexed, indexed?.Icon, goneSince));
         }
 
         _content = content.OrderBy(content => content.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
@@ -437,11 +438,13 @@ public partial class MainViewModel
             var name = _content.FirstOrDefault(content => ModIds.Equals(content.ModId, target.ModId))?.Name ?? target.Listing?.Name ?? target.ModId;
             try
             {
-                var versions = await services.Mods.GetAvailableVersionsAsync(target.ModId);
-                foreach (var version in versions.Where(version => version > installed.Version && version <= target.Version).OrderByDescending(version => version))
+                // the history keeps a passed release whose download is gone, because the update still holds its changes
+                var passed = (await services.Mods.GetReleaseHistoryAsync(target.ModId))
+                    .Where(release => release.Version > installed.Version && release.Version < target.Version)
+                    .OrderByDescending(release => release.Version);
+                foreach (var release in passed.Prepend(target))
                 {
-                    var release = version == target.Version ? target : await services.Mods.GetReleaseAsync(target.ModId, version);
-                    if (release is not null && ReleaseChangelog.From(release, $"{name} {version}", Localization.ContentChangelog) is { } changelog)
+                    if (ReleaseChangelog.From(release, $"{name} {release.Version}", Localization.ContentChangelog) is { } changelog)
                         changelogs.Add(changelog);
                 }
             }
@@ -808,6 +811,23 @@ public partial class MainViewModel
 
     private readonly Dictionary<string, ModMetadata?> _listingCache = new(ModIds.Comparer);
 
+    /// <summary>Since when the index marks the download of the installed release as gone, or null.</summary>
+    private async Task<DateTimeOffset?> UnavailableSinceAsync(InstalledMod mod)
+    {
+        if (_services is null)
+            return null;
+
+        try
+        {
+            return (await _services.ContentIndex.GetReleaseAsync(mod.ModId, mod.Version))?.Download.UnavailableSince;
+        }
+        catch (Exception exception) when (exception is System.Net.Http.HttpRequestException or IOException or InvalidOperationException or TaskCanceledException)
+        {
+            // the row only leaves out the note
+            return null;
+        }
+    }
+
     /// <summary>
     /// Removes a mod Borea installed, with its folder and its record. A mod
     /// that another installed mod requires stays, and so does a mod Borea did
@@ -1066,6 +1086,11 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
 
     public string? AuthorsText => Authors is null ? null : _owner.Localization.FormatContentByAuthor(Authors);
 
+    private readonly DateTimeOffset? _unavailableSince;
+
+    /// <summary>Says that the download of the installed release is gone from its host, or null while it downloads.</summary>
+    public string? GoneText => _unavailableSince is { } since ? _owner.Localization.FormatContentGone(MainViewModel.DateText(since)) : null;
+
     private readonly DiscoverItem? _page;
 
     private readonly Instance _instance;
@@ -1211,9 +1236,10 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
 
     public InstallPlan? PendingPlan { get; set; }
 
-    public ContentItem(MainViewModel owner, Instance instance, InstalledMod mod, bool enabled, ModMetadata? listing, DiscoverItem? page = null, ListingImage? icon = null)
+    public ContentItem(MainViewModel owner, Instance instance, InstalledMod mod, bool enabled, ModMetadata? listing, DiscoverItem? page = null, ListingImage? icon = null, DateTimeOffset? unavailableSince = null)
     {
         _owner = owner;
+        _unavailableSince = unavailableSince;
         _instance = instance;
         _mod = mod;
         InstanceId = instance.InstanceId;
@@ -1259,6 +1285,7 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
     internal void RefreshText()
     {
         OnPropertyChanged(nameof(AuthorsText));
+        OnPropertyChanged(nameof(GoneText));
         OnPropertyChanged(nameof(NoPageText));
         OnPropertyChanged(nameof(RemoveBlockedText));
         OnPropertyChanged(nameof(RemoveConfirmText));

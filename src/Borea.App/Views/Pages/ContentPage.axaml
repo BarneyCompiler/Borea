@@ -342,7 +342,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:VersionItem">
                                             <Border BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="0,1,0,0" Padding="16,8" MinHeight="40">
-                                                <Grid ColumnDefinitions="160,Auto,*,124,Auto,Auto,72" RowDefinitions="Auto,Auto,Auto">
+                                                <Grid ColumnDefinitions="160,Auto,*,124,Auto,Auto,72" RowDefinitions="Auto,Auto,Auto,Auto">
                                                     <DockPanel HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,8,0">
                                                         <Border DockPanel.Dock="Right" Classes="chip positive" Margin="8,0,0,0" IsVisible="{Binding IsInstalled}" ToolTip.Tip="{Binding $parent[Window].((vm:MainViewModel)DataContext).InstalledInText}">
                                                             <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.DiscoverInstalled}" />
@@ -379,7 +379,8 @@
                                                             <Path Classes="icon size-16" Data="{StaticResource Icon.Plus}" Stroke="{StaticResource Brush.Accent}" StrokeThickness="2" />
                                                         </Button>
                                                     </Grid>
-                                                    <StackPanel Grid.Row="1" Grid.ColumnSpan="7" Spacing="6" Margin="0,6,0,0" IsVisible="{Binding IsConfirmingInstall}">
+                                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="7" Classes="body-sm secondary" Text="{Binding GoneText}" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding GoneText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                    <StackPanel Grid.Row="2" Grid.ColumnSpan="7" Spacing="6" Margin="0,6,0,0" IsVisible="{Binding IsConfirmingInstall}">
                                                         <ContentControl Content="{Binding Choices}" IsVisible="{Binding Choices, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                                         <ItemsControl ItemsSource="{Binding PlanSteps}" ItemTemplate="{StaticResource StepList}" ItemsPanel="{StaticResource StepListsPanel}" IsVisible="{Binding !!PlanSteps.Count}" />
                                                         <WrapPanel ItemSpacing="8" LineSpacing="8">
@@ -389,7 +390,7 @@
                                                             <Button Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.LibraryCancel}" Command="{Binding CancelInstallCommand}" />
                                                         </WrapPanel>
                                                     </StackPanel>
-                                                    <WrapPanel Grid.Row="1" Grid.ColumnSpan="7" ItemSpacing="8" LineSpacing="4" Margin="0,6,0,0">
+                                                    <WrapPanel Grid.Row="2" Grid.ColumnSpan="7" ItemSpacing="8" LineSpacing="4" Margin="0,6,0,0">
                                                         <WrapPanel.IsVisible>
                                                             <MultiBinding Converter="{x:Static BoolConverters.Or}">
                                                                 <Binding Path="IsInstalling" />
@@ -401,8 +402,8 @@
                                                         <Button Classes="text" Content="{Binding Run.PauseText}" Command="{Binding Run.TogglePauseCommand}" IsVisible="{Binding IsInstalling}" />
                                                         <Button Classes="text" Content="{Binding Run.StopText}" Command="{Binding Run.StopCommand}" IsVisible="{Binding IsInstalling}" />
                                                     </WrapPanel>
-                                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="7" Classes="body-sm danger" Text="{Binding InstallError}" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding InstallError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                                    <StackPanel Grid.Row="2" Grid.ColumnSpan="7" Margin="0,8,0,4" IsVisible="{Binding IsChangelogExpanded}">
+                                                    <TextBlock Grid.Row="2" Grid.ColumnSpan="7" Classes="body-sm danger" Text="{Binding InstallError}" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding InstallError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                    <StackPanel Grid.Row="3" Grid.ColumnSpan="7" Margin="0,8,0,4" IsVisible="{Binding IsChangelogExpanded}">
                                                         <views:MarkdownView Markdown="{Binding Changelog.Text}" IsVisible="{Binding Changelog.Text, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                                         <Button Classes="link" HorizontalAlignment="Left" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).OpenLinkCommand}" CommandParameter="{Binding Changelog.Link}" ToolTip.Tip="{Binding Changelog.Link.Url}" IsVisible="{Binding Changelog.Link, Converter={x:Static ObjectConverters.IsNotNull}}">
                                                             <TextBlock Classes="action-md" Text="{Binding Changelog.Link.Label}" />

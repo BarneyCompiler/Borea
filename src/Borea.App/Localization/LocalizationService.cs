@@ -820,6 +820,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ContentNotOnDiskDetail => Resources.ContentNotOnDiskDetail;
 
+    public string FormatContentGone(string date)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ContentGoneFormat, date);
+
     public string ContentNotOnDiskEnable => Resources.ContentNotOnDiskEnable;
 
     public string ContentInstallAgain => Resources.ContentInstallAgain;
@@ -957,6 +960,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatLinkVersionYanked(string version)
         => string.Format(CultureInfo.CurrentCulture, Resources.LinkVersionYankedFormat, version);
+
+    public string FormatLinkVersionGone(string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LinkVersionGoneFormat, version);
 
     public string DiscoverListYourMod => Resources.DiscoverListYourMod;
 
@@ -1538,6 +1544,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ContentNoVersionsInChannel => Resources.ContentNoVersionsInChannel;
 
+    public string FormatContentVersionGone(string date)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ContentVersionGoneFormat, date);
+
     public string ContentChangelog => Resources.ContentChangelog;
 
     public string ContentTypeModLoader => Resources.ContentTypeModLoader;
@@ -1581,6 +1590,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string PackModHeader => Resources.PackModHeader;
 
     public string PackMemberYanked => Resources.PackMemberYanked;
+
+    public string PackMemberGone => Resources.PackMemberGone;
 
     public string PackMemberUnlisted => Resources.PackMemberUnlisted;
 

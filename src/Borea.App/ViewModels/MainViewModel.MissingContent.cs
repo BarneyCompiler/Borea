@@ -111,10 +111,16 @@ public partial class MainViewModel
         {
             var instance = await services.Instances.GetByIdAsync(instanceId)
                 ?? throw new InvalidOperationException(Localization.InstallInstanceMissing);
-            var requested = instance.Mods
-                .Where(mod => modIds.Contains(mod.ModId, ModIds.Comparer))
-                .Select(mod => new RequestedMod(mod.Metadata, mod.Reason, Exact: true))
-                .ToList();
+            // the record does not keep the mark of a download that is gone, so the release is read
+            // from the source again, which lets the planner warn and the download ask the mirrors first
+            var requested = new List<RequestedMod>();
+            foreach (var mod in instance.Mods.Where(mod => modIds.Contains(mod.ModId, ModIds.Comparer)))
+            {
+                var release = await services.Mods.GetReleaseAsync(mod.ModId, mod.Version);
+                var metadata = release is { Download.UnavailableSince: not null } ? release : mod.Metadata;
+                requested.Add(new RequestedMod(metadata, mod.Reason, Exact: true));
+            }
+
             if (requested.Count == 0)
                 return false;
 

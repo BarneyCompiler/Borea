@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
 using Borea.App.Formatting;
 using Borea.App.Localization;
 using Borea.App.ViewModels;
@@ -125,6 +126,21 @@ internal sealed class ViewModelHarness : IDisposable
     /// <summary>Adds a curated tag vocabulary for mods to the snapshot, in the given order.</summary>
     public static Func<string, string> CuratedTags(params (string Tag, string Name)[] tags) =>
         json => "{ \"tags\": " + $$"""{ "spec_version": 1, "mod": [{{string.Join(", ", tags.Select(tag => $$"""{ "tag": "{{tag.Tag}}", "name": "{{tag.Name}}", "meaning": "{{tag.Name}} content." }"""))}}] }""" + "," + json.TrimStart()[1..];
+
+    /// <summary>When <see cref="MarkGone"/> says the download went from its host.</summary>
+    public static readonly DateTimeOffset GoneSince = new(2026, 9, 23, 10, 24, 0, TimeSpan.Zero);
+
+    /// <summary>Marks the download of one release as gone from its host (RFC 0078), and drops its mirrors unless <paramref name="keepMirrors"/>.</summary>
+    public static Func<string, string> MarkGone(string modId, string version, bool keepMirrors = false) => json =>
+    {
+        var root = JsonNode.Parse(json)!;
+        var listing = root["listings"]!.AsArray().Single(node => (string?)node!["id"] == modId)!;
+        var download = listing["releases"]!.AsArray().Single(node => (string?)node!["version"] == version)!["download"]!.AsObject();
+        download["unavailable_since"] = "2026-09-23T10:24:00Z";
+        if (!keepMirrors)
+            download.Remove("mirrors");
+        return root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    };
 
     public Task<BoreaServices> BuildServicesAsync() =>
         BoreaServices.BuildAsync(Root, new IndexOnlyHandler(this), SpaceDock, Candidates, processStarter: _processStarter, images: Images, sharedProfileRoot: _sharedProfileRoot ?? Path.Combine(Root, "GameProfile"), isGameProcessRunning: () => IsGameProcessRunning(), isOtherBoreaRunning: () => IsOtherBoreaRunning(), gitHub: _gitHub, listingPublisher: _listingPublisher, selfUpdater: _selfUpdater);

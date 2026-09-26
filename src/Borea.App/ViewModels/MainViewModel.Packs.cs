@@ -980,6 +980,11 @@ public sealed partial class PackMemberItem : ObservableObject
 
     public string? YankedReason { get; }
 
+    private readonly DateTimeOffset? _unavailableSince;
+
+    /// <summary>Since when the download of the pinned release is gone from its host, or null while it downloads.</summary>
+    public string? GoneText => _unavailableSince is { } since ? _owner.Localization.FormatContentVersionGone(MainViewModel.DateText(since)) : null;
+
     public bool CanOpen => _listing is not null;
 
     [ObservableProperty]
@@ -1001,12 +1006,17 @@ public sealed partial class PackMemberItem : ObservableObject
         IsUnlisted = release is null;
         IsYanked = release?.Yanked == true;
         YankedReason = IsYanked ? release!.YankedReason : null;
+        _unavailableSince = release?.Download.UnavailableSince;
     }
 
     [RelayCommand]
     private Task OpenAsync() => _listing is null ? Task.CompletedTask : _owner.OpenContentAsync(_listing);
 
-    internal void RefreshText() => OnPropertyChanged(nameof(NewerText));
+    internal void RefreshText()
+    {
+        OnPropertyChanged(nameof(NewerText));
+        OnPropertyChanged(nameof(GoneText));
+    }
 }
 
 /// <summary>

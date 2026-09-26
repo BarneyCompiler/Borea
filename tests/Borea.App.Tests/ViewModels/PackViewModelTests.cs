@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
@@ -351,6 +352,40 @@ public sealed class PackViewModelTests
         Assert.Equal(expected, pack.InstallError);
         Assert.Equal(expected, viewModel.Tasks.History[0].FailureReason);
         Assert.Empty((await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods);
+    }
+
+    [Fact]
+    public async Task Install_MemberWhoseDownloadIsGone_NamesItWithTheDate_AndInstallsFromTheMirror()
+    {
+        const string mirror = "https://spacedock.info/mod/4319/MeasureTools/download/1.1.10";
+        var archive = Archive(("MeasureTools/mod.toml", "name = \"MeasureTools\""));
+        using var harness = await ViewModelHarness.CreateAsync(
+            respond: request => request.RequestUri?.AbsoluteUri == mirror ? ArchiveResponse(archive) : null,
+            editSnapshot: snapshot => ViewModelHarness.MarkGone("MeasureTools", "1.1.10", keepMirrors: true)(
+                WithPacks(Pack("tools-pack", "Tools Pack", Version("1.0.0", Pin("MeasureTools", "1.1.10"))))(
+                    snapshot.Replace(MeasureToolsSha256, Convert.ToHexString(SHA256.HashData(archive)), StringComparison.Ordinal)
+                        .Replace("\"size\": 41782", $"\"size\": {archive.Length}", StringComparison.Ordinal))));
+        var viewModel = harness.ViewModel;
+        var instance = await ActivateInstanceAsync(harness);
+        viewModel.ShowDiscoverModpacksCommand.Execute(null);
+        var pack = Assert.Single(viewModel.DiscoverPacks);
+        var date = MainViewModel.DateText(ViewModelHarness.GoneSince);
+
+        await pack.OpenCommand.ExecuteAsync(null);
+        Assert.Equal(harness.Localization.FormatContentVersionGone(date), Assert.Single(viewModel.PackMembers).GoneText);
+
+        await pack.InstallCommand.ExecuteAsync(null);
+
+        Assert.Contains($"MeasureTools: {string.Format(CultureInfo.CurrentCulture, Resources.InstallMessageUnavailableFormat, "1.1.10", date)}", pack.InstallWarning);
+        Assert.Empty((await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods);
+
+        await pack.ConfirmInstallCommand.ExecuteAsync(null);
+
+        Assert.Null(pack.InstallError);
+        var mod = Assert.Single((await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods);
+        Assert.Equal("1.1.10", mod.Version.ToString());
+        Assert.Contains(harness.Requests, uri => uri.AbsoluteUri == mirror);
+        Assert.DoesNotContain(harness.Requests, uri => uri.AbsoluteUri == MeasureToolsUrl);
     }
 
     [Fact]

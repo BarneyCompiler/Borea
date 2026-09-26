@@ -160,6 +160,11 @@ public partial class MainViewModel
                 exact = null;
                 note = () => Localization.FormatLinkVersionYanked(text);
             }
+            else if (!exact.IsOffered)
+            {
+                exact = null;
+                note = () => Localization.FormatLinkVersionGone(text);
+            }
         }
 
         if (instance.InstalledVersionOf(row.ModId) is { } installed && (exact is null || exact.Version == installed))

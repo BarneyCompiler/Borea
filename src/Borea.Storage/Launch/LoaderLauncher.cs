@@ -12,8 +12,9 @@ namespace Borea.Storage.Launch;
 
 /// <summary>
 /// ILauncher over the configured loader directories and a process starter.
-/// It remembers every launch per instance until the process exits, so a
-/// second launch of a running instance is refused.
+/// It remembers every launch per instance until the process has ended, which
+/// includes a restart that took over its streams, so a second launch of a
+/// running instance is refused.
 /// </summary>
 public sealed class LoaderLauncher : ILauncher, IDisposable
 {
@@ -21,6 +22,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     private readonly IProcessStarter _starter;
     private readonly OsPlatform? _platform;
     private readonly Func<string?> _findDotnet;
+    private readonly Func<bool> _isGameRunning;
     private readonly object _gate;
     private readonly Dictionary<Guid, IStartedProcess> _running;
     private readonly Dictionary<Guid, (DateTime? GameLogAtLaunch, string LoaderName)> _starts;
@@ -44,8 +46,9 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     }
 
     /// <param name="launches">The launches this launcher shares with others. Disposing the launcher keeps them.</param>
-    public LoaderLauncher(IGamePathProvider pathProvider, IProcessStarter starter, RunningLaunches launches)
-        : this(pathProvider, starter, SharedProfileLauncher.CurrentPlatform(), () => DotnetHost.Find(SharedProfileLauncher.CurrentPlatform()), DefaultStartupWindow, launches ?? throw new ArgumentNullException(nameof(launches)))
+    /// <param name="isGameRunning">Whether a KSA or StarMap process runs. Null looks for one.</param>
+    public LoaderLauncher(IGamePathProvider pathProvider, IProcessStarter starter, RunningLaunches launches, Func<bool>? isGameRunning = null)
+        : this(pathProvider, starter, SharedProfileLauncher.CurrentPlatform(), () => DotnetHost.Find(SharedProfileLauncher.CurrentPlatform()), DefaultStartupWindow, launches ?? throw new ArgumentNullException(nameof(launches)), isGameRunning)
     {
     }
 
@@ -54,12 +57,13 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     {
     }
 
-    internal LoaderLauncher(IGamePathProvider pathProvider, IProcessStarter starter, OsPlatform? platform, Func<string?> findDotnet, TimeSpan startupWindow, RunningLaunches? launches = null)
+    internal LoaderLauncher(IGamePathProvider pathProvider, IProcessStarter starter, OsPlatform? platform, Func<string?> findDotnet, TimeSpan startupWindow, RunningLaunches? launches = null, Func<bool>? isGameRunning = null)
     {
         _pathProvider = pathProvider ?? throw new ArgumentNullException(nameof(pathProvider));
         _starter = starter ?? throw new ArgumentNullException(nameof(starter));
         _platform = platform;
         _findDotnet = findDotnet ?? throw new ArgumentNullException(nameof(findDotnet));
+        _isGameRunning = isGameRunning ?? RunningProcesses.IsGameRunning;
         if (startupWindow < TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(startupWindow), "The startup window cannot be negative.");
 
@@ -88,7 +92,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
 
         lock (_gate)
         {
-            Forget(exited: true);
+            Forget(ended: true);
 
             if (_running.ContainsKey(instance.InstanceId))
             {
@@ -218,16 +222,17 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
         }
 
         var gameLog = _pathProvider.GetInstanceGameLogPath(instance.InstanceId);
-        var exited = false;
+        var ended = false;
         var gameStarted = false;
+        int? exitCode;
         try
         {
             var watched = Stopwatch.StartNew();
             while (watched.Elapsed < _startupWindow)
             {
                 var slice = Min(PollInterval, _startupWindow - watched.Elapsed);
-                if (!exited)
-                    exited = await process.WaitForExitAsync(slice, cancellationToken).ConfigureAwait(false);
+                if (!ended)
+                    ended = await process.WaitForExitAsync(slice, cancellationToken).ConfigureAwait(false);
                 else
                     await Task.Delay(slice, cancellationToken).ConfigureAwait(false);
 
@@ -240,11 +245,16 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
 
                 // a loader that exits with 0 may have restarted itself, so the log decides;
                 // an error exit needs no more waiting
-                if (exited && process.ExitCode is not 0)
+                if (ended && process.ExitCode is not 0)
                     break;
             }
 
-            exited = exited || process.HasExited;
+            exitCode = process.HasExited ? process.ExitCode : null;
+
+            // the streams of a process that exited alone close a moment later
+            if (exitCode is not null && !ended)
+                ended = await process.WaitForExitAsync(PollInterval, cancellationToken).ConfigureAwait(false);
+
             gameStarted = gameStarted || WrittenSince(gameLog, start.GameLogAtLaunch);
         }
         catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException)
@@ -253,11 +263,12 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
             return started;
         }
 
+        // a loader that exits with 0 and leaves a game process that holds its streams has restarted itself
+        var restarted = exitCode == 0 && !ended && _isGameRunning();
         var output = process.RecentOutput;
-        var exitCode = exited ? process.ExitCode : null;
-        WriteLaunchLog(_pathProvider.GetInstanceLaunchLogPath(instance.InstanceId), started.Plan, output, exitCode, _platform == OsPlatform.Windows);
+        WriteLaunchLog(_pathProvider.GetInstanceLaunchLogPath(instance.InstanceId), started.Plan, output, exitCode, restarted, _platform == OsPlatform.Windows);
 
-        if (exitCode is null || (exitCode == 0 && gameStarted))
+        if (exitCode is null || (exitCode == 0 && (gameStarted || restarted)))
             return started.WithOutput(output);
 
         // StarMap also exits with 0 when it cannot start at all, for example without a game path
@@ -338,7 +349,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     /// What the loader wrote while it was watched, next to the game's log, so
     /// the player can open it later. Each launch replaces the file.
     /// </summary>
-    private static void WriteLaunchLog(string path, LaunchPlan plan, IReadOnlyList<string> output, int? exitCode, bool windows)
+    private static void WriteLaunchLog(string path, LaunchPlan plan, IReadOnlyList<string> output, int? exitCode, bool restarted, bool windows)
     {
         try
         {
@@ -347,7 +358,12 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
             {
                 $"Launch at {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC",
                 $"Executable: {plan.Executable}",
-                exitCode is { } code ? $"The loader exited with code {LoaderExitCode.Describe(code, windows)}." : "The loader was still running when Borea stopped watching.",
+                (exitCode, restarted) switch
+                {
+                    (null, _) => "The loader was still running when Borea stopped watching.",
+                    (_, true) => "The loader restarted itself. Its new process was still running when Borea stopped watching.",
+                    ({ } code, _) => $"The loader exited with code {LoaderExitCode.Describe(code, windows)}.",
+                },
                 string.Empty,
             };
             File.WriteAllLines(path, header.Concat(output));
@@ -364,7 +380,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     {
         lock (_gate)
         {
-            Forget(exited: true);
+            Forget(ended: true);
             return _running.ContainsKey(instanceId);
         }
     }
@@ -377,16 +393,24 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
 
         lock (_gate)
         {
-            Forget(exited: false);
+            Forget(ended: false);
         }
     }
 
-    /// <summary>Drops the exited launches, or every launch, and releases their handles.</summary>
-    private void Forget(bool exited)
+    /// <summary>
+    /// Whether a launch has ended. After the loader exited, a process that
+    /// still holds its streams keeps the launch only while a game process
+    /// runs, because then that process is the restart. A browser or a file
+    /// manager that the game opened before it closed does not keep it.
+    /// </summary>
+    private bool HasEnded(IStartedProcess process) => process.HasEnded || (process.HasExited && !_isGameRunning());
+
+    /// <summary>Drops the launches that ended, or every launch, and releases their handles.</summary>
+    private void Forget(bool ended)
     {
         foreach (var (instanceId, process) in _running.ToArray())
         {
-            if (exited && !process.HasExited)
+            if (ended && !HasEnded(process))
                 continue;
 
             _running.Remove(instanceId);

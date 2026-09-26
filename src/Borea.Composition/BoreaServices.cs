@@ -457,12 +457,12 @@ public sealed class BoreaServices : IDisposable
         var spaceCheck = new DriveInstallSpaceCheck(paths);
         var foreignModHandover = new LoggingForeignModHandover(new FileForeignModHandover(paths, downloader, instances, checkedModState, store: modStore), log);
         var installPlanner = new LoggingInstallPlanner(new RepositoryInstallPlanner(new ModDependencyResolver(), settings.ReleaseChannel), log);
-        var launcher = new LoggingLauncher(new LastPlayedLauncher(new LoaderLauncher(paths, processStarter ?? new ProcessStarter(), launches), instances), log);
+        isGameProcessRunning ??= RunningProcesses.IsGameRunning;
+        var launcher = new LoggingLauncher(new LastPlayedLauncher(new LoaderLauncher(paths, processStarter ?? new ProcessStarter(), launches, isGameProcessRunning), instances), log);
         var defaultLibraryFolder = Path.GetDirectoryName(bootstrapPaths.GetInstancesRoot())!;
         var announcementReader = new AnnouncementReader();
         var listedDocuments = new ListedDocumentFetcher(http);
         var listingFormat = new TomlListingFormat();
-        isGameProcessRunning ??= RunningProcesses.IsGameRunning;
         var gitHubSession = new LoggingGitHubSession(gitHub ?? new GitHubSession(http, BoreaGitHubApp.ClientId, BoreaGitHubApp.Slug), log);
         var stewardRole = new GitHubStewardRole(gitHubSession, http);
         var listingOwnership = new ListingOwnershipCheck(gitHubSession, http, listingFormat);

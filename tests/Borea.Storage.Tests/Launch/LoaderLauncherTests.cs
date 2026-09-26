@@ -28,6 +28,15 @@ public sealed class LoaderLauncherTests : IDisposable
 
     private string StarMapDirectory => Path.Combine(_tempRoot, "StarMap");
 
+    /// <summary>A launcher that sees a game process when <paramref name="gameRuns"/> says so, and does not look at the machine.</summary>
+    private LoaderLauncher LauncherSeeingGame(Func<bool> gameRuns, TimeSpan? startupWindow = null) => new(
+        _paths,
+        _starter,
+        SharedProfileLauncher.CurrentPlatform(),
+        () => DotnetHost.Find(SharedProfileLauncher.CurrentPlatform()),
+        startupWindow ?? LoaderLauncher.DefaultStartupWindow,
+        isGameRunning: gameRuns);
+
     /// <summary>Puts an empty file where the loader's executable would be.</summary>
     private string PlaceStarMap(string launch = "StarMap.exe")
     {
@@ -37,7 +46,7 @@ public sealed class LoaderLauncherTests : IDisposable
         return executable;
     }
 
-    private static ModMetadata LoaderListing(string modId = "StarMap", LoaderProvides? provides = null, bool standalone = true) => new(
+    internal static ModMetadata LoaderListing(string modId = "StarMap", LoaderProvides? provides = null, bool standalone = true) => new(
         specVersion: 1,
         modId: modId,
         source: "TestSource",
@@ -51,7 +60,7 @@ public sealed class LoaderLauncherTests : IDisposable
         install: standalone ? new InstallDescriptor(target: InstallAnchor.Standalone) : null,
         provides: provides);
 
-    private static LoaderProvides StarMapProvides(string launch = "StarMap.exe", InstanceHandover? instance = null, Dictionary<OsPlatform, LoaderPlatformLaunch>? platforms = null) => new(
+    internal static LoaderProvides StarMapProvides(string launch = "StarMap.exe", InstanceHandover? instance = null, Dictionary<OsPlatform, LoaderPlatformLaunch>? platforms = null) => new(
         launch: launch,
         contentDir: InstallAnchor.Mods,
         configure: new LoaderConfigure("StarMapConfig.json", ConfigureFormat.Json, "GameLocation"),
@@ -425,6 +434,46 @@ public sealed class LoaderLauncherTests : IDisposable
         Assert.Equal(_starter.Processes[^1].Id, second.ProcessId);
         Assert.NotEqual(first.Id, second.ProcessId);
         Assert.True(_launcher.IsRunning(_instance.InstanceId));
+    }
+
+    [Fact]
+    public void IsRunning_LoaderExitedWhileItsRestartRuns_KeepsTheLaunchUntilTheRestartEnds()
+    {
+        PlaceStarMap();
+        using var launcher = LauncherSeeingGame(() => true);
+        var listing = LoaderListing(provides: StarMapProvides());
+        launcher.Launch(_instance, listing);
+        var process = Assert.Single(_starter.Processes);
+        process.HasExited = true;
+        process.ExitCode = 0;
+        process.HasEnded = false;
+
+        Assert.True(launcher.IsRunning(_instance.InstanceId));
+        Assert.Equal(LaunchOutcome.AlreadyRunning, launcher.Launch(_instance, listing).Outcome);
+        Assert.False(process.Disposed);
+
+        process.HasEnded = true;
+
+        Assert.False(launcher.IsRunning(_instance.InstanceId));
+        Assert.True(process.Disposed);
+    }
+
+    [Fact]
+    public void IsRunning_LoaderExitedWhileAProcessThatIsNoGameHoldsItsStreams_EndsTheLaunch()
+    {
+        // for example a browser that the game opened before it closed
+        PlaceStarMap();
+        using var launcher = LauncherSeeingGame(() => false);
+        var listing = LoaderListing(provides: StarMapProvides());
+        launcher.Launch(_instance, listing);
+        var process = Assert.Single(_starter.Processes);
+        process.HasExited = true;
+        process.ExitCode = 0;
+        process.HasEnded = false;
+
+        Assert.False(launcher.IsRunning(_instance.InstanceId));
+        Assert.True(process.Disposed);
+        Assert.True(launcher.Launch(_instance, listing).Started);
     }
 
     [Fact]
@@ -876,6 +925,61 @@ public sealed class LoaderLauncherTests : IDisposable
         Assert.Null(result.BlamedModId);
         Assert.Contains("stopped without starting the game", result.Message);
         Assert.Equal(["GameLocation is empty in StarMapConfig.json."], result.Output);
+    }
+
+    [Fact]
+    public async Task WatchStart_LoaderExitsWithZeroWhileItsRestartRuns_StaysStarted()
+    {
+        PlaceStarMap();
+        using var launcher = LauncherSeeingGame(() => true, TimeSpan.FromMilliseconds(100));
+        var started = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+        var process = Assert.Single(_starter.Processes);
+        process.Output.Add("StarMap - RESTARTING");
+        process.HasExited = true;
+        process.ExitCode = 0;
+        process.HasEnded = false;
+
+        var result = await launcher.WatchStartAsync(_instance, started);
+
+        Assert.True(result.Started);
+        Assert.Equal(["StarMap - RESTARTING"], result.Output);
+        Assert.True(launcher.IsRunning(_instance.InstanceId));
+        Assert.Contains("restarted itself", File.ReadAllText(_paths.GetInstanceLaunchLogPath(_instance.InstanceId)));
+    }
+
+    [Fact]
+    public async Task WatchStart_LoaderExitsWithZeroWhileAProcessThatIsNoGameHoldsItsStreams_ReportsTheEarlyExit()
+    {
+        PlaceStarMap();
+        using var launcher = LauncherSeeingGame(() => false, TimeSpan.FromMilliseconds(100));
+        var started = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+        var process = Assert.Single(_starter.Processes);
+        process.HasExited = true;
+        process.ExitCode = 0;
+        process.HasEnded = false;
+
+        var result = await launcher.WatchStartAsync(_instance, started);
+
+        Assert.Equal(LaunchOutcome.ExitedEarly, result.Outcome);
+        Assert.Contains("stopped without starting the game", result.Message);
+        Assert.DoesNotContain("restarted itself", File.ReadAllText(_paths.GetInstanceLaunchLogPath(_instance.InstanceId)));
+    }
+
+    [Fact]
+    public async Task WatchStart_LoaderStopsWithAnErrorWhileAProcessItStartedRuns_ReportsTheError()
+    {
+        PlaceStarMap();
+        using var launcher = LauncherSeeingGame(() => true, TimeSpan.FromMilliseconds(100));
+        var started = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+        var process = Assert.Single(_starter.Processes);
+        process.HasExited = true;
+        process.ExitCode = 3;
+        process.HasEnded = false;
+
+        var result = await launcher.WatchStartAsync(_instance, started);
+
+        Assert.Equal(LaunchOutcome.ExitedEarly, result.Outcome);
+        Assert.Equal(3, result.ExitCode);
     }
 
     [Fact]

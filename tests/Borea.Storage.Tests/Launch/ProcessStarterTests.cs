@@ -1,16 +1,14 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using Borea.Core.Launch;
 using Borea.Storage.Launch;
+using static Borea.Storage.Tests.Launch.LaunchProbe;
 
 namespace Borea.Storage.Tests.Launch;
 
 public sealed class ProcessStarterTests : IDisposable
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromMinutes(2);
-
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "BoreaTest " + Guid.NewGuid());
     private readonly ProcessStarter _starter = new();
     private readonly List<int> _probeIds = new();
@@ -19,15 +17,6 @@ public sealed class ProcessStarterTests : IDisposable
     {
         Directory.CreateDirectory(_tempRoot);
     }
-
-    /// <summary>The dotnet host that runs this test, found from the shared runtime it loaded.</summary>
-    private static string DotnetHost()
-    {
-        var root = Path.GetFullPath(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
-        return Path.Combine(root, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
-    }
-
-    private static string ProbeAssembly() => Path.Combine(AppContext.BaseDirectory, "LaunchProbeFixture.dll");
 
     /// <summary>
     /// A script that writes the plan's variable and an inherited one into
@@ -65,6 +54,13 @@ public sealed class ProcessStarterTests : IDisposable
     private LaunchPlan ChildPlan(IEnumerable<string> arguments, IReadOnlyDictionary<string, string> variables) =>
         new(DotnetHost(), new[] { ProbeAssembly(), "child" }.Concat(arguments).ToArray(), _tempRoot, variables);
 
+    /// <summary>A loader that restarts itself, with the instance root in both the flag and the variable.</summary>
+    private LaunchPlan RestartPlan() => new(
+        DotnetHost(),
+        new[] { ProbeAssembly(), "-InstancePath", _tempRoot, "restart" },
+        _tempRoot,
+        new Dictionary<string, string> { [InstanceVariable] = _tempRoot });
+
     private static void WaitForExit(IStartedProcess process)
     {
         var deadline = DateTime.UtcNow + Patience;
@@ -72,33 +68,7 @@ public sealed class ProcessStarterTests : IDisposable
             Thread.Sleep(50);
     }
 
-    private static bool WaitFor(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow + Patience;
-        while (DateTime.UtcNow < deadline)
-        {
-            if (condition())
-                return true;
-            Thread.Sleep(50);
-        }
-
-        return condition();
-    }
-
     private bool ChildWrote() => File.Exists(Path.Combine(_tempRoot, "wrote"));
-
-    private static bool IsAlive(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-    }
 
     [Fact]
     public void Start_RunsTheExecutableInTheWorkingDirectoryWithTheVariables()
@@ -157,6 +127,50 @@ public sealed class ProcessStarterTests : IDisposable
 
         var survived = Path.Combine(_tempRoot, "survived.txt");
         Assert.True(WaitFor(() => File.Exists(survived)), "The writes to the child's output ended the child.");
+    }
+
+    [Fact]
+    public async Task Start_LoaderThatRestartsItself_EndsOnlyWithItsRestart()
+    {
+        using var process = _starter.Start(RestartPlan());
+        _probeIds.Add(process.Id);
+
+        var restart = RestartRecord(_tempRoot);
+        Assert.NotNull(restart);
+        _probeIds.Add(restart.Value.ProcessId);
+        Assert.True(WaitFor(() => process.HasExited), "The loader did not exit after it restarted itself.");
+        Assert.Equal(0, process.ExitCode);
+
+        // like the game's Restart button, the probe restarts without the instance flag, so only the variable still names the instance
+        Assert.Empty(restart.Value.Arguments);
+        Assert.Equal(_tempRoot, restart.Value.Variable);
+
+        Assert.True(WaitFor(() => process.RecentOutput.Contains($"Restarted as {restart.Value.ProcessId}")), "Borea did not read what the restart wrote.");
+        Assert.False(process.HasEnded);
+        Assert.False(await process.WaitForExitAsync(TimeSpan.FromMilliseconds(200)));
+
+        Signal(_tempRoot, "go");
+        Signal(_tempRoot, "stop");
+
+        Assert.True(await process.WaitForExitAsync(Patience), "The launch did not end with its restart.");
+        Assert.True(process.HasEnded);
+    }
+
+    [Fact]
+    public void Dispose_AfterTheLoaderRestartedItself_LeavesTheRestartRunning()
+    {
+        using var process = _starter.Start(RestartPlan());
+        _probeIds.Add(process.Id);
+        var restart = RestartRecord(_tempRoot);
+        Assert.NotNull(restart);
+        _probeIds.Add(restart.Value.ProcessId);
+        Assert.True(WaitFor(() => process.HasExited), "The loader did not exit after it restarted itself.");
+
+        process.Dispose();
+        Signal(_tempRoot, "go");
+
+        Assert.True(WaitFor(() => File.Exists(Path.Combine(_tempRoot, "restarted-wrote")) || !IsAlive(restart.Value.ProcessId)), "The restart is stuck on its output.");
+        Assert.True(IsAlive(restart.Value.ProcessId), "The restart stopped when Borea released the loader.");
     }
 
     [Fact]
@@ -275,7 +289,8 @@ public sealed class ProcessStarterTests : IDisposable
     {
         try
         {
-            File.WriteAllText(Path.Combine(_tempRoot, "stop"), string.Empty);
+            Signal(_tempRoot, "go");
+            Signal(_tempRoot, "stop");
         }
         catch (IOException)
         {
@@ -291,19 +306,6 @@ public sealed class ProcessStarterTests : IDisposable
                 Directory.Delete(_tempRoot, recursive: true);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-        }
-    }
-
-    private static void StopProbe(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            if (!process.WaitForExit(TimeSpan.FromSeconds(10)))
-                process.Kill();
-        }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception)
         {
         }
     }

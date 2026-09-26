@@ -384,6 +384,27 @@ public sealed class LoggingDecoratorsTests
         Assert.Equal(["Merge of KSAModding/content-index #5 at c0ffee failed. Changed"], _log.Messages);
     }
 
+    [Fact]
+    public async Task ReleaseAmendments_WriteTheOpenedPullRequest_AndAFailureWithTheTitle()
+    {
+        var preview = new ReleaseAmendmentPreview(
+            new ReleaseAmendmentRequest("MyMod", ReleaseSelection.Of("1.2.0"), new ReleaseChange { Yank = true }, "Malware."),
+            [new ReleaseFilePreview("1.2.0", "releases/MyMod/1.2.0.json", "{}\n", "{\"yanked\": true}\n")],
+            []);
+        var failure = new ReleaseAmendmentRefusedException(ReleaseAmendmentRefusal.Widens, "game_max_revision rises");
+
+        await new LoggingReleaseAmendments(new FakeReleaseAmendments(), _log).OpenAsync(preview);
+        var thrown = await Assert.ThrowsAsync<ReleaseAmendmentRefusedException>(() => new LoggingReleaseAmendments(new FakeReleaseAmendments { Failure = failure }, _log).OpenAsync(preview));
+
+        Assert.Same(failure, thrown);
+        Assert.Equal(
+            [
+                "Opened release amendment pull request https://github.com/KSAModding/content-index-releases/pull/3: Amend MyMod 1.2.0",
+                "Release amendment pull request \"Amend MyMod 1.2.0\" failed. Widens: game_max_revision rises",
+            ],
+            _log.Messages);
+    }
+
     private static PullRequestReview Shown { get; } =
         new("KSAModding/content-index", 5, new Uri("https://github.com/KSAModding/content-index/pull/5"), "Add My Mod", "alice", PullRequestState.Open, IsDraft: false, [], "main", "c0ffee", "alice/content-index", null, null, null, [], []);
 
@@ -398,6 +419,20 @@ public sealed class LoggingDecoratorsTests
         public Task CloseAsync(PullRequestReview pullRequest, string comment, CancellationToken cancellationToken = default) => Answer();
 
         private Task Answer() => Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+    }
+
+    private sealed class FakeReleaseAmendments : IReleaseAmendments
+    {
+        public Exception? Failure { get; init; }
+
+        public Task<IReadOnlyList<string>> ReleasesAsync(string listingId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ReleaseAmendmentPreview> PreviewAsync(ReleaseAmendmentRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ReleaseAmendmentPullRequest> OpenAsync(ReleaseAmendmentPreview preview, CancellationToken cancellationToken = default) =>
+            Failure is null
+                ? Task.FromResult(new ReleaseAmendmentPullRequest(3, new Uri("https://github.com/KSAModding/content-index-releases/pull/3"), preview.Title))
+                : Task.FromException<ReleaseAmendmentPullRequest>(Failure);
     }
 
     private sealed class FakeListingPublisher : IListingPublisher

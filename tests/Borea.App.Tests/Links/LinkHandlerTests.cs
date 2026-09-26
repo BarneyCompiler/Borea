@@ -60,6 +60,47 @@ public sealed class LinkHandlerTests
         Assert.Contains("could not register", Assert.Single(log.Lines), StringComparison.Ordinal);
         Assert.IsType<UnauthorizedAccessException>(Assert.Single(log.Exceptions));
     }
+
+    [Fact]
+    public void AddLauncher_WritesTheEntryForThisExecutable_AndLogsAChange()
+    {
+        var written = new List<string>();
+        var changes = true;
+        var log = new RecordingLog();
+        var handler = new LinkHandler(new FakeRegistrar(), "/opt/Borea/borea", path =>
+        {
+            written.Add(path);
+            return changes;
+        });
+
+        handler.AddLauncher(log);
+        changes = false;
+        handler.AddLauncher(log);
+
+        Assert.Equal(["/opt/Borea/borea", "/opt/Borea/borea"], written);
+        Assert.Contains("Added /opt/Borea/borea to the application menu", Assert.Single(log.Lines), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddLauncher_Failure_IsLoggedAndSwallowed()
+    {
+        var log = new RecordingLog();
+
+        new LinkHandler(new FakeRegistrar(), "/opt/Borea/borea", _ => throw new IOException("disk full")).AddLauncher(log);
+
+        Assert.Contains("could not add itself to the application menu", Assert.Single(log.Lines), StringComparison.Ordinal);
+        Assert.IsType<IOException>(Assert.Single(log.Exceptions));
+    }
+
+    [Fact]
+    public void AddLauncher_WithoutALauncher_DoesNothing()
+    {
+        var log = new RecordingLog();
+
+        new LinkHandler(new FakeRegistrar(), @"C:\Games\Borea\borea.exe").AddLauncher(log);
+
+        Assert.Empty(log.Lines);
+    }
 }
 
 internal sealed class FakeRegistrar : ILinkRegistrar

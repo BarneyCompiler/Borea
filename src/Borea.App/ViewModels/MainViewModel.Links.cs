@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Borea.App.Links;
 using Borea.Composition;
 using Borea.Core.Links;
+using Borea.Core.Logging;
 using Borea.Core.ModPacks;
 using Borea.Core.Mods;
 
@@ -48,20 +49,25 @@ public partial class MainViewModel
 
     private void StartLinkRegistration()
     {
-        if (_linkRegistrationStarted || !OpenBoreaLinks)
+        if (_linkRegistrationStarted)
             return;
 
         _linkRegistrationStarted = true;
-        QueueLinkRegistration(enabled: true);
+        QueueLinkWork((handler, log) => handler.AddLauncher(log));
+        if (OpenBoreaLinks)
+            QueueLinkRegistration(enabled: true);
     }
 
-    private void QueueLinkRegistration(bool enabled)
+    private void QueueLinkRegistration(bool enabled) => QueueLinkWork((handler, log) => handler.Apply(enabled, log));
+
+    /// <summary>One queue for both, because the launcher and the handler entry write the same icon file.</summary>
+    private void QueueLinkWork(Action<LinkHandler, IBoreaLog?> work)
     {
         if (LinkHandler is not { } handler)
             return;
 
         var log = _services?.Log;
-        _linkRegistration = _linkRegistration.ContinueWith(_ => handler.Apply(enabled, log), TaskScheduler.Default);
+        _linkRegistration = _linkRegistration.ContinueWith(_ => work(handler, log), TaskScheduler.Default);
     }
 
     /// <summary>A link with an unescaped quote can arrive split into several arguments, so only a start with one argument opens it.</summary>

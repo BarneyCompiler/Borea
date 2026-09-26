@@ -366,10 +366,30 @@ public sealed class LinkViewModelTests
         Assert.Equal(["register /opt/Borea/borea"], registrar.Calls);
     }
 
-    private static MainViewModel NewViewModel(ViewModelHarness harness, AppPreferences preferences, FakeRegistrar registrar)
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Launcher_IsWrittenOnceAtStart_WhateverTheLinkSwitchSays(bool openLinks)
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var registrar = new FakeRegistrar();
+        var viewModel = NewViewModel(harness, AppPreferences.Empty.WithOpenBoreaLinks(openLinks), registrar, path =>
+        {
+            registrar.Calls.Add("launcher " + path);
+            return true;
+        });
+
+        await viewModel.LoadAsync();
+        await viewModel.LoadAsync();
+        await viewModel.WhenLinkRegistrationDoneAsync();
+
+        Assert.Equal(openLinks ? ["launcher /opt/Borea/borea", "register /opt/Borea/borea"] : ["launcher /opt/Borea/borea"], registrar.Calls);
+    }
+
+    private static MainViewModel NewViewModel(ViewModelHarness harness, AppPreferences preferences, FakeRegistrar registrar, Func<string, bool>? writeLauncher = null)
         => new(harness.Localization, new RegionalFormatService(harness.Localization), harness.Services.AppPreferences, preferences)
         {
-            LinkHandler = new LinkHandler(registrar, "/opt/Borea/borea"),
+            LinkHandler = new LinkHandler(registrar, "/opt/Borea/borea", writeLauncher),
         };
 
     /// <summary>A harness whose game folder holds a game of version 2026.8.3.5117.</summary>

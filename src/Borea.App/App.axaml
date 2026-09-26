@@ -472,6 +472,25 @@
         <Style Selector="Button.add.installed Path">
             <Setter Property="Stroke" Value="{StaticResource Brush.Compatible}" />
         </Style>
+        <!-- the back to top pill of a long list: a raised surface with a border and a label, so it does not read as the add disc of a row -->
+        <Style Selector="Button.to-top">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="CornerRadius" Value="100" />
+            <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.to-top:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource Brush.Surface}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+        </Style>
+        <Style Selector="Button.to-top Path">
+            <Setter Property="Stroke" Value="{StaticResource Brush.Accent}" />
+            <Setter Property="StrokeThickness" Value="2" />
+        </Style>
         <!-- c/inner-nav-action: tabs inside the black pill -->
         <Style Selector="Button.tab">
             <Setter Property="Padding" Value="16,8" />

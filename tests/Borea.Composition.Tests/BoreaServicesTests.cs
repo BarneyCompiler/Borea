@@ -214,6 +214,7 @@ public sealed class BoreaServicesTests : IDisposable
         Assert.IsType<RepositoryInstallPlanner>(Assert.IsType<LoggingInstallPlanner>(services.InstallPlanner).Inner);
         Assert.IsType<Borea.Storage.ModPacks.ModPackInstaller>(Assert.IsType<LoggingModPackInstaller>(services.ModPackInstaller).Inner);
         Assert.IsType<FileGameLogReader>(services.GameLog);
+        Assert.IsType<FileGameCrashReader>(services.GameCrashes);
         Assert.IsType<FilePlaytimeService>(services.Playtime);
         Assert.IsType<SharedProfileLauncher>(Assert.IsType<LoggingSharedProfileLauncher>(services.SharedProfileLauncher).Inner);
         Assert.IsType<FileSharedProfileImporter>(Assert.IsType<CheckedSharedProfileImporter>(services.SharedProfileImporter).Inner);

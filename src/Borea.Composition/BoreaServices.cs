@@ -118,6 +118,8 @@ public sealed class BoreaServices : IDisposable
 
     public required IGameLogReader GameLog { get; init; }
 
+    public required IGameCrashReader GameCrashes { get; init; }
+
     public required IPlaytimeService Playtime { get; init; }
 
     public required IInstanceSizeReader InstanceSizes { get; init; }
@@ -484,6 +486,7 @@ public sealed class BoreaServices : IDisposable
             GameSaves = new FileGameSaveStore(paths),
             GameSaveBackups = new FileGameSaveBackupStore(paths),
             GameLog = new FileGameLogReader(paths),
+            GameCrashes = new FileGameCrashReader(paths),
             Playtime = new FilePlaytimeService(paths),
             InstanceSizes = new FileInstanceSizeReader(paths),
             ModListFormat = new TomlModListFormat(),

@@ -300,6 +300,9 @@ public sealed class FileSharedModStoreTests : IAsyncLifetime
         public Task<LaunchResult> WatchStartAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
+        public Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
         public bool IsRunning(Guid instanceId) => Running.Contains(instanceId);
     }
 

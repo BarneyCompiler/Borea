@@ -168,8 +168,10 @@ public sealed class GameShapeCheckTests : IDisposable
         Assert.Equal(GameAssumptionState.NotChecked, shape.Results.Single(result => result.Assumption == GameAssumption.ModFolder).State);
     }
 
-    [Fact]
-    public async Task GetAsync_ARecoveredCrashTail_IsNotALogBoreaCannotPlace()
+    [Theory]
+    [InlineData("KittenSpaceAgency.260915-111840.37972.previous-crash.log")]
+    [InlineData("KittenSpaceAgency.260915-111840.37972.20260915_111902.abnormal-exit.log")]
+    public async Task GetAsync_ARecoveredCrashTail_IsNotALogBoreaCannotPlace(string tail)
     {
         var logs = Path.Combine(_paths.GetSharedProfileRoot(), "logs");
         Directory.Delete(Path.Combine(logs, "Archives"), recursive: true);
@@ -177,7 +179,7 @@ public sealed class GameShapeCheckTests : IDisposable
             File.Delete(file);
 
         await File.WriteAllTextAsync(Path.Combine(logs, "borea-launch.log"), "started\n");
-        await File.WriteAllTextAsync(Path.Combine(logs, "KittenSpaceAgency.260915-111840.37972.previous-crash.log"), "crashed\n");
+        await File.WriteAllTextAsync(Path.Combine(logs, tail), "crashed\n");
 
         var shape = await Check().GetAsync();
 

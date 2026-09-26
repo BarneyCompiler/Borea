@@ -11,5 +11,11 @@ public sealed class RunningLaunches
 
     internal Dictionary<Guid, IStartedProcess> Processes { get; } = new();
 
-    internal Dictionary<Guid, (DateTime? GameLogAtLaunch, string LoaderName)> Starts { get; } = new();
+    internal Dictionary<Guid, (DateTime? GameLogAtLaunch, DateTime? CrashLogAtLaunch, string LoaderName)> Starts { get; } = new();
+
+    /// <summary>
+    /// The last launch per instance that ended, until the next launch of the
+    /// instance, so an exit watch that starts after the end still finds it.
+    /// </summary>
+    internal Dictionary<Guid, (IStartedProcess Process, DateTime? CrashLogAtLaunch)> Ended { get; } = new();
 }

@@ -69,6 +69,8 @@ public sealed class LastPlayedLauncherTests
 
         public Task<LaunchResult> WatchStartAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(watched);
 
+        public Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(GameExit.Unknown);
+
         public bool IsRunning(Guid instanceId) => false;
     }
 

@@ -258,6 +258,38 @@ public sealed class ProcessStarterTests : IDisposable
     }
 
     [Fact]
+    public async Task Dispose_AfterTheProcessEnded_KeepsItsIdAndExitCode()
+    {
+        var plan = OperatingSystem.IsWindows()
+            ? new LaunchPlan(Path.Combine(Environment.SystemDirectory, "cmd.exe"), new[] { "/c", "exit 3" }, _tempRoot, new Dictionary<string, string>())
+            : new LaunchPlan("/bin/sh", new[] { "-c", "exit 3" }, _tempRoot, new Dictionary<string, string>());
+        var process = _starter.Start(plan);
+        var id = process.Id;
+        Assert.True(await process.WaitForExitAsync(Patience));
+
+        process.Dispose();
+
+        Assert.Equal(id, process.Id);
+        Assert.True(process.HasExited);
+        Assert.Equal(3, process.ExitCode);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => process.WaitForExitAsync(Patience));
+    }
+
+    [Fact]
+    public async Task Dispose_WhileAWaitWithoutEndRuns_EndsTheWait()
+    {
+        var process = _starter.Start(ChildPlan(Array.Empty<string>(), new Dictionary<string, string>()));
+        _probeIds.Add(process.Id);
+        var wait = process.WaitForExitAsync(Timeout.InfiniteTimeSpan);
+
+        process.Dispose();
+
+        Assert.False(await wait.WaitAsync(Patience));
+        Assert.False(process.HasExited);
+        Assert.Null(process.ExitCode);
+    }
+
+    [Fact]
     public async Task WaitForExit_RunningProcess_ReturnsFalseAfterTheTimeout()
     {
         using var process = _starter.Start(ChildPlan(Array.Empty<string>(), new Dictionary<string, string>()));

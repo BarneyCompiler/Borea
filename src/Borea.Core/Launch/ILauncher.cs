@@ -25,6 +25,16 @@ public interface ILauncher
     Task<LaunchResult> WatchStartAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Waits until the process of a launch that <see cref="WatchStartAsync"/>
+    /// reported as started ends, and says how it ended. Only a process that
+    /// ends with an error can be <see cref="GameExitKind.Crashed"/>, and only
+    /// with a crash log of its own run, so a quit and a restart that exit with
+    /// 0 are <see cref="GameExitKind.Closed"/>, and so is the crash of a new
+    /// process that a restart started.
+    /// </summary>
+    Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Whether a launch this launcher started for the instance is still
     /// running. A loader that restarts itself keeps its launch running while
     /// the new process runs. A launch from an earlier session and a game

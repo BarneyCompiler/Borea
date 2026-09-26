@@ -28,6 +28,14 @@ internal sealed class FakeIndexStatusEditor : IIndexStatusEditor
 
     public TaskCompletionSource? HoldOpen { get; set; }
 
+    /// <summary>The ids that the signed-in steward owns.</summary>
+    public List<string> Owned { get; } = [];
+
+    /// <summary>The ids of each owner lookup.</summary>
+    public List<IReadOnlyList<string>> OwnedAsked { get; } = [];
+
+    public StewardException? OwnedFailure { get; set; }
+
     public void Merge(int number)
     {
         Pulls.RemoveAll(pull => pull.Number == number);
@@ -64,6 +72,14 @@ internal sealed class FakeIndexStatusEditor : IIndexStatusEditor
         var pull = new IndexStatusPullRequest(Opened.Count, new Uri($"https://github.com/KSAModding/content-index/pull/{Opened.Count}"), change.Title, "octocat", Conflicts: false);
         Pulls.Add(pull);
         return pull;
+    }
+
+    public Task<IReadOnlyList<string>> OwnedAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default)
+    {
+        OwnedAsked.Add([.. ids]);
+        return OwnedFailure is { } failure
+            ? Task.FromException<IReadOnlyList<string>>(failure)
+            : Task.FromResult<IReadOnlyList<string>>(ids.Where(id => Owned.Contains(id, StringComparer.OrdinalIgnoreCase)).ToList());
     }
 }
 

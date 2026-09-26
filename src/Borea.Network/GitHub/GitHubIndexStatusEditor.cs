@@ -110,6 +110,24 @@ public sealed class GitHubIndexStatusEditor : IIndexStatusEditor
         return PullRequestOf(pull, login);
     });
 
+    public Task<IReadOnlyList<string>> OwnedAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default) => GuardAsync<IReadOnlyList<string>>(async () =>
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        var login = Login();
+        var owned = new List<string>();
+        if (ids.Count == 0)
+            return owned;
+
+        var commit = await ReadBaseAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var id in ids.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if ((await OwnersAsync(id, commit, login, cancellationToken).ConfigureAwait(false)).IsOwner)
+                owned.Add(id);
+        }
+
+        return owned;
+    });
+
     private string Login() =>
         _session.State is { Status: GitHubSessionStatus.SignedIn, Login: { } login }
             ? login

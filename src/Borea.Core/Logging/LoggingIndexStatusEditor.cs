@@ -20,6 +20,9 @@ public sealed class LoggingIndexStatusEditor : IIndexStatusEditor
     public Task<IndexStatusCheck> CheckAsync(IndexStatusChange change, CancellationToken cancellationToken = default) =>
         Inner.CheckAsync(change, cancellationToken);
 
+    public Task<IReadOnlyList<string>> OwnedAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default) =>
+        Inner.OwnedAsync(ids, cancellationToken);
+
     public async Task<IndexStatusPullRequest> OpenAsync(IndexStatusChange change, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(change);

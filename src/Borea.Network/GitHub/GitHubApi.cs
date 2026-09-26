@@ -249,6 +249,27 @@ internal sealed class GitHubApi
         }
     }
 
+    /// <summary>
+    /// The open issues of a public repository without the token, oldest first, and without the pull requests that the endpoint lists too.
+    /// An anonymous read does not depend on a permission of the App, which has no Issues permission.
+    /// </summary>
+    /// <param name="query">More of the query, such as labels=watcher, or null.</param>
+    /// <exception cref="GitHubApiException">The request failed, or GitHub answered with an issue that has no https link.</exception>
+    public async IAsyncEnumerable<GitHubIssue> GetOpenIssuesAsync(string repository, string? query, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var url = $"{Root}/repos/{repository}/issues?state=open&sort=created&direction=asc" + (query is null ? string.Empty : "&" + query);
+        await foreach (var issue in GetPagesAsync<IssueDto>(url, cancellationToken, anonymous: true).ConfigureAwait(false))
+        {
+            if (issue.PullRequest is not null)
+                continue;
+
+            if (!Uri.TryCreate(issue.HtmlUrl, UriKind.Absolute, out var link) || link.Scheme != Uri.UriSchemeHttps || issue.Number <= 0)
+                throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse);
+
+            yield return new GitHubIssue(issue.Number, link, issue.Title, issue.Body, issue.User?.Login, issue.User?.Type, issue.CreatedAt, issue.UpdatedAt);
+        }
+    }
+
     /// <summary>The body of a success.</summary>
     /// <exception cref="GitHubApiException">Any other answer, with GitHub's message and the rate-limit time.</exception>
     public static string Ensure(GitHubReply reply)
@@ -445,10 +466,40 @@ internal sealed class GitHubApi
 
         public string Encoding { get; set; } = string.Empty;
     }
+
+    private sealed class IssueDto
+    {
+        public int Number { get; set; }
+
+        public string Title { get; set; } = string.Empty;
+
+        public string HtmlUrl { get; set; } = string.Empty;
+
+        public string? Body { get; set; }
+
+        public DateTimeOffset CreatedAt { get; set; }
+
+        public DateTimeOffset UpdatedAt { get; set; }
+
+        public IssueUserDto? User { get; set; }
+
+        public JsonElement? PullRequest { get; set; }
+    }
+
+    private sealed class IssueUserDto
+    {
+        public string? Login { get; set; }
+
+        public string? Type { get; set; }
+    }
 }
 
 /// <param name="Text">The file as UTF-8 text, or null when it is not.</param>
 internal sealed record GitHubFile(string Sha, string? Text);
+
+/// <param name="Author">The login that opened the issue, or null.</param>
+/// <param name="AuthorType">The account type of the author, such as User or Bot, or null.</param>
+internal sealed record GitHubIssue(int Number, Uri Url, string Title, string? Body, string? Author, string? AuthorType, DateTimeOffset Created, DateTimeOffset Updated);
 
 /// <param name="Message">GitHub's error message with its details, or null.</param>
 /// <param name="RetryAt">When GitHub accepts requests again after a rate limit, or null.</param>

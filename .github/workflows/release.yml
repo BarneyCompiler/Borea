@@ -374,6 +374,16 @@ jobs:
           if ((Get-Item -LiteralPath (Join-Path $roots.App BRANDING.md)).Length -lt 1) { throw 'BRANDING.md in the App archive is empty.' }
           if (-not (Select-String -LiteralPath (Join-Path $roots.App THIRD-PARTY-NOTICES.txt) -Pattern '^IBM Plex$' -Quiet)) { throw 'The notices in the App archive do not name IBM Plex.' }
           if (Select-String -LiteralPath (Join-Path $roots.Cli THIRD-PARTY-NOTICES.txt) -Pattern '^Avalonia ' -Quiet) { throw 'The notices in the CLI archive name Avalonia.' }
+          # Both programs must stay console programs, because only then does a terminal wait for a command and get its exit code.
+          # The App gets no console window from Explorer through the policy in app.manifest instead.
+          # The subsystem is 92 bytes after the start of the PE header, and 3 is the console.
+          foreach ($kind in 'App', 'Cli') {
+            $bytes = [IO.File]::ReadAllBytes((Join-Path $roots[$kind] borea.exe))
+            $subsystem = [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 0x3C) + 92)
+            if ($subsystem -ne 3) { throw "borea.exe from the $kind archive has the PE subsystem $subsystem instead of 3, the console." }
+          }
+          $app = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes((Join-Path $roots.App borea.exe)))
+          if (-not $app.Contains('<consoleAllocationPolicy xmlns="http://schemas.microsoft.com/SMI/2024/WindowsSettings">detached</consoleAllocationPolicy>')) { throw 'borea.exe from the App archive does not carry the detached console allocation policy.' }
           $help = @{}
           $settings = @{}
           foreach ($kind in 'Cli', 'App') {

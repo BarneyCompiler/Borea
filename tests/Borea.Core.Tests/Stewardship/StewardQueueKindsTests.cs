@@ -84,5 +84,21 @@ public sealed class StewardQueueKindsTests
         Assert.Throws<ArgumentException>(() => StewardQueueKinds.Of("KSAModding/Borea", [], []));
     }
 
+    [Theory]
+    [InlineData(ContentIndex, "listings/MyMod.toml", "added", StewardQueueKind.Listing)]
+    [InlineData(ContentIndex, "listings/MyMod.TOML", "modified", StewardQueueKind.Listing)]
+    [InlineData(ContentIndex, "packs/my-pack/1.0.0.toml", "modified", StewardQueueKind.Pack)]
+    [InlineData(ContentIndex, "packs/my-pack/owner.json", "added", null)]
+    [InlineData(ContentIndex, "listings/MyMod.toml", "removed", null)]
+    [InlineData(ContentIndex, "listings/MyMod.toml", "renamed", null)]
+    [InlineData(ContentIndex, "tags.toml", "modified", null)]
+    [InlineData(ContentIndex, "listings/nested/MyMod.toml", "added", null)]
+    [InlineData(Releases, "listings/MyMod.toml", "added", null)]
+    [InlineData(Releases, "releases/MyMod/1.0.0.json", "modified", null)]
+    public void DocumentOf_OnlyAWrittenListingOrPackOfContentIndex(string repository, string path, string status, StewardQueueKind? kind)
+    {
+        Assert.Equal(kind, StewardQueueKinds.DocumentOf(repository, path, status));
+    }
+
     private static StewardQueueFile[] Changed(params string[] paths) => [.. paths.Select(path => new StewardQueueFile(path, "modified"))];
 }

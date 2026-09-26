@@ -54,6 +54,19 @@ public static partial class StewardQueueKinds
         return (kinds.Order().ToList(), hasOtherFiles);
     }
 
+    /// <summary>Listing or Pack for a document of content-index that the pull request adds or changes, and null for any other file.</summary>
+    /// <param name="status">The status that GitHub gives the file.</param>
+    public static StewardQueueKind? DocumentOf(string repository, string path, string status)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (!string.Equals(repository, ListingPullRequestLinks.Repository, StringComparison.OrdinalIgnoreCase) || status is not ("added" or "modified"))
+            return null;
+
+        return ListingDocument().IsMatch(path) ? StewardQueueKind.Listing
+            : PackDocument().IsMatch(path) ? StewardQueueKind.Pack
+            : null;
+    }
+
     /// <summary>
     /// Whether the path is a steward file or a written document of the repository. The kind is null for a document, whose kind
     /// comes from its label.

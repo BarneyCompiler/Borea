@@ -4,7 +4,8 @@ using Borea.Core.Mods;
 namespace Borea.Core.Listings;
 
 /// <summary>
-/// What a pack version can pin: listings of type mod that are not delisted, at stamped releases that are not yanked.
+/// What a pack version can pin: listings of type mod that are not delisted, at stamped releases that are not yanked
+/// and whose download is not gone (RFC 0078).
 /// A pin to anything else is one that no client can install.
 /// </summary>
 public static class ListingPackMembers
@@ -16,11 +17,11 @@ public static class ListingPackMembers
         return snapshot.Listings.Where(listing => IsCandidate(listing) && Offered(listing).Count > 0).ToList();
     }
 
-    /// <summary>The releases of a listing that a pin can name, newest first.</summary>
+    /// <summary>The releases of a listing that a new pin can name, newest first.</summary>
     public static IReadOnlyList<ModVersionMetadata> Offered(ContentIndexListing listing)
     {
         ArgumentNullException.ThrowIfNull(listing);
-        return IsCandidate(listing) ? listing.Releases.Where(release => !release.Yanked).OrderByDescending(release => release.Version).ToList() : [];
+        return IsCandidate(listing) ? listing.Releases.Where(release => release.IsOffered).OrderByDescending(release => release.Version).ToList() : [];
     }
 
     /// <summary>The listed mod a pin names, or null when the snapshot has no such mod to pin.</summary>
@@ -41,13 +42,25 @@ public static class ListingPackMembers
     }
 
     /// <summary>
+    /// The release a pin names when it is not yanked, also when its download is gone, because a pin of it stays in the file.
+    /// </summary>
+    public static ModVersionMetadata? Pinned(ContentIndexSnapshot snapshot, ListingPackMember member)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        if (Listing(snapshot, member.Id) is not { } listing || !ModVersion.TryParse(member.Version, out var version))
+            return null;
+
+        return listing.Releases.FirstOrDefault(release => !release.Yanked && release.Version == version);
+    }
+
+    /// <summary>
     /// The pinned release with the highest game_min, which is the game_min the pack needs, or null when no pin names a release.
-    /// Only the revision orders game versions, so it decides.
+    /// A gone download does not change what a release needs, so its pin counts. Only the revision orders game versions, so it decides.
     /// </summary>
     public static ModVersionMetadata? HighestGameMin(ContentIndexSnapshot snapshot, IEnumerable<ListingPackMember> members)
     {
         ArgumentNullException.ThrowIfNull(members);
-        return members.Select(member => Release(snapshot, member)).OfType<ModVersionMetadata>().MaxBy(release => release.GameMinRevision);
+        return members.Select(member => Pinned(snapshot, member)).OfType<ModVersionMetadata>().MaxBy(release => release.GameMinRevision);
     }
 
     private static bool IsCandidate(ContentIndexListing listing) =>

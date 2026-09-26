@@ -1692,6 +1692,9 @@
   <data name="ListingMemberNotOfferedFormat" xml:space="preserve">
     <value>{0} {1} is yanked or not in the index, so no client can install this pin.</value>
   </data>
+  <data name="ListingMemberGoneFormat" xml:space="preserve">
+    <value>{0} {1} is no longer downloadable since {2}, so a client installs this pin only from a mirror or a copy it already has.</value>
+  </data>
   <data name="ListingDependenciesHint" xml:space="preserve">
     <value>Only what the mod.toml of your archive cannot say, such as version bounds or a conflict.</value>
   </data>

@@ -106,7 +106,12 @@ public sealed partial class ListingEditor
         if (ListingPackMembers.Listing(snapshot, member.Id) is null)
             return Localization.FormatListingMemberNotListed(member.Id);
 
-        return ListingPackMembers.Release(snapshot, member) is null ? Localization.FormatListingMemberNotOffered(member.Id, member.Version) : null;
+        if (ListingPackMembers.Release(snapshot, member) is not null)
+            return null;
+
+        return ListingPackMembers.Pinned(snapshot, member)?.Download.UnavailableSince is { } since
+            ? Localization.FormatListingMemberGone(member.Id, member.Version, MainViewModel.DateText(since))
+            : Localization.FormatListingMemberNotOffered(member.Id, member.Version);
     }
 
     /// <summary>A note for each pin no client can install, and the game_min the pins need when the form has a lower one.</summary>

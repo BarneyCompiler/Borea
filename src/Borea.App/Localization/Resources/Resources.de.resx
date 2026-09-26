@@ -1692,6 +1692,9 @@
   <data name="ListingMemberNotOfferedFormat" xml:space="preserve">
     <value>{0} {1} ist zurückgezogen oder nicht im Index, deshalb kann kein Client diese Festlegung installieren.</value>
   </data>
+  <data name="ListingMemberGoneFormat" xml:space="preserve">
+    <value>{0} {1} ist seit {2} nicht mehr herunterladbar, deshalb installiert ein Client diese Festlegung nur von einem Spiegel oder aus einer Kopie, die er schon hat.</value>
+  </data>
   <data name="ListingDependenciesHint" xml:space="preserve">
     <value>Nur, was die mod.toml deines Archivs nicht sagen kann, zum Beispiel Versionsgrenzen oder einen Konflikt.</value>
   </data>

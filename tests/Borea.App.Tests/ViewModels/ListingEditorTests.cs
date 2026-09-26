@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Text;
@@ -678,6 +679,36 @@ public sealed class ListingEditorTests
     }
 
     [Fact]
+    public async Task GoneRelease_IsNotOfferedAndALoadedPinOfItKeepsItsGameMin()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: MarkGone);
+        var editor = harness.ViewModel.ListingEditor;
+        var localization = harness.Localization;
+        var date = MainViewModel.DateText(DateTimeOffset.Parse("2026-09-23T10:24:00Z", CultureInfo.InvariantCulture));
+        await harness.ViewModel.OpenListingAsync();
+        editor.StartPackCommand.Execute(null);
+
+        editor.MemberQuery = "measure";
+        editor.AddMemberCommand.Execute(null);
+
+        Assert.Equal(["1.1.9", "1.1.8", "1.1.7"], Assert.Single(editor.Members).Releases.Select(release => release.Version));
+
+        editor.Load(new ListingDraft
+        {
+            Type = ListingDraft.ModPackType,
+            Id = "my-pack",
+            Version = "1.0.0",
+            GameMin = "2026.8.19.5261",
+            Mods = [new ListingPackMember("MeasureTools", "1.1.10"), new ListingPackMember("AdvancedFlightComputer", "0.7.5"), new ListingPackMember("KSArmory", "0.8.44")],
+        });
+
+        Assert.Equal(
+            [localization.FormatListingMemberGone("MeasureTools", "1.1.10", date), localization.FormatListingMemberGone("AdvancedFlightComputer", "0.7.5", date), null],
+            editor.Members.Select(row => row.Note));
+        Assert.Equal("2026.9.4.5400", editor.GameMinProposal);
+    }
+
+    [Fact]
     public async Task PackGameMin_ProposesTheHighestGameMinOfThePinnedReleases()
     {
         using var harness = await ViewModelHarness.CreateAsync();
@@ -794,6 +825,23 @@ public sealed class ListingEditorTests
         FillPack(editor);
         Assert.True(editor.CanOpenPullRequest, string.Join("\n", editor.Errors));
         return (editor, opened, window);
+    }
+
+    /// <summary>Marks the downloads of MeasureTools 1.1.10 and AdvancedFlightComputer 0.7.5 as gone (RFC 0078).</summary>
+    private static string MarkGone(string json)
+    {
+        var root = JsonNode.Parse(json)!;
+        foreach (var listing in root["listings"]!.AsArray())
+        {
+            var gone = (string?)listing!["id"] switch { "MeasureTools" => "1.1.10", "AdvancedFlightComputer" => "0.7.5", _ => null };
+            foreach (var release in listing["releases"]!.AsArray())
+            {
+                if (gone is not null && (string?)release!["version"] == gone)
+                    release["download"]!["unavailable_since"] = "2026-09-23T10:24:00Z";
+            }
+        }
+
+        return root.ToJsonString();
     }
 
     /// <summary>Yanks MeasureTools 1.1.10 and delists KSArmory.</summary>

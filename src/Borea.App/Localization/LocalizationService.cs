@@ -1955,6 +1955,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatListingMemberNotOffered(string id, string version)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberNotOfferedFormat, id, version);
 
+    public string FormatListingMemberGone(string id, string version, string date)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberGoneFormat, id, version, date);
+
     public string FormatListingPackPullRequestText(string path)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackPullRequestTextFormat, path);
 

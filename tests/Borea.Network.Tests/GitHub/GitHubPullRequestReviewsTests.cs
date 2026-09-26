@@ -10,8 +10,11 @@ using Borea.Network.Tests.Listings;
 
 namespace Borea.Network.Tests.GitHub;
 
-/// <summary>The steward octocat reviews pull requests that GitHub answers from routes this test keeps in memory.</summary>
-public sealed class GitHubPullRequestReviewsTests
+/// <summary>
+/// The steward octocat reviews pull requests that GitHub answers from routes this test keeps in memory.
+/// A GET route is keyed by its URL, and any other by its method and URL.
+/// </summary>
+public sealed partial class GitHubPullRequestReviewsTests
 {
     private const string Api = "https://api.github.com";
     private const string Index = "KSAModding/content-index";
@@ -297,7 +300,7 @@ public sealed class GitHubPullRequestReviewsTests
     }
 
     /// <summary>Answers the pull request, and no comments until <see cref="Comments"/> gives some.</summary>
-    private void Pull(string repository, int number, string head, string? headRepository, string[]? labels = null, string state = "open", bool merged = false, string? mergedAt = null, bool draft = false, string? author = "alice")
+    private void Pull(string repository, int number, string head, string? headRepository, string[]? labels = null, string state = "open", bool merged = false, string? mergedAt = null, bool draft = false, string? author = "alice", string baseBranch = "main")
     {
         _routes.TryAdd($"{Api}/repos/{repository}/issues/{number}/comments?per_page=100&page=1", () => Json("[]"));
         _routes[$"{Api}/repos/{repository}/pulls/{number}"] = () => Json(JsonSerializer.Serialize(new
@@ -312,7 +315,7 @@ public sealed class GitHubPullRequestReviewsTests
             user = author is null ? null : new { login = author, id = 5 },
             labels = (labels ?? []).Select(label => new { name = label }),
             head = new { @ref = "listing-MyMod", sha = head, repo = headRepository is null ? null : new { full_name = headRepository } },
-            @base = new { @ref = "main", sha = "fedcba9876543210fedcba9876543210fedcba98", repo = new { full_name = repository } },
+            @base = new { @ref = baseBranch, sha = "fedcba9876543210fedcba9876543210fedcba98", repo = new { full_name = repository } },
         }));
     }
 
@@ -346,13 +349,13 @@ public sealed class GitHubPullRequestReviewsTests
         return session;
     }
 
-    private HttpClient Http() => new(new FakeHttpMessageHandler(request => Task.FromResult(Respond(request))));
+    private HttpClient Http() => new(new FakeHttpMessageHandler(async request => Respond(request, request.Content is null ? null : await request.Content.ReadAsStringAsync())));
 
-    private HttpResponseMessage Respond(HttpRequestMessage request)
+    private HttpResponseMessage Respond(HttpRequestMessage request, string? body)
     {
         var url = request.RequestUri!.AbsoluteUri;
         lock (_sent)
-            _sent.Add(new Sent(request.Method.Method, url, request.Headers.Authorization?.ToString()));
+            _sent.Add(new Sent(request.Method.Method, url, request.Headers.Authorization?.ToString(), body));
 
         if (url == "https://github.com/login/device/code")
             return Json("""{"device_code":"d","user_code":"WDJB-MJHT","verification_uri":"https://github.com/login/device","expires_in":900,"interval":5}""");
@@ -361,7 +364,8 @@ public sealed class GitHubPullRequestReviewsTests
         if (url == Api + "/user")
             return Json("""{"login":"octocat","id":1}""");
 
-        return _routes.TryGetValue(url, out var route) ? route() : Json("""{"message":"Not Found"}""", HttpStatusCode.NotFound);
+        var key = request.Method == HttpMethod.Get ? url : $"{request.Method.Method} {url}";
+        return _routes.TryGetValue(key, out var route) ? route() : Json("""{"message":"Not Found"}""", HttpStatusCode.NotFound);
     }
 
     private static HttpResponseMessage Json(string json, HttpStatusCode status = HttpStatusCode.OK) => new(status)
@@ -369,7 +373,7 @@ public sealed class GitHubPullRequestReviewsTests
         Content = new StringContent(json, Encoding.UTF8, "application/json"),
     };
 
-    private sealed record Sent(string Method, string Url, string? Authorization);
+    private sealed record Sent(string Method, string Url, string? Authorization, string? Body = null);
 
     /// <summary>Records each check of a pull request author and answers with <see cref="Result"/>.</summary>
     private sealed class FakeOwnership : IListingOwnershipCheck

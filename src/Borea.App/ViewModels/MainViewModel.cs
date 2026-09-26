@@ -364,6 +364,7 @@ public partial class MainViewModel : ViewModelBase
         StartGameBuildCheck();
         StartGameSettingsPresetLoad();
         await ReloadInstancesAsync();
+        StartCrashCheck();
         await RefreshContentIndexAtStartAsync();
         await LoadRecentItemsAsync();
         UpdateIndexRefreshStatus();

@@ -608,6 +608,7 @@ public partial class MainViewModel
 
             if (result.Started)
             {
+                StartCrashWatch(instance, result);
                 await RefreshLastPlayedAsync(instance.InstanceId);
                 StartModStoreCheckAfterGame(instance.InstanceId);
             }

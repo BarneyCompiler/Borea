@@ -2884,6 +2884,11 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string LaunchNoOutput => Resources.LaunchNoOutput;
 
+    public string LaunchGameCrashed => Resources.LaunchGameCrashed;
+
+    public string FormatLaunchGameCrashedBy(string mod)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchGameCrashedByFormat, mod);
+
     public string FormatLaunchStarting(string loader)
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchStartingFormat, loader);
 

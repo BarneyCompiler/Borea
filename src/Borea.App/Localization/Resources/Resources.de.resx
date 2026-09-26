@@ -3894,6 +3894,12 @@
   <data name="LaunchNoOutput" xml:space="preserve">
     <value>Der Loader hat vor dem Beenden nichts ausgegeben.</value>
   </data>
+  <data name="LaunchGameCrashed" xml:space="preserve">
+    <value>Das Spiel wurde unerwartet beendet</value>
+  </data>
+  <data name="LaunchGameCrashedByFormat" xml:space="preserve">
+    <value>Das Spiel wurde wegen eines Fehlers in {0} unerwartet beendet</value>
+  </data>
   <data name="ChooseGameSettingsPreset" xml:space="preserve">
     <value>Vorlage für Spieleinstellungen</value>
   </data>

@@ -1126,6 +1126,9 @@ public sealed partial class InstanceItem : ObservableObject
     private Task CopyModListAsync() => _owner.CopyModListAsync(InstanceId);
 
     [RelayCommand]
+    private Task MakePackAsync() => _owner.MakePackFromInstanceAsync(InstanceId);
+
+    [RelayCommand]
     private Task BackUpAllSavesAsync() => _owner.BackUpAllSavesAsync(this);
 
     [RelayCommand]

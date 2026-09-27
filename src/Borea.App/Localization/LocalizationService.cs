@@ -254,6 +254,11 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatToastCopyModListFailed(string instanceName)
         => string.Format(CultureInfo.CurrentCulture, Resources.ToastCopyModListFailedFormat, instanceName);
 
+    public string FormatToastMakePackFailed(string instanceName)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ToastMakePackFailedFormat, instanceName);
+
+    public string ToastMakePackNoIndex => Resources.ToastMakePackNoIndex;
+
     public string FormatToastBackUpFailed(string name)
         => string.Format(CultureInfo.CurrentCulture, Resources.ToastBackUpFailedFormat, name);
 
@@ -644,6 +649,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string LibraryExportModList => Resources.LibraryExportModList;
 
     public string LibraryCopyModList => Resources.LibraryCopyModList;
+
+    public string LibraryMakePack => Resources.LibraryMakePack;
 
     public string ModListDuplicateTitle => Resources.ModListDuplicateTitle;
 
@@ -1969,6 +1976,33 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatListingMemberUseNewer(string version)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberUseNewerFormat, version);
+
+    public string FormatListingLeftOut(string instanceName)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutFormat, instanceName);
+
+    public string FormatListingLeftOutNotInstalledByBorea(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutNotInstalledByBoreaFormat, id);
+
+    public string FormatListingLeftOutModLoader(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutModLoaderFormat, id, version);
+
+    public string FormatListingLeftOutModLoaderUnknownVersion(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutModLoaderUnknownVersionFormat, id);
+
+    public string FormatListingLeftOutDisabled(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutDisabledFormat, id, version);
+
+    public string FormatListingLeftOutNotListed(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutNotListedFormat, id, version);
+
+    public string FormatListingLeftOutYanked(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutYankedFormat, id, version);
+
+    public string FormatListingLeftOutDownloadGone(string id, string version, string date)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutDownloadGoneFormat, id, version, date);
+
+    public string FormatListingLeftOutReleaseNotListed(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingLeftOutReleaseNotListedFormat, id, version);
 
     public string FormatListingNextVersion(string id, string version)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingNextVersionFormat, id, version);

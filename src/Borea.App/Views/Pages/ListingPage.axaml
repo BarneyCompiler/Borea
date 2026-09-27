@@ -247,6 +247,21 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Classes="heading-md" Text="{Binding Localization.ListingMembers}" />
                                 <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingMembersHint}" TextWrapping="Wrap" />
+                                <StackPanel Spacing="4" IsVisible="{Binding ListingEditor.HasLeftOut}">
+                                    <TextBlock Classes="body-sm" Text="{Binding ListingEditor.LeftOutTitle}" TextWrapping="Wrap" />
+                                    <ItemsControl ItemsSource="{Binding ListingEditor.LeftOut}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Spacing="4" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock Classes="body-sm secondary" Text="{Binding}" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                                 <ItemsControl ItemsSource="{Binding ListingEditor.Members}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>

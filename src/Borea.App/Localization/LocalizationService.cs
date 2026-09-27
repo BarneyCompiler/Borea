@@ -607,6 +607,53 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string StewardMergeDraft => Resources.StewardMergeDraft;
 
+    public string StewardTabReports => Resources.StewardTabReports;
+
+    public string StewardReportsHint => Resources.StewardReportsHint;
+
+    public string StewardReportsLoading => Resources.StewardReportsLoading;
+
+    public string StewardReportsEmpty => Resources.StewardReportsEmpty;
+
+    public string StewardReportTakedown => Resources.StewardReportTakedown;
+
+    public string StewardReportDispute => Resources.StewardReportDispute;
+
+    public string FormatStewardReportBy(string author, string age)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReportByFormat, author, age);
+
+    public string FormatStewardReportUnreadableId(string text)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReportUnreadableIdFormat, text);
+
+    public string FormatStewardReportMissing(string section)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReportMissingFormat, section);
+
+    public string StewardReportGround => Resources.StewardReportGround;
+
+    public string StewardReportWhatIsWrong => Resources.StewardReportWhatIsWrong;
+
+    public string StewardReportReporter => Resources.StewardReportReporter;
+
+    public string StewardReportDisputed => Resources.StewardReportDisputed;
+
+    public string StewardReportForums => Resources.StewardReportForums;
+
+    public string StewardReportClaim => Resources.StewardReportClaim;
+
+    public string StewardReportOtherParty => Resources.StewardReportOtherParty;
+
+    public string StewardReportOpenForums => Resources.StewardReportOpenForums;
+
+    public string StewardReportAnswer => Resources.StewardReportAnswer;
+
+    public string StewardReporterWarning => Resources.StewardReporterWarning;
+
+    public string FormatStewardReportCloses(string number)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReportClosesFormat, number);
+
+    public string FormatStewardReportStaysOpen(string number)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReportStaysOpenFormat, number);
+
     public string StewardTabWatcher => Resources.StewardTabWatcher;
 
     public string StewardWatcherHint => Resources.StewardWatcherHint;

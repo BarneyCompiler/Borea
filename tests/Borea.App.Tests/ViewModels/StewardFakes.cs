@@ -28,6 +28,14 @@ internal sealed class FakeIndexStatusEditor : IIndexStatusEditor
 
     public TaskCompletionSource? HoldOpen { get; set; }
 
+    /// <summary>The ids that the signed-in steward owns.</summary>
+    public List<string> Owned { get; } = [];
+
+    /// <summary>The ids of each owner lookup.</summary>
+    public List<IReadOnlyList<string>> OwnedAsked { get; } = [];
+
+    public StewardException? OwnedFailure { get; set; }
+
     public void Merge(int number)
     {
         Pulls.RemoveAll(pull => pull.Number == number);
@@ -64,6 +72,14 @@ internal sealed class FakeIndexStatusEditor : IIndexStatusEditor
         var pull = new IndexStatusPullRequest(Opened.Count, new Uri($"https://github.com/KSAModding/content-index/pull/{Opened.Count}"), change.Title, "octocat", Conflicts: false);
         Pulls.Add(pull);
         return pull;
+    }
+
+    public Task<IReadOnlyList<string>> OwnedAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default)
+    {
+        OwnedAsked.Add([.. ids]);
+        return OwnedFailure is { } failure
+            ? Task.FromException<IReadOnlyList<string>>(failure)
+            : Task.FromResult<IReadOnlyList<string>>(ids.Where(id => Owned.Contains(id, StringComparer.OrdinalIgnoreCase)).ToList());
     }
 }
 
@@ -169,6 +185,35 @@ internal sealed class FakeWatcherIssues : IWatcherIssues
     {
         Reads++;
         return Task.FromResult(new WatcherIssues([.. Listings], [.. Watchdog], [.. Failures]));
+    }
+}
+
+/// <summary>Answers the Reports tab from its list and counts the reads.</summary>
+internal sealed class FakeIndexReports : IIndexReports
+{
+    public const string TakedownBody = "### Listing id\n\n{0}\n\n### Ground\n\nThe archive carries something harmful\n\n### What is wrong\n\nThe installer runs a script.\n\n### Who you are\n\nA player.";
+
+    public const string DisputeBody = "### Listing id\n\n{0}\n\n### What is disputed\n\nThe id is the folder name of my content, and somebody else listed it\n\n### Your forums thread\n\nhttps://forums.ahwoo.com/threads/measure-tools.123/\n\n### Your claim\n\nI announced it first.\n\n### The other party\n\n_No response_";
+
+    public List<IndexReport> Reports { get; } = [];
+
+    public StewardException? Failure { get; set; }
+
+    public int Reads { get; private set; }
+
+    public static IndexReport Takedown(int number, string listing, string author = "alice") =>
+        Report(number, $"[Takedown] {listing}", string.Format(System.Globalization.CultureInfo.InvariantCulture, TakedownBody, listing), author);
+
+    public static IndexReport Dispute(int number, string listing, string author = "bob") =>
+        Report(number, $"[Dispute] {listing}", string.Format(System.Globalization.CultureInfo.InvariantCulture, DisputeBody, listing), author);
+
+    public static IndexReport Report(int number, string title, string body, string author = "alice") =>
+        IndexReport.FromIssue(number, new Uri($"https://github.com/{IndexReport.Repository}/issues/{number}"), title, author, DateTimeOffset.UtcNow.AddDays(-2), body)!;
+
+    public Task<IReadOnlyList<IndexReport>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        Reads++;
+        return Failure is { } failure ? Task.FromException<IReadOnlyList<IndexReport>>(failure) : Task.FromResult<IReadOnlyList<IndexReport>>([.. Reports]);
     }
 }
 

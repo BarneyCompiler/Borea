@@ -18,6 +18,7 @@ public sealed class StewardViewsTests
     private readonly FakeIndexStatusEditor _editor = new();
     private readonly FakeStewardQueue _queue = new();
     private readonly FakeWatcherIssues _watcher = new();
+    private readonly FakeIndexReports _reports = new();
     private readonly FakePullRequestReviews _reviews = new();
     private readonly FakePullRequestActions _actions = new();
 
@@ -151,6 +152,90 @@ public sealed class StewardViewsTests
         Assert.Contains(viewModel.StewardWatcherFailureText(_watcher.Failures[0]), texts);
         Assert.DoesNotContain(harness.Localization.StewardWatcherListingsEmpty, texts);
         Assert.DoesNotContain(harness.Localization.StewardQueueHint, texts);
+    }
+
+    [Fact]
+    public async Task ReportsTab_ShowsEachReportWithItsSections_AndTheStatusActions()
+    {
+        _reports.Reports.Add(FakeIndexReports.Takedown(10, "MeasureTools", author: "octocat"));
+        _reports.Reports.Add(FakeIndexReports.Dispute(11, "GoneMod"));
+        _reports.Reports.Add(FakeIndexReports.Report(12, "[Takedown] by hand", "### Listing id\n\nthe flight mod of bob\n\n### What is wrong\n\nIt is broken."));
+        _editor.Owned.Add("MeasureTools");
+        using var harness = await CreateAsync();
+        var viewModel = harness.ViewModel;
+        viewModel.OpenStewardPageCommand.Execute(null);
+        await viewModel.StewardPage.Queue.WhenLoadedAsync();
+        await viewModel.StewardPage.ShowReportsCommand.ExecuteAsync(null);
+        var name = viewModel.DiscoverItems.First(item => item.ModId == "MeasureTools").Name;
+
+        var (texts, buttons) = await HeadlessApp.RunAsync(harness, () =>
+        {
+            var window = new Window { Width = 1280, Height = 832, Content = new StewardPageView(), DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                var shown = window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+                var visible = window.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible).Select(button => button.Content as string).ToList();
+                return Task.FromResult((shown, visible));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Contains(harness.Localization.StewardTabReports, buttons);
+        Assert.Contains(harness.Localization.StewardReportsHint, texts);
+        Assert.Contains(name, texts);
+        Assert.Contains("[Takedown] MeasureTools", texts);
+        Assert.Contains("Ground", texts);
+        Assert.Contains("The installer runs a script.", texts);
+        Assert.Contains(harness.Localization.StewardReporterWarning, texts);
+        Assert.Single(texts, text => text == harness.Localization.StewardOwnerWarning);
+        Assert.Contains("GoneMod", texts);
+        Assert.Contains(harness.Localization.StewardWatcherUnknownListing, texts);
+        Assert.Contains("I announced it first.", texts);
+        Assert.Contains("Borea cannot read an id in \"the flight mod of bob\", so the status actions are off.", texts);
+        Assert.Contains("The report has no section \"Ground\". Somebody changed its text by hand.", texts);
+        Assert.Equal(3, buttons.Count(button => button == harness.Localization.StewardReportAnswer));
+        Assert.Equal(1, buttons.Count(button => button == harness.Localization.StewardReportOpenForums));
+        Assert.Equal(2, buttons.Count(button => button == harness.Localization.StewardDelist));
+        Assert.DoesNotContain(harness.Localization.StewardRetract, buttons);
+        Assert.DoesNotContain(harness.Localization.StewardReportsEmpty, texts);
+        Assert.DoesNotContain(harness.Localization.StewardQueueHint, texts);
+    }
+
+    [Fact]
+    public async Task IndexStatusModal_FromAReport_SaysThatItsMergeClosesTheReport()
+    {
+        _reports.Reports.Add(FakeIndexReports.Takedown(10, "MeasureTools", author: "octocat"));
+        using var harness = await CreateAsync();
+        var viewModel = harness.ViewModel;
+        viewModel.OpenStewardPageCommand.Execute(null);
+        await viewModel.StewardPage.ShowReportsCommand.ExecuteAsync(null);
+        viewModel.StewardPage.Reports.Reports[0].DelistCommand.Execute(null);
+        await viewModel.StewardChange!.WhenDoneAsync();
+
+        var texts = await HeadlessApp.RunAsync(harness, () =>
+        {
+            var modal = new IndexStatusModal();
+            var window = new Window { Width = 1280, Height = 832, Content = modal, DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                return Task.FromResult(modal.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList());
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Contains("Delist MeasureTools", texts);
+        Assert.Contains("The pull request says Closes #10, so its merge closes report #10.", texts);
+        Assert.Contains(harness.Localization.StewardReporterWarning, texts);
     }
 
     [Fact]
@@ -343,7 +428,7 @@ public sealed class StewardViewsTests
     private async Task<ViewModelHarness> CreateAsync()
     {
         _session.SignInDirectly();
-        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher, pullRequestReviews: _reviews, pullRequestActions: _actions);
+        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue, watcherIssues: _watcher, pullRequestReviews: _reviews, pullRequestActions: _actions, indexReports: _reports);
         await harness.ViewModel.WhenStewardRoleCheckedAsync();
         return harness;
     }

@@ -93,6 +93,31 @@ public sealed partial class GitHubIndexStatusEditorTests
     }
 
     [Fact]
+    public async Task OwnedAsync_NamesTheIdsTheStewardOwns_AtOneCommit_AndWritesNothing()
+    {
+        _index.Main["packs/mine-pack/1.0.0.toml"] = "id = \"mine-pack\"\nversion = \"1.0.0\"\n";
+        _index.Main["packs/mine-pack/owner.json"] = """{ "github_login": "octocat-before-rename", "github_id": 1 }""";
+        var editor = await SignedInAsync();
+
+        var owned = await editor.OwnedAsync(["mine", "MyMod", "my-pack", "mine-pack", "Missing", "MINE"]);
+
+        Assert.Equal(["mine", "mine-pack"], owned);
+        Assert.Single(_sent, sent => sent.Url == Upstream + "/git/ref/heads/main");
+        Assert.All(_sent, sent => Assert.Equal("GET", sent.Method));
+    }
+
+    [Fact]
+    public async Task OwnedAsync_SignedOut_IsRefusedBeforeAnyRequest()
+    {
+        var editor = Editor(new GitHubSession(Http(), "Iv1.testclient", "borea-test", new FixedTime(Now)));
+
+        var failure = await Assert.ThrowsAsync<StewardException>(() => editor.OwnedAsync(["Mine"]));
+
+        Assert.Equal(StewardFailure.SignedOut, failure.Failure);
+        Assert.Empty(_sent);
+    }
+
+    [Fact]
     public async Task OpenAsync_PackOfSomebodyElse_MentionsTheOwnerOfItsRecord()
     {
         var editor = await SignedInAsync();

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Borea.Core.GitHub;
 using Borea.Core.Stewardship;
 
@@ -29,7 +28,7 @@ public sealed class GitHubWatcherIssues : IWatcherIssues
         var watchdog = ReadAsync(
             WatcherIssues.WatchdogRepository,
             null,
-            issue => issue.User?.Type == "Bot" && issue.Body?.Contains(WatcherIssues.WatchdogMarker, StringComparison.Ordinal) == true,
+            issue => issue.AuthorType == "Bot" && issue.Body?.Contains(WatcherIssues.WatchdogMarker, StringComparison.Ordinal) == true,
             cancellationToken);
 
         var (listingIssues, listingFailure) = await listings.ConfigureAwait(false);
@@ -41,23 +40,16 @@ public sealed class GitHubWatcherIssues : IWatcherIssues
     private async Task<(IReadOnlyList<WatcherIssue> Issues, WatcherIssuesFailure? Failure)> ReadAsync(
         string repository,
         string? query,
-        Func<IssueDto, bool> keep,
+        Func<GitHubIssue, bool> keep,
         CancellationToken cancellationToken)
     {
         try
         {
             var issues = new List<WatcherIssue>();
-            var url = $"{GitHubApi.Root}/repos/{repository}/issues?state=open&sort=created&direction=asc" + (query is null ? string.Empty : "&" + query);
-            await foreach (var issue in _api.GetPagesAsync<IssueDto>(url, cancellationToken, anonymous: true).ConfigureAwait(false))
+            await foreach (var issue in _api.GetOpenIssuesAsync(repository, query, cancellationToken).ConfigureAwait(false))
             {
-                // the issues endpoint lists the pull requests too
-                if (issue.PullRequest is not null || !keep(issue))
-                    continue;
-
-                if (!Uri.TryCreate(issue.HtmlUrl, UriKind.Absolute, out var link) || link.Scheme != Uri.UriSchemeHttps || issue.Number <= 0)
-                    throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse);
-
-                issues.Add(new WatcherIssue(repository, issue.Number, link, issue.Title, issue.UpdatedAt, WatcherIssues.ListingOf(issue.Body)));
+                if (keep(issue))
+                    issues.Add(new WatcherIssue(repository, issue.Number, issue.Url, issue.Title, issue.Updated, WatcherIssues.ListingOf(issue.Body)));
             }
 
             return (issues, null);
@@ -66,27 +58,5 @@ public sealed class GitHubWatcherIssues : IWatcherIssues
         {
             return ([], new WatcherIssuesFailure(repository, exception.ToStewardException()));
         }
-    }
-
-    private sealed class IssueDto
-    {
-        public int Number { get; set; }
-
-        public string Title { get; set; } = string.Empty;
-
-        public string HtmlUrl { get; set; } = string.Empty;
-
-        public string? Body { get; set; }
-
-        public DateTimeOffset UpdatedAt { get; set; }
-
-        public UserDto? User { get; set; }
-
-        public JsonElement? PullRequest { get; set; }
-    }
-
-    private sealed class UserDto
-    {
-        public string? Type { get; set; }
     }
 }

@@ -33,6 +33,7 @@
                     <Border Background="{StaticResource Brush.SurfaceHeader}" CornerRadius="100" Padding="6" Margin="0,24,0,0" HorizontalAlignment="Left">
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <Button Classes="tab quiet" Classes.active="{Binding IsQueueTab}" Content="{Binding QueueTabText}" Command="{Binding ShowQueueCommand}" />
+                            <Button Classes="tab quiet" Classes.active="{Binding IsReportsTab}" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardTabReports}" Command="{Binding ShowReportsCommand}" />
                             <Button Classes="tab quiet" Classes.active="{Binding IsStatusTab}" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardTabStatus}" Command="{Binding ShowStatusCommand}" />
                             <Button Classes="tab quiet" Classes.active="{Binding IsWatcherTab}" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardTabWatcher}" Command="{Binding ShowWatcherCommand}" />
                         </StackPanel>
@@ -120,6 +121,94 @@
                                                     </Border>
                                                 </WrapPanel>
                                                 <TextBlock Classes="body-md secondary" Classes.muted="{Binding !HasVerdict}" Text="{Binding VerdictText}" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Panel>
+
+                    <!-- Reports: the open takedown and id dispute reports of content-index, oldest first, with the sections of their forms -->
+                    <Panel IsVisible="{Binding IsReportsTab}">
+                        <StackPanel DataContext="{Binding Reports}" x:DataType="vm:StewardReportsTab">
+                            <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReportsHint}" TextWrapping="Wrap" Margin="0,16,0,0" />
+                            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,16,0,0" IsVisible="{Binding IsLoading}">
+                                <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                                <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReportsLoading}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Classes="body-md danger" Text="{Binding Error}" TextWrapping="Wrap" Margin="0,16,0,0" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Classes="body-md muted" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReportsEmpty}" Margin="0,16,0,0" IsVisible="{Binding IsEmpty}" />
+
+                            <ItemsControl ItemsSource="{Binding Reports}" Margin="0,16,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StewardReport">
+                                        <Border Classes="card" Padding="24,16">
+                                            <StackPanel Spacing="6">
+                                                <!-- the id that the report names, which opens its content page when the index has it -->
+                                                <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                                    <Border Classes="chip" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding KindText}" />
+                                                    </Border>
+                                                    <Button Classes="link" Command="{Binding OpenContentCommand}" IsVisible="{Binding CanOpenContent}">
+                                                        <TextBlock Classes="heading-md" Text="{Binding ContentName}" />
+                                                    </Button>
+                                                    <TextBlock Classes="heading-md" Text="{Binding Report.Id}" VerticalAlignment="Center" IsVisible="{Binding IsIdUnknown}" />
+                                                    <TextBlock Classes="body-sm secondary" Text="{Binding VersionText}" VerticalAlignment="Center" IsVisible="{Binding HasVersion}" />
+                                                    <TextBlock Classes="body-sm muted" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardWatcherUnknownListing}" VerticalAlignment="Center" IsVisible="{Binding IsIdUnknown}" />
+                                                </WrapPanel>
+                                                <TextBlock Classes="body-md danger" Text="{Binding UnreadableIdText}" TextWrapping="Wrap" IsVisible="{Binding UnreadableIdText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                                    <TextBlock Classes="body-sm secondary" Text="{Binding NumberText}" VerticalAlignment="Center" />
+                                                    <Button Classes="link" Command="{Binding AnswerCommand}" ToolTip.Tip="{Binding Report.Url}">
+                                                        <TextBlock Classes="action-md" Text="{Binding Report.Title}" TextWrapping="Wrap" />
+                                                    </Button>
+                                                </WrapPanel>
+                                                <TextBlock Classes="body-sm secondary" Text="{Binding ByText}" TextWrapping="Wrap" />
+                                                <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReporterWarning}" TextWrapping="Wrap" IsVisible="{Binding IsReporter}" />
+                                                <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardOwnerWarning}" TextWrapping="Wrap" IsVisible="{Binding IsOwner}" />
+
+                                                <!-- the sections of the form, as the reporter wrote them -->
+                                                <ItemsControl ItemsSource="{Binding Sections}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Spacing="8" Margin="0,6,0,0" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:StewardReportSection">
+                                                            <StackPanel Spacing="2">
+                                                                <TextBlock Classes="label-md secondary" Text="{Binding Label}" />
+                                                                <SelectableTextBlock Classes="body-md" Text="{Binding Text}" TextWrapping="Wrap" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <ItemsControl ItemsSource="{Binding MissingTexts}" IsVisible="{Binding !!MissingTexts.Count}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="x:String">
+                                                            <TextBlock Classes="body-sm muted" Text="{Binding}" TextWrapping="Wrap" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <!-- Answer on GitHub for everyone, the status actions for a steward of content-index -->
+                                                <WrapPanel ItemSpacing="8" LineSpacing="4" Margin="0,6,0,0">
+                                                    <Button Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReportAnswer}" Command="{Binding AnswerCommand}" />
+                                                    <Button Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReportOpenForums}" Command="{Binding OpenForumsCommand}" IsVisible="{Binding CanOpenForums}" />
+                                                    <WrapPanel ItemSpacing="8" LineSpacing="4" IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).CanEditIndexStatus}">
+                                                        <WrapPanel ItemSpacing="8" LineSpacing="4" IsVisible="{Binding HasId}">
+                                                            <Button Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardDispute}" Command="{Binding DisputeCommand}" />
+                                                            <Button Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardDelist}" Command="{Binding DelistCommand}" />
+                                                            <Button Classes="text" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardRetract}" Command="{Binding RetractCommand}" IsVisible="{Binding HasVersion}" />
+                                                        </WrapPanel>
+                                                    </WrapPanel>
+                                                </WrapPanel>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>

@@ -18,6 +18,8 @@
                 <StackPanel Margin="36,32,24,32" Spacing="16">
                     <TextBlock Classes="body-md" Text="{Binding Effect}" TextWrapping="Wrap" />
                     <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardPullRequestExplanation}" TextWrapping="Wrap" />
+                    <TextBlock Classes="body-md secondary" Text="{Binding ReportText}" TextWrapping="Wrap" IsVisible="{Binding ReportText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Classes="body-md" Text="{Binding ReporterText}" TextWrapping="Wrap" IsVisible="{Binding ReporterText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     <StackPanel Spacing="6" IsVisible="{Binding !IsOpened}">
                         <TextBlock Classes="heading-md heading" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReason}" />
                         <TextBlock Classes="body-sm secondary" Text="{Binding ReasonHint}" TextWrapping="Wrap" />

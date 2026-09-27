@@ -21,6 +21,13 @@ public interface IIndexStatusEditor
     /// <exception cref="IndexStatusRefusedException">The checks of content-index would refuse the change. Nothing was written.</exception>
     /// <exception cref="StewardException">A request failed.</exception>
     Task<IndexStatusPullRequest> OpenAsync(IndexStatusChange change, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The ids of <paramref name="ids"/> that the signed-in account owns, read at one commit of the base branch, so a steward sees
+    /// that they are a party to a report before they answer it. An id that is in no document, or whose owner cannot be read, is left out.
+    /// </summary>
+    /// <exception cref="StewardException">The account is signed out, or GitHub could not be read.</exception>
+    Task<IReadOnlyList<string>> OwnedAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default);
 }
 
 public sealed record IndexStatusOverview(IReadOnlyList<IndexStatusEntry> Entries, IReadOnlyList<IndexStatusPullRequest> OpenPullRequests);

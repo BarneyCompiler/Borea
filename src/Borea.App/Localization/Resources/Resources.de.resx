@@ -495,6 +495,69 @@
   <data name="StewardMergeDraft" xml:space="preserve">
     <value>Einen Entwurf kann Borea nicht mergen.</value>
   </data>
+  <data name="StewardTabReports" xml:space="preserve">
+    <value>Meldungen</value>
+  </data>
+  <data name="StewardReportsHint" xml:space="preserve">
+    <value>Takedown-Anfragen und ID-Streitfälle, die Leute mit den Formularen von KSAModding/content-index einreichen, die ältesten zuerst. Borea liest sie ohne deine Anmeldung, daher beantwortest du eine Meldung auf GitHub, schließt sie dort oder öffnest sie wieder.</value>
+  </data>
+  <data name="StewardReportsLoading" xml:space="preserve">
+    <value>Lese die Meldungen von GitHub...</value>
+  </data>
+  <data name="StewardReportsEmpty" xml:space="preserve">
+    <value>Keine Takedown-Anfrage und kein ID-Streitfall ist offen.</value>
+  </data>
+  <data name="StewardReportTakedown" xml:space="preserve">
+    <value>Takedown</value>
+  </data>
+  <data name="StewardReportDispute" xml:space="preserve">
+    <value>ID-Streitfall</value>
+  </data>
+  <data name="StewardReportByFormat" xml:space="preserve">
+    <value>eingereicht von {0}, {1}</value>
+  </data>
+  <data name="StewardReportUnreadableIdFormat" xml:space="preserve">
+    <value>Borea kann in "{0}" keine ID lesen, daher sind die Status-Aktionen aus.</value>
+  </data>
+  <data name="StewardReportMissingFormat" xml:space="preserve">
+    <value>Der Meldung fehlt der Abschnitt "{0}". Jemand hat ihren Text von Hand geändert.</value>
+  </data>
+  <data name="StewardReportGround" xml:space="preserve">
+    <value>Anlass</value>
+  </data>
+  <data name="StewardReportWhatIsWrong" xml:space="preserve">
+    <value>Was falsch ist</value>
+  </data>
+  <data name="StewardReportReporter" xml:space="preserve">
+    <value>Wer meldet</value>
+  </data>
+  <data name="StewardReportDisputed" xml:space="preserve">
+    <value>Was strittig ist</value>
+  </data>
+  <data name="StewardReportForums" xml:space="preserve">
+    <value>Forenthread der meldenden Person</value>
+  </data>
+  <data name="StewardReportClaim" xml:space="preserve">
+    <value>Anspruch</value>
+  </data>
+  <data name="StewardReportOtherParty" xml:space="preserve">
+    <value>Die andere Partei</value>
+  </data>
+  <data name="StewardReportOpenForums" xml:space="preserve">
+    <value>Forenthread öffnen</value>
+  </data>
+  <data name="StewardReportAnswer" xml:space="preserve">
+    <value>Auf GitHub antworten</value>
+  </data>
+  <data name="StewardReporterWarning" xml:space="preserve">
+    <value>Du hast diese Meldung eingereicht. POLICY.md bittet einen Steward, der an einem Fall beteiligt ist, ihn einem anderen Steward zu überlassen.</value>
+  </data>
+  <data name="StewardReportClosesFormat" xml:space="preserve">
+    <value>Der Pull Request enthält Closes #{0}, also schließt sein Merge die Meldung #{0}.</value>
+  </data>
+  <data name="StewardReportStaysOpenFormat" xml:space="preserve">
+    <value>Der Pull Request nennt die Meldung #{0}, die offen bleibt, bis ein Steward entscheidet.</value>
+  </data>
   <data name="StewardTabWatcher" xml:space="preserve">
     <value>Watcher</value>
   </data>
@@ -631,7 +694,7 @@
     <value>Borea konnte nicht prüfen, ob ein anderer offener Pull Request index-status.toml ändert.</value>
   </data>
   <data name="StewardOwnerWarning" xml:space="preserve">
-    <value>Das gehört dir. POLICY.md bittet einen Steward, der an einem Streitfall beteiligt ist, ihn einem anderen Steward zu überlassen.</value>
+    <value>Das gehört dir. POLICY.md bittet einen Steward, der an einem Takedown oder einem Streitfall beteiligt ist, ihn einem anderen Steward zu überlassen.</value>
   </data>
   <data name="StewardOwnerOwnRequest" xml:space="preserve">
     <value>Das gehört dir, also ist es deine eigene Anfrage, die ein Steward laut POLICY.md ausführen darf.</value>

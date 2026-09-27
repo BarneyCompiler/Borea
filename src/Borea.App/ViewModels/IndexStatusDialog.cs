@@ -15,13 +15,16 @@ public sealed partial class IndexStatusDialog : ObservableObject
 {
     private readonly MainViewModel _owner;
     private readonly IndexStatusChange _change;
+    private readonly IndexReport? _report;
     private Task _run = Task.CompletedTask;
     private IndexStatusRefusal? _refused;
 
-    public IndexStatusDialog(MainViewModel owner, IndexStatusChange change)
+    /// <param name="report">The report that the change answers, which <paramref name="change"/> names, or null.</param>
+    public IndexStatusDialog(MainViewModel owner, IndexStatusChange change, IndexReport? report = null)
     {
         _owner = owner;
         _change = change;
+        _report = report;
     }
 
     internal IndexStatusChange Change => _change with { Reason = Reason };
@@ -96,10 +99,22 @@ public sealed partial class IndexStatusDialog : ObservableObject
         { OpenPullRequests: { } open } => _owner.Localization.FormatStewardOpenPullRequests(string.Join(", ", open.Select(pull => "#" + pull.Number.ToString(CultureInfo.InvariantCulture)))),
     };
 
-    /// <summary>A steward who is a party to a dispute leaves it to another steward, but delists or retracts their own content on their own request (POLICY.md).</summary>
+    /// <summary>
+    /// A steward who is a party to a takedown or a dispute leaves it to another steward, and a report against their own content
+    /// makes them one. Without a report they delist or retract their own content on their own request (POLICY.md).
+    /// </summary>
     public string? OwnerText => Check?.IsOwner != true ? null
-        : _change.State == IndexStatusEntry.Disputed ? _owner.Localization.StewardOwnerWarning
+        : _change.Report is not null || _change.State == IndexStatusEntry.Disputed ? _owner.Localization.StewardOwnerWarning
         : _owner.Localization.StewardOwnerOwnRequest;
+
+    /// <summary>What the pull request does with the report that the change answers.</summary>
+    public string? ReportText => _change.Report is { } number
+        ? _change.ClosesReport
+            ? _owner.Localization.FormatStewardReportCloses(number.ToString(CultureInfo.InvariantCulture))
+            : _owner.Localization.FormatStewardReportStaysOpen(number.ToString(CultureInfo.InvariantCulture))
+        : null;
+
+    public string? ReporterText => _report is { } report && _owner.IsReporter(report) ? _owner.Localization.StewardReporterWarning : null;
 
     public string? MentionText => Check is { Owners.Count: > 0 } check
         ? _owner.Localization.FormatStewardMention(string.Join(", ", check.Owners.Select(login => "@" + login)))

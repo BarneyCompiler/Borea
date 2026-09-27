@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Borea.Core.GitHub;
+using Borea.Core.Secrets;
 using Borea.Core.Stewardship;
 
 namespace Borea.App.Tests.ViewModels;
@@ -238,13 +239,25 @@ internal sealed class StewardSession : IGitHubSession
 
     public event EventHandler? StateChanged;
 
+    public bool KeepSignedIn { get; set; }
+
+    public SecretStoreProblem? KeepSignedInProblem => null;
+
+    public event EventHandler? KeepSignedInProblemChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public Task<GitHubResumeOutcome> ResumeAsync(CancellationToken cancellationToken = default) => Task.FromResult(GitHubResumeOutcome.NothingKept);
+
     public void SignInDirectly()
     {
         State = GitHubSessionState.SignedInAs("octocat");
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, CancellationToken cancellationToken = default)
+    public Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, bool keepSignedIn = true, CancellationToken cancellationToken = default)
     {
         SignInDirectly();
         return Task.FromResult(new GitHubSignInResult(GitHubSignInOutcome.SignedIn, "octocat"));

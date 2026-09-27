@@ -113,6 +113,15 @@ public sealed class BoreaServicesTests : IDisposable
     }
 
     [Fact]
+    public async Task BuildAsync_ProcessSession_CanKeepItsSignInAndLeavesKeepingToTheApp()
+    {
+        using var services = await BoreaServices.BuildAsync(_tempRoot);
+
+        Assert.Null(services.GitHub.KeepSignedInProblem);
+        Assert.False(services.GitHub.KeepSignedIn);
+    }
+
+    [Fact]
     public async Task BuildAsync_SavedLibraryFolder_RootsOnlyInstancesAndBackupsThere()
     {
         var library = Path.Combine(_tempRoot, "Library");

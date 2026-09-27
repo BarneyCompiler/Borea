@@ -59,6 +59,9 @@ internal sealed class AppPreferencesDocumentDto
     /// <summary>The revision of the game build whose untested-build banner was closed. A value below zero reads as null.</summary>
     public int? DismissedUntestedGameRevision { get; set; }
 
+    /// <summary>Null in an older file, which reads as on.</summary>
+    public bool? StaySignedInToGitHub { get; set; }
+
     public List<CustomThemePreferenceDto?>? CustomThemes { get; set; }
 }
 

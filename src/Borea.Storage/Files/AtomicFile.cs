@@ -50,6 +50,24 @@ internal static class AtomicFile
         }
     }
 
+    public static void WriteAllBytes(string path, byte[] content)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+
+        var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllBytes(tempPath, content);
+            File.Move(tempPath, path, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteLeftover(tempPath);
+        }
+    }
+
     /// <summary>
     /// Clears the temporary file without replacing the error that caused it.
     /// </summary>

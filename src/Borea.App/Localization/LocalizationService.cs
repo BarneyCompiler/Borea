@@ -809,6 +809,18 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string SettingsGitHubManageAccess => Resources.SettingsGitHubManageAccess;
 
+    public string SettingsGitHubStaySignedIn => Resources.SettingsGitHubStaySignedIn;
+
+    public string SettingsGitHubStaySignedInHint => Resources.SettingsGitHubStaySignedInHint;
+
+    public string SettingsGitHubResuming => Resources.SettingsGitHubResuming;
+
+    public string SettingsGitHubKeepUnsupported => Resources.SettingsGitHubKeepUnsupported;
+
+    public string SettingsGitHubKeepMissing => Resources.SettingsGitHubKeepMissing;
+
+    public string SettingsGitHubKeepRefused => Resources.SettingsGitHubKeepRefused;
+
     public string GitHubSignInTitle => Resources.GitHubSignInTitle;
 
     public string GitHubSignInHint => Resources.GitHubSignInHint;

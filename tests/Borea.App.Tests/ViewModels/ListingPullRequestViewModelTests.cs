@@ -3,6 +3,7 @@ using Borea.App.ViewModels;
 using Borea.Core.GitHub;
 using Borea.Core.Index;
 using Borea.Core.Listings;
+using Borea.Core.Secrets;
 
 namespace Borea.App.Tests.ViewModels;
 
@@ -873,7 +874,19 @@ public sealed class ListingPullRequestViewModelTests
 
         public event EventHandler? StateChanged;
 
-        public Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, CancellationToken cancellationToken = default)
+        public bool KeepSignedIn { get; set; }
+
+        public SecretStoreProblem? KeepSignedInProblem => null;
+
+        public event EventHandler? KeepSignedInProblemChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<GitHubResumeOutcome> ResumeAsync(CancellationToken cancellationToken = default) => Task.FromResult(GitHubResumeOutcome.NothingKept);
+
+        public Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, bool keepSignedIn = true, CancellationToken cancellationToken = default)
         {
             if (Outcome != GitHubSignInOutcome.SignedIn)
                 return Task.FromResult(new GitHubSignInResult(Outcome));

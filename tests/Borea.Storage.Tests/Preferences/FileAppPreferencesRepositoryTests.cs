@@ -794,6 +794,43 @@ public sealed class FileAppPreferencesRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveThenGet_StaySignedInToGitHubOff_RestoresIt()
+    {
+        await _repository.SaveAsync(AppPreferences.Empty.WithStaySignedInToGitHub(false), BundledThemeNames);
+
+        var result = await _repository.GetAsync(BundledThemeNames);
+
+        Assert.False(result.Preferences.StaySignedInToGitHub);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(""", "staySignedInToGitHub": null""")]
+    public async Task GetAsync_NoStaySignedInToGitHub_ReadsAsOn(string fields)
+    {
+        await WriteAsync($$"""
+            { "formatVersion": 1, "selectedTheme": "Light"{{fields}} }
+            """);
+
+        var result = await _repository.GetAsync(BundledThemeNames);
+
+        Assert.True(result.Preferences.StaySignedInToGitHub);
+    }
+
+    [Fact]
+    public void With_OtherPreferenceChanges_KeepStaySignedInToGitHub()
+    {
+        var preferences = AppPreferences.Empty.WithStaySignedInToGitHub(false)
+            .WithSelectedThemeName("Light")
+            .WithMarkUntranslatedTexts(true)
+            .WithDismissedUntestedGameRevision(5482)
+            .WithOpenBoreaLinks(false);
+
+        Assert.False(preferences.StaySignedInToGitHub);
+        Assert.True(AppPreferences.Empty.StaySignedInToGitHub);
+    }
+
+    [Fact]
     public void With_OtherPreferenceChanges_KeepOpenBoreaLinks()
     {
         var preferences = AppPreferences.Empty.WithOpenBoreaLinks(false)

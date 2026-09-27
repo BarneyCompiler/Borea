@@ -45,6 +45,7 @@ using Borea.Storage.ModPacks;
 using Borea.Storage.Mods;
 using Borea.Storage.Paths;
 using Borea.Storage.Preferences;
+using Borea.Storage.Secrets;
 using Borea.Storage.Settings;
 using Borea.Storage.State;
 using Borea.Storage.Updates;
@@ -273,12 +274,14 @@ public sealed class BoreaServices : IDisposable
     /// The GitHub session of this process, on a client of its own, so a graph rebuilt
     /// after a settings change keeps the user signed in. The client does not follow
     /// redirects, because a followed redirect drops the token, so a moved repository
-    /// comes back as its 3xx answer.
+    /// comes back as its 3xx answer. It keeps a sign-in in the secret store of the system,
+    /// under the default root, because the session outlives the graph and its root.
     /// </summary>
     private static readonly Lazy<GitHubSession> ProcessGitHub = new(() => new GitHubSession(
         BuildHttpClient(new SocketsHttpHandler { PooledConnectionLifetime = ConnectionLifetime, AllowAutoRedirect = false }),
         BoreaGitHubApp.ClientId,
-        BoreaGitHubApp.Slug));
+        BoreaGitHubApp.Slug,
+        secrets: SecretStores.ForCurrentUser(new GamePathProvider(gameDirectory: null))));
 
     private BoreaServices(HttpClient http)
     {

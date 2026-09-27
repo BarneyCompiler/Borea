@@ -3,12 +3,14 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Borea.Core.GitHub;
+using Borea.Core.Secrets;
 
 namespace Borea.Network.GitHub;
 
 /// <summary>
 /// IGitHubSession through the device flow of <see cref="BoreaGitHubApp"/>,
-/// which needs no client secret and no server.
+/// which needs no client secret and no server, not even to refresh a user token.
+/// Every call to the secret store runs on the thread pool, one after another in the order of the changes that caused them.
 /// </summary>
 public sealed class GitHubSession : IGitHubSession
 {
@@ -24,6 +26,10 @@ public sealed class GitHubSession : IGitHubSession
 
     private const string DeviceCodeGrantType = "urn:ietf:params:oauth:grant-type:device_code";
 
+    private const string RefreshTokenGrantType = "refresh_token";
+
+    internal const string RefreshTokenSecret = "github-refresh-token";
+
     private static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(5);
 
     private static readonly TimeSpan DefaultLifetime = TimeSpan.FromMinutes(15);
@@ -36,18 +42,26 @@ public sealed class GitHubSession : IGitHubSession
     private readonly string _clientId;
     private readonly string _slug;
     private readonly TimeProvider _time;
+    private readonly ISecretStore? _secrets;
     private readonly object _gate = new();
     private GitHubSessionState _state = GitHubSessionState.SignedOut;
     private string? _token;
+    private string? _refreshToken;
     private long? _userId;
     private CancellationTokenSource? _signIn;
+    private bool? _keepSignedIn;
+    private SecretStoreProblem? _secretProblem;
+    private Task _secretWork = Task.CompletedTask;
 
-    public GitHubSession(HttpClient httpClient, string clientId, string slug, TimeProvider? time = null)
+    /// <param name="secrets">Keeps the refresh token between starts. Null keeps every session in memory only.</param>
+    public GitHubSession(HttpClient httpClient, string clientId, string slug, TimeProvider? time = null, ISecretStore? secrets = null)
     {
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _clientId = clientId ?? throw new ArgumentNullException(nameof(clientId));
         _slug = slug ?? throw new ArgumentNullException(nameof(slug));
         _time = time ?? TimeProvider.System;
+        _secrets = secrets;
+        _secretProblem = secrets is null ? SecretStoreProblem.Unsupported : null;
     }
 
     public bool IsAvailable => _clientId.Length > 0 && _slug.Length > 0;
@@ -86,7 +100,48 @@ public sealed class GitHubSession : IGitHubSession
 
     public event EventHandler? StateChanged;
 
-    public async Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, CancellationToken cancellationToken = default)
+    public event EventHandler? KeepSignedInProblemChanged;
+
+    public bool KeepSignedIn
+    {
+        get
+        {
+            lock (_gate)
+                return _keepSignedIn == true;
+        }
+        set
+        {
+            lock (_gate)
+            {
+                if (_keepSignedIn == value)
+                    return;
+
+                _keepSignedIn = value;
+                if (!value)
+                    QueueSecret(secrets => secrets.Delete(RefreshTokenSecret));
+                else if (_state.Status == GitHubSessionStatus.SignedIn)
+                    KeepRefreshToken(_refreshToken);
+            }
+        }
+    }
+
+    public SecretStoreProblem? KeepSignedInProblem
+    {
+        get
+        {
+            lock (_gate)
+                return _secretProblem;
+        }
+    }
+
+    /// <summary>Completes when every secret store call queued so far has run.</summary>
+    internal Task WhenSecretsStoredAsync()
+    {
+        lock (_gate)
+            return _secretWork;
+    }
+
+    public async Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, bool keepSignedIn = true, CancellationToken cancellationToken = default)
     {
         if (!IsAvailable)
             throw new InvalidOperationException("This build of Borea has no GitHub App to sign in with.");
@@ -108,7 +163,42 @@ public sealed class GitHubSession : IGitHubSession
 
         try
         {
-            return await RunSignInAsync(run, progress).ConfigureAwait(false);
+            return await RunSignInAsync(run, progress, keepSignedIn).ConfigureAwait(false);
+        }
+        finally
+        {
+            EndSignIn(run);
+            run.Dispose();
+        }
+    }
+
+    public async Task<GitHubResumeOutcome> ResumeAsync(CancellationToken cancellationToken = default)
+    {
+        var run = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lock (_gate)
+        {
+            if (!IsAvailable || _keepSignedIn != true || _secrets is null || _signIn is not null || _state.Status != GitHubSessionStatus.SignedOut)
+            {
+                run.Dispose();
+                return GitHubResumeOutcome.NothingKept;
+            }
+
+            _signIn = run;
+        }
+
+        try
+        {
+            if (await ReadSecretAsync().ConfigureAwait(false) is not { Length: > 0 } kept)
+                return GitHubResumeOutcome.NothingKept;
+
+            lock (_gate)
+            {
+                ThrowIfStopped(run);
+                _state = GitHubSessionState.Resuming;
+            }
+
+            OnStateChanged();
+            return await RefreshAsync(run, kept).ConfigureAwait(false);
         }
         finally
         {
@@ -127,8 +217,12 @@ public sealed class GitHubSession : IGitHubSession
             _signIn = null;
             changed = _state.Status != GitHubSessionStatus.SignedOut;
             _token = null;
+            _refreshToken = null;
             _userId = null;
             _state = GitHubSessionState.SignedOut;
+
+            // also while staying signed in is off, because turning it off may have failed to delete
+            QueueSecret(secrets => secrets.Delete(RefreshTokenSecret));
         }
 
         try
@@ -164,7 +258,7 @@ public sealed class GitHubSession : IGitHubSession
         return response;
     }
 
-    private async Task<GitHubSignInResult> RunSignInAsync(CancellationTokenSource run, IProgress<GitHubDeviceCode>? progress)
+    private async Task<GitHubSignInResult> RunSignInAsync(CancellationTokenSource run, IProgress<GitHubDeviceCode>? progress, bool keepSignedIn)
     {
         var cancellationToken = run.Token;
         var deviceReply = await PostFormAsync(DeviceCodeUrl, [new("client_id", _clientId)], cancellationToken).ConfigureAwait(false);
@@ -200,7 +294,7 @@ public sealed class GitHubSession : IGitHubSession
             var reply = await PostFormAsync(AccessTokenUrl, poll, cancellationToken).ConfigureAwait(false);
             var answer = reply is null ? null : Parse<AccessTokenDto>(reply.Body);
             if (answer?.AccessToken is { Length: > 0 } token)
-                return await CompleteAsync(run, token).ConfigureAwait(false);
+                return await CompleteAsync(run, token, keepSignedIn ? answer.RefreshToken : null).ConfigureAwait(false);
 
             // The user may still be typing the code, so a lost or garbled poll is tried again.
             if (answer?.Error is null)
@@ -227,31 +321,173 @@ public sealed class GitHubSession : IGitHubSession
         }
     }
 
-    private async Task<GitHubSignInResult> CompleteAsync(CancellationTokenSource run, string token)
+    private async Task<GitHubSignInResult> CompleteAsync(CancellationTokenSource run, string token, string? refreshToken)
     {
-        var cancellationToken = run.Token;
-        using var request = new HttpRequestMessage(HttpMethod.Get, UserUrl);
-        AddApiHeaders(request, token);
-        var reply = await FetchAsync(request, cancellationToken).ConfigureAwait(false);
+        var (user, reply) = await FetchUserAsync(token, run.Token).ConfigureAwait(false);
         if (reply is null)
             return new(GitHubSignInOutcome.NetworkError);
 
-        if (reply.Status != HttpStatusCode.OK)
+        if (user is null)
             return new(GitHubSignInOutcome.UnexpectedResponse);
 
-        if (Parse<UserDto>(reply.Body) is not { Login: { Length: > 0 } login } user)
-            return new(GitHubSignInOutcome.UnexpectedResponse);
+        EnterSignedIn(run, token, refreshToken, user, keep: true);
+        return new(GitHubSignInOutcome.SignedIn, user.Login);
+    }
+
+    /// <summary>
+    /// Trades the kept refresh token for a new access token. GitHub spends the old refresh token and answers with a new one,
+    /// so the new one is kept at once, even when the account cannot be fetched afterwards.
+    /// </summary>
+    private async Task<GitHubResumeOutcome> RefreshAsync(CancellationTokenSource run, string kept)
+    {
+        KeyValuePair<string, string>[] refresh =
+        [
+            new("client_id", _clientId),
+            new("grant_type", RefreshTokenGrantType),
+            new("refresh_token", kept),
+        ];
+        var reply = await PostFormAsync(AccessTokenUrl, refresh, run.Token).ConfigureAwait(false);
+
+        // GitHub refuses a refresh token with status 200, so an error from a busy or failing server does not delete it.
+        if (reply is null || reply.Status == HttpStatusCode.TooManyRequests || (int)reply.Status >= 500)
+            return GitHubResumeOutcome.Unreachable;
+
+        var answer = Parse<AccessTokenDto>(reply.Body);
+        if (answer?.AccessToken is not { Length: > 0 } token)
+            return answer?.Error is null ? GitHubResumeOutcome.Unreachable : ForgetKept(run);
 
         lock (_gate)
         {
             ThrowIfStopped(run);
+            KeepRefreshToken(answer.RefreshToken);
+        }
+
+        var (user, userReply) = await FetchUserAsync(token, run.Token).ConfigureAwait(false);
+        if (user is null)
+            return userReply?.Status == HttpStatusCode.Unauthorized ? ForgetKept(run) : GitHubResumeOutcome.Unreachable;
+
+        EnterSignedIn(run, token, answer.RefreshToken, user, keep: false);
+        return GitHubResumeOutcome.SignedIn;
+    }
+
+    /// <summary>Deletes the kept token, unless a sign-out ended <paramref name="run"/> and so a newer session may own it.</summary>
+    private GitHubResumeOutcome ForgetKept(CancellationTokenSource run)
+    {
+        lock (_gate)
+        {
+            if (ReferenceEquals(_signIn, run))
+                QueueSecret(secrets => secrets.Delete(RefreshTokenSecret));
+        }
+
+        return GitHubResumeOutcome.Refused;
+    }
+
+    /// <summary>The account of <paramref name="token"/>, or null with the reply that GitHub gave instead, which is null when GitHub could not be reached.</summary>
+    private async Task<(UserDto? User, Reply? Reply)> FetchUserAsync(string token, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, UserUrl);
+        AddApiHeaders(request, token);
+        var reply = await FetchAsync(request, cancellationToken).ConfigureAwait(false);
+        var user = reply?.Status == HttpStatusCode.OK ? Parse<UserDto>(reply.Body) : null;
+        return (user is { Login.Length: > 0 } ? user : null, reply);
+    }
+
+    private void EnterSignedIn(CancellationTokenSource run, string token, string? refreshToken, UserDto user, bool keep)
+    {
+        lock (_gate)
+        {
+            ThrowIfStopped(run);
             _token = token;
+            _refreshToken = refreshToken;
             _userId = user.Id;
-            _state = GitHubSessionState.SignedInAs(login);
+            _state = GitHubSessionState.SignedInAs(user.Login!);
+            if (keep)
+                KeepRefreshToken(refreshToken);
         }
 
         OnStateChanged();
-        return new(GitHubSignInOutcome.SignedIn, login);
+    }
+
+    /// <summary>
+    /// Replaces the kept token with <paramref name="refreshToken"/> while staying signed in is on. Called under the gate.
+    /// Without a refresh token, as for an App whose user tokens do not expire or for a sign-in that is not kept, the kept token of an earlier session is deleted.
+    /// </summary>
+    private void KeepRefreshToken(string? refreshToken)
+    {
+        if (_keepSignedIn != true)
+            return;
+
+        if (refreshToken is { Length: > 0 })
+            QueueSecret(secrets => secrets.Write(RefreshTokenSecret, refreshToken), write: true);
+        else
+            QueueSecret(secrets => secrets.Delete(RefreshTokenSecret));
+    }
+
+    /// <summary>Called under the gate, so the store sees the writes and deletes in the order of the changes that caused them.</summary>
+    private void QueueSecret(Action<ISecretStore> work, bool write = false)
+    {
+        if (_secrets is not { } secrets)
+            return;
+
+        _secretWork = _secretWork.ContinueWith(_ => RunSecret(secrets, work, write), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+    }
+
+    /// <summary>Once a call failed, nothing more is written, but a delete is still tried, so that a sign-out never leaves a token behind.</summary>
+    private void RunSecret(ISecretStore secrets, Action<ISecretStore> work, bool write)
+    {
+        lock (_gate)
+        {
+            if (write && _secretProblem is not null)
+                return;
+        }
+
+        try
+        {
+            work(secrets);
+        }
+        catch (SecretStoreException exception)
+        {
+            RecordProblem(exception.Problem);
+        }
+    }
+
+    private Task<string?> ReadSecretAsync()
+    {
+        lock (_gate)
+        {
+            var secrets = _secrets!;
+            var read = _secretWork.ContinueWith(
+                _ =>
+                {
+                    try
+                    {
+                        return secrets.Read(RefreshTokenSecret);
+                    }
+                    catch (SecretStoreException exception)
+                    {
+                        RecordProblem(exception.Problem);
+                        return null;
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.None,
+                TaskScheduler.Default);
+            _secretWork = read;
+            return read;
+        }
+    }
+
+    private void RecordProblem(SecretStoreProblem problem)
+    {
+        lock (_gate)
+        {
+            if (_secretProblem is not null)
+                return;
+
+            _secretProblem = problem;
+        }
+
+        KeepSignedInProblemChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void EnterWaiting(CancellationTokenSource run, GitHubDeviceCode code)
@@ -273,7 +509,7 @@ public sealed class GitHubSession : IGitHubSession
                 return;
 
             _signIn = null;
-            if (_state.Status != GitHubSessionStatus.WaitingForCode)
+            if (_state.Status is not (GitHubSessionStatus.WaitingForCode or GitHubSessionStatus.Resuming))
                 return;
 
             _state = GitHubSessionState.SignedOut;
@@ -298,7 +534,9 @@ public sealed class GitHubSession : IGitHubSession
             if (!string.Equals(_token, token, StringComparison.Ordinal))
                 return;
 
+            // The kept refresh token stays, because an access token that expired after its 8 hours is refused the same way.
             _token = null;
+            _refreshToken = null;
             _userId = null;
             _state = GitHubSessionState.SignedOut;
         }
@@ -416,6 +654,9 @@ public sealed class GitHubSession : IGitHubSession
     {
         [JsonPropertyName("access_token")]
         public string? AccessToken { get; set; }
+
+        [JsonPropertyName("refresh_token")]
+        public string? RefreshToken { get; set; }
 
         [JsonPropertyName("interval")]
         public int Interval { get; set; }

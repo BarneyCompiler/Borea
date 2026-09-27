@@ -93,6 +93,11 @@ public interface IGamePathProvider
     string GetAppLockPath();
 
     /// <summary>
+    /// Folder of the secrets that the secret store of the system protects, where that store needs a file, as DPAPI on Windows does.
+    /// </summary>
+    string GetSecretsFolder();
+
+    /// <summary>
     /// Folder of Borea's daily log files.
     /// </summary>
     string GetLogsFolder();

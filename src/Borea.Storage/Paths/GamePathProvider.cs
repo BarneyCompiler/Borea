@@ -82,6 +82,7 @@ public sealed class GamePathProvider : IGamePathProvider
     public string GetAppPreferencesPath() => Path.Combine(_boreaRoot, "app-preferences.json");
     public string GetTaskHistoryPath() => Path.Combine(_boreaRoot, "task-history.json");
     public string GetAppLockPath() => Path.Combine(_boreaRoot, "app.lock");
+    public string GetSecretsFolder() => Path.Combine(_boreaRoot, "Secrets");
     public string GetLogsFolder() => Path.Combine(_boreaRoot, "Logs");
     public string GetLanguagesFolder() => Path.Combine(_boreaRoot, "Languages");
     public string GetBackupsRoot() => Path.Combine(_libraryFolder, "Backups");

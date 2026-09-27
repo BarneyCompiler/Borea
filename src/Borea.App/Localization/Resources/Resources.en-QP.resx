@@ -153,6 +153,24 @@
   <data name="SettingsGitHubStewardTools" xml:space="preserve">
     <value>Open the steward's sea chest</value>
   </data>
+  <data name="SettingsGitHubStaySignedIn" xml:space="preserve">
+    <value>Stay aboard on this here computer</value>
+  </data>
+  <data name="SettingsGitHubStaySignedInHint" xml:space="preserve">
+    <value>Borea stows yer sign-in in the strongbox o' yer system and hails ye aboard again at the next voyage. Off ends the sign-in when Borea drops anchor.</value>
+  </data>
+  <data name="SettingsGitHubResuming" xml:space="preserve">
+    <value>Hailin' ye aboard GitHub again...</value>
+  </data>
+  <data name="SettingsGitHubKeepUnsupported" xml:space="preserve">
+    <value>Borea has no strongbox fer this system, so the sign-in ends when Borea drops anchor.</value>
+  </data>
+  <data name="SettingsGitHubKeepMissing" xml:space="preserve">
+    <value>No strongbox be found, such as a keyring with the Secret Service on Linux, so the sign-in ends when Borea drops anchor.</value>
+  </data>
+  <data name="SettingsGitHubKeepRefused" xml:space="preserve">
+    <value>The strongbox o' yer system refused the sign-in, maybe 'cause it be locked, so the sign-in ends when Borea drops anchor.</value>
+  </data>
   <data name="StewardHeading" xml:space="preserve">
     <value>Steward's sea chest</value>
   </data>

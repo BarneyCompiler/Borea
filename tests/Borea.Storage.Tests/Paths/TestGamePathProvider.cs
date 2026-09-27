@@ -48,6 +48,7 @@ internal sealed class TestGamePathProvider : IGamePathProvider
     public string GetAppPreferencesPath() => Path.Combine(_root, "app-preferences.json");
     public string GetTaskHistoryPath() => Path.Combine(_root, "task-history.json");
     public string GetAppLockPath() => Path.Combine(_root, "app.lock");
+    public string GetSecretsFolder() => Path.Combine(_root, "Secrets");
     public string GetBackupsRoot() => Path.Combine(_root, "Backups");
     public string GetLogsFolder() => Path.Combine(_root, "Logs");
     public string GetLanguagesFolder() => Path.Combine(_root, "Languages");

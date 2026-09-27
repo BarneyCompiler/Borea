@@ -218,7 +218,7 @@ public partial class MainViewModel
     }
 
     /// <summary>Opens an existing folder, file or URL, and returns why it could not, or null.</summary>
-    private string? TryOpenWithSystem(string target)
+    internal string? TryOpenWithSystem(string target)
     {
         try
         {

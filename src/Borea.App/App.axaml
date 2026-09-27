@@ -435,6 +435,7 @@
         <!-- a text button beside a cta takes its height, so the two read as one pair -->
         <Style Selector="Button.text.tall">
             <Setter Property="Height" Value="38" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <!-- the purple buttons stay purple while pressed or disabled, instead of turning into the grey Fluent button -->
         <Style Selector="Button.text.primary:pressed /template/ ContentPresenter, Button.cta:pressed /template/ ContentPresenter">

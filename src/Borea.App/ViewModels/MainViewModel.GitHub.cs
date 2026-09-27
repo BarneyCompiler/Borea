@@ -116,6 +116,7 @@ public partial class MainViewModel
     private void RefreshStewardRole()
     {
         OnPropertyChanged(nameof(IsGitHubSteward));
+        RefreshIndexStatusRights();
         if (_services is { } services && IsGitHubSignedIn && services.StewardRole.Current is null)
             _stewardRoleCheck = services.StewardRole.CheckAsync();
     }

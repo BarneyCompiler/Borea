@@ -150,6 +150,45 @@
   <data name="SettingsGitHubSteward" xml:space="preserve">
     <value>Steward o' the content index</value>
   </data>
+  <data name="SettingsGitHubStewardTools" xml:space="preserve">
+    <value>Open the steward's sea chest</value>
+  </data>
+  <data name="StewardHeading" xml:space="preserve">
+    <value>Steward's sea chest</value>
+  </data>
+  <data name="StewardTabStatus" xml:space="preserve">
+    <value>Flags</value>
+  </data>
+  <data name="StewardStatusEmpty" xml:space="preserve">
+    <value>Nary a flag flies on any bounty or fleet.</value>
+  </data>
+  <data name="StewardStateDelisted" xml:space="preserve">
+    <value>Walked the plank</value>
+  </data>
+  <data name="StewardStateDisputed" xml:space="preserve">
+    <value>Under dispute</value>
+  </data>
+  <data name="StewardStateRetracted" xml:space="preserve">
+    <value>Sunk</value>
+  </data>
+  <data name="StewardLift" xml:space="preserve">
+    <value>Strike the flag</value>
+  </data>
+  <data name="StewardDispute" xml:space="preserve">
+    <value>Raise the dispute flag</value>
+  </data>
+  <data name="StewardDelist" xml:space="preserve">
+    <value>Make it walk the plank</value>
+  </data>
+  <data name="StewardRetract" xml:space="preserve">
+    <value>Sink this version</value>
+  </data>
+  <data name="StewardReason" xml:space="preserve">
+    <value>Why, matey</value>
+  </data>
+  <data name="StewardOwnerWarning" xml:space="preserve">
+    <value>This be yer own booty. POLICY.md asks a steward with a stake in a quarrel to leave it to another steward.</value>
+  </data>
   <data name="LibraryFolderMoving" xml:space="preserve">
     <value>Haulin' the List o' Loot to a new treasure chest...</value>
   </data>

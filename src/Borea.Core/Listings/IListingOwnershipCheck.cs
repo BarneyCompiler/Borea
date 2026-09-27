@@ -22,4 +22,10 @@ public interface IListingOwnershipCheck
     /// <param name="path">A listing document, such as listings/MyMod.toml.</param>
     /// <exception cref="ListingPublishException">Signed out, or GitHub refused the token.</exception>
     Task<ListingOwnership> CheckPullRequestAsync(GitHubAccount author, string path, string baseBranch, string headCommit, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The logins the proofs name as owners of the release host of <paramref name="listed"/>: the owner of a personal repository,
+    /// and the ksa-index-&lt;login&gt; topics and the marker file login of an organization repository. Empty when the host names nobody or does not answer.
+    /// </summary>
+    Task<IReadOnlyList<string>> OwnersAsync(ListingDraft listed, CancellationToken cancellationToken = default);
 }

@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Borea.App.ViewModels"
+             xmlns:views="using:Borea.App.Views"
+             x:Class="Borea.App.Views.IndexStatusModal"
+             x:DataType="vm:MainViewModel">
+    <!-- modal: a steward change of index-status.toml, which opens a pull request in content-index -->
+    <Panel Background="#99000000" views:ModalBackdrop.CloseButton="{Binding #CloseButton}">
+        <Border Classes="modal" Width="561" Margin="80,0,0,0" DataContext="{Binding StewardChange}" x:DataType="vm:IndexStatusDialog">
+            <StackPanel>
+                <Grid ColumnDefinitions="*,Auto" Margin="24,24,24,0">
+                    <TextBlock Classes="heading-lg" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button x:Name="CloseButton" Grid.Column="1" Classes="icon" Command="{Binding CloseCommand}" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ModalClose}">
+                        <Path Classes="icon" Data="{StaticResource Icon.Close}" />
+                    </Button>
+                </Grid>
+                <Border Height="1" Background="{StaticResource Brush.Window}" Margin="0,24,0,0" />
+                <StackPanel Margin="36,32,24,32" Spacing="16">
+                    <TextBlock Classes="body-md" Text="{Binding Effect}" TextWrapping="Wrap" />
+                    <TextBlock Classes="body-md secondary" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardPullRequestExplanation}" TextWrapping="Wrap" />
+                    <StackPanel Spacing="6" IsVisible="{Binding !IsOpened}">
+                        <TextBlock Classes="heading-md heading" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReason}" />
+                        <TextBlock Classes="body-sm secondary" Text="{Binding ReasonHint}" TextWrapping="Wrap" />
+                        <TextBox Classes="field" Text="{Binding Reason}" MaxLength="500" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardReason}">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding OpenPullRequestCommand}" />
+                                <KeyBinding Gesture="Escape" Command="{Binding CloseCommand}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                        <TextBlock Classes="body-sm danger" Text="{Binding InvalidReasonText}" TextWrapping="Wrap" IsVisible="{Binding InvalidReasonText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsChecking}">
+                        <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                        <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardChecking}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="body-md danger" Text="{Binding Refusal}" TextWrapping="Wrap" IsVisible="{Binding Refusal, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Classes="body-md" Text="{Binding OwnerText}" TextWrapping="Wrap" IsVisible="{Binding OwnerText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Classes="body-md" Text="{Binding OpenPullRequestsText}" TextWrapping="Wrap" IsVisible="{Binding OpenPullRequestsText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Classes="body-sm secondary" Text="{Binding MentionText}" TextWrapping="Wrap" IsVisible="{Binding MentionText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsOpening}">
+                        <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                        <TextBlock Classes="body-md" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardOpening}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="body-md" Text="{Binding OpenedText}" TextWrapping="Wrap" IsVisible="{Binding IsOpened}" />
+                    <TextBlock Classes="body-md danger" Text="{Binding Error}" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="text tall" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.LibraryCancel}" Command="{Binding CloseCommand}" VerticalAlignment="Center" IsVisible="{Binding !IsOpened}" />
+                        <Button Classes="text tall" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.DiscoverIndexRetry}" Command="{Binding RetryCommand}" VerticalAlignment="Center" IsVisible="{Binding CanRetry}" />
+                        <Button Classes="cta" Command="{Binding OpenPullRequestCommand}" IsVisible="{Binding !IsOpened}">
+                            <TextBlock Classes="action-lg" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingPublish}" VerticalAlignment="Center" />
+                        </Button>
+                        <Button Classes="text tall" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ModalClose}" Command="{Binding CloseCommand}" VerticalAlignment="Center" IsVisible="{Binding IsOpened}" />
+                        <Button Classes="cta" Command="{Binding ShowPullRequestCommand}" IsVisible="{Binding IsOpened}">
+                            <TextBlock Classes="action-lg" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingOpenPullRequest}" VerticalAlignment="Center" />
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Panel>
+</UserControl>

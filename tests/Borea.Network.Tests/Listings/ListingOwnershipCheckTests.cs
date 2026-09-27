@@ -338,6 +338,56 @@ public sealed class ListingOwnershipCheckTests
         Assert.Equal(GitHubSessionStatus.SignedOut, session.State.Status);
     }
 
+    [Theory]
+    [InlineData("User", false, "ksa-index-bob", "login = \"carol\"\n", "alice")]
+    [InlineData("Organization", false, "ksa-index-carol,ksa-index-bob,ksa", "login = \"Alice\"\nid = \"mymod\"\n", "Alice,bob,carol")]
+    [InlineData("Organization", false, "ksa-index-alice", "login = \"Alice\"\n", "alice")]
+    [InlineData("Organization", false, "ksa-index-bob", "login = \"alice\"\nid = \"Other\"\n", "bob")]
+    [InlineData("Organization", false, "ksa-index--bad", "login = \"not a login\"\n", "")]
+    [InlineData("Organization", true, "ksa-index-bob", "login = \"alice\"\n", "bob")]
+    [InlineData("User", true, "", null, "alice")]
+    public async Task OwnersAsync_NamesWhoTheProofsNameOnTheHost(string ownerType, bool fork, string topics, string? marker, string owners)
+    {
+        On("GET", Api + "/repos/Studio/MyMod", () => Json(Repository("Studio/MyMod", 99, fork, ownerLogin: "alice", ownerType: ownerType)));
+        On("GET", Api + "/repos/Studio/MyMod/topics", () => Json(JsonSerializer.Serialize(new { names = topics.Split(',', StringSplitOptions.RemoveEmptyEntries) })));
+        if (marker is not null)
+            On("GET", Api + "/repos/Studio/MyMod/contents/.github/ksa-content-index.toml", () => Json(Content(marker)));
+        var check = await SignedInAsync();
+
+        var found = await check.OwnersAsync(Draft("Studio/MyMod"));
+
+        Assert.Equal(owners.Split(',', StringSplitOptions.RemoveEmptyEntries), found);
+        Assert.All(_sent, sent => Assert.Null(sent.Authorization));
+    }
+
+    [Fact]
+    public async Task OwnersAsync_SpaceDockMod_NamesTheOwnerOfItsSourceCodeRepository()
+    {
+        On("GET", "https://spacedock.info/api/mod/4253", () => Json("""{"id":4253,"game_id":22409,"source_code":"https://github.com/alice/MyMod"}"""));
+        On("GET", Api + "/repos/alice/MyMod", () => Json(Repository("alice/MyMod", 5, ownerType: "User")));
+        var check = await SignedInAsync();
+
+        Assert.Equal(["alice"], await check.OwnersAsync(Draft(spaceDock: 4253)));
+    }
+
+    [Fact]
+    public async Task OwnersAsync_HostThatNamesNobodyOrDoesNotAnswer_NamesNobody()
+    {
+        On("GET", Api + "/repos/alice/OldName", () => Json(Repository("alice/NewName", 5, ownerType: "User")));
+        On("GET", Api + "/repos/Studio/Down", () => Json(Repository("Studio/Down", 99, ownerType: "Organization")));
+        On("GET", Api + "/repos/Studio/Down/topics", () => Json("""{"message":"Server Error"}""", HttpStatusCode.BadGateway));
+        On("GET", Api + "/repos/Studio/Topics", () => Json(Repository("Studio/Topics", 99, ownerType: "Organization")));
+        On("GET", Api + "/repos/Studio/Topics/topics", () => Json("""{"names":["ksa-index-bob"]}"""));
+        On("GET", Api + "/repos/Studio/Topics/contents/.github/ksa-content-index.toml", () => Json("""{"message":"Server Error"}""", HttpStatusCode.BadGateway));
+        var check = await SignedInAsync();
+
+        Assert.Empty(await check.OwnersAsync(Draft("alice/Missing")));
+        Assert.Empty(await check.OwnersAsync(Draft("alice/OldName")));
+        Assert.Empty(await check.OwnersAsync(Draft("Studio/Down")));
+        Assert.Equal(["bob"], await check.OwnersAsync(Draft("Studio/Topics")));
+        Assert.Empty(await check.OwnersAsync(Draft()));
+    }
+
     private async Task<ListingOwnershipCheck> SignedInAsync() => Check(await SignInAsync());
 
     private async Task<GitHubSession> SignInAsync()
@@ -385,8 +435,8 @@ public sealed class ListingOwnershipCheckTests
     private static string Document(string github, string forums) =>
         $"id = \"MyMod\"\nname = \"My Mod\"\n[releases]\ngithub = \"{github}\"\n[links]\nforums = \"{forums}\"\n";
 
-    private static string Repository(string fullName, long ownerId, bool fork = false, string? ownerLogin = null) =>
-        JsonSerializer.Serialize(new { full_name = fullName, fork, owner = new { id = ownerId, login = ownerLogin ?? fullName.Split('/')[0] } });
+    private static string Repository(string fullName, long ownerId, bool fork = false, string? ownerLogin = null, string? ownerType = null) =>
+        JsonSerializer.Serialize(new { full_name = fullName, fork, owner = new { id = ownerId, login = ownerLogin ?? fullName.Split('/')[0], type = ownerType } });
 
     private static string Content(string text) =>
         JsonSerializer.Serialize(new { sha = "b1", encoding = "base64", content = Convert.ToBase64String(Encoding.UTF8.GetBytes(text)).Insert(4, "\n") });

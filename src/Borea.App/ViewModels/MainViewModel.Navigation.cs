@@ -55,11 +55,23 @@ public partial class MainViewModel
 
     partial void OnCurrentWindowListingChanged(bool value)
     {
-        if (value)
-            _forwardPage = null;
+        if (!value)
+            return;
+
+        _forwardPage = null;
+        LeaveStewardPage();
     }
 
-    // a page that opens turns the other pages off itself, but not the listing page
+    partial void OnCurrentWindowStewardChanged(bool value)
+    {
+        if (!value)
+            return;
+
+        _forwardPage = null;
+        LeaveListingPage();
+    }
+
+    // a page that opens turns the other pages off itself, but not the listing and steward pages
     private void OnPageShown(bool shown)
     {
         if (!shown)
@@ -67,5 +79,6 @@ public partial class MainViewModel
 
         _forwardPage = null;
         LeaveListingPage();
+        LeaveStewardPage();
     }
 }

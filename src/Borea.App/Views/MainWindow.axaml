@@ -76,6 +76,9 @@
         <!-- List or change your mod: a listing for content-index, with its checks on the right -->
         <pages:ListingPage Grid.Column="1" IsVisible="{Binding CurrentWindowListing}" />
 
+        <!-- Steward tools: opened from the GitHub account in Settings -->
+        <pages:StewardPage Grid.Column="1" IsVisible="{Binding CurrentWindowSteward}" />
+
         <!-- Tasks: a drawer over the current page, which stays open behind it -->
         <views:TasksDrawer Grid.Column="1" IsVisible="{Binding IsTasksOpen}" />
     </Grid>
@@ -134,6 +137,9 @@
 
     <!-- modal: one announcement of the KSAModding team -->
     <views:AnnouncementModal IsVisible="{Binding IsAnnouncementOpen}" />
+
+    <!-- modal: a steward change of index-status.toml -->
+    <views:IndexStatusModal IsVisible="{Binding IsStewardChangeOpen}" />
 
     <!-- modal: settings -->
     <settings:SettingsModal IsVisible="{Binding IsSettingsOpen}" />

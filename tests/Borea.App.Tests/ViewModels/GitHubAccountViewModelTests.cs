@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using Borea.App.ViewModels;
 using Borea.Core.GitHub;
+using Borea.Core.Secrets;
 using Borea.Network.GitHub;
 
 namespace Borea.App.Tests.ViewModels;
@@ -180,6 +181,25 @@ public sealed class GitHubAccountViewModelTests
     }
 
     [Fact]
+    public async Task SignIn_FromSettingsIsKeptAndFromTheListingPageIsNot()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+
+        var listing = viewModel.SignInToGitHubAsync(forListing: true);
+        _session.Finish(GitHubSignInOutcome.SignedIn);
+        Assert.True(await listing.WaitAsync(Timeout));
+        viewModel.SignOutOfGitHubForListing();
+        Assert.False(viewModel.IsGitHubSignedIn);
+
+        viewModel.SignInToGitHubCommand.Execute(null);
+        _session.Finish(GitHubSignInOutcome.SignedIn);
+        await viewModel.WhenGitHubSignInDoneAsync();
+
+        Assert.Equal([false, true], _session.KeptSignIns);
+    }
+
+    [Fact]
     public async Task SignedIn_SignsOutAndOpensTheAccessPage()
     {
         _session.SignInDirectly();
@@ -348,7 +368,10 @@ public sealed class GitHubAccountViewModelTests
         }
     }
 
-    /// <summary>A session whose sign-in waits until the test reports the code and finishes it. It answers the rulesets of the index repositories.</summary>
+    /// <summary>
+    /// A session whose sign-in waits until the test reports the code and finishes it, and whose resume waits for <see cref="Resume"/> when that is set.
+    /// It answers the rulesets of the index repositories.
+    /// </summary>
     private sealed class FakeGitHubSession : IGitHubSession
     {
         public const string AccessUrl = "https://github.com/settings/apps/authorizations";
@@ -357,6 +380,7 @@ public sealed class GitHubAccountViewModelTests
         private TaskCompletionSource<GitHubSignInResult>? _signIn;
         private IProgress<GitHubDeviceCode>? _progress;
         private TaskCompletionSource<GitHubSignInResult>? _heldCancel;
+        private int _resumes;
 
         public bool IsAvailable => true;
 
@@ -371,6 +395,9 @@ public sealed class GitHubAccountViewModelTests
         public bool WasCancelled { get; private set; }
 
         public int SignIns { get; private set; }
+
+        /// <summary>The keepSignedIn argument of every sign-in, in order.</summary>
+        public List<bool> KeptSignIns { get; } = [];
 
         /// <summary>True keeps a cancelled sign-in running until <see cref="EndCancel"/>.</summary>
         public bool HoldCancel { get; set; }
@@ -391,11 +418,45 @@ public sealed class GitHubAccountViewModelTests
 
         public event EventHandler? StateChanged;
 
-        public async Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, CancellationToken cancellationToken = default)
+        public event EventHandler? KeepSignedInProblemChanged;
+
+        public bool KeepSignedIn { get; set; }
+
+        public SecretStoreProblem? KeepSignedInProblem { get; private set; }
+
+        public TaskCompletionSource<GitHubResumeOutcome>? Resume { get; set; }
+
+        public int Resumes => Volatile.Read(ref _resumes);
+
+        public async Task<GitHubResumeOutcome> ResumeAsync(CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _resumes);
+            if (Resume is not { } resume)
+                return GitHubResumeOutcome.NothingKept;
+
+            State = GitHubSessionState.Resuming;
+            StateChanged?.Invoke(this, EventArgs.Empty);
+            var outcome = await resume.Task;
+            if (outcome == GitHubResumeOutcome.SignedIn)
+                SignInDirectly();
+            else
+                SignOut();
+
+            return outcome;
+        }
+
+        public void ReportProblem(SecretStoreProblem problem)
+        {
+            KeepSignedInProblem = problem;
+            KeepSignedInProblemChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public async Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, bool keepSignedIn = true, CancellationToken cancellationToken = default)
         {
             _progress = progress;
             var signIn = _signIn = new TaskCompletionSource<GitHubSignInResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             SignIns++;
+            KeptSignIns.Add(keepSignedIn);
             using var registration = cancellationToken.Register(() =>
             {
                 WasCancelled = true;

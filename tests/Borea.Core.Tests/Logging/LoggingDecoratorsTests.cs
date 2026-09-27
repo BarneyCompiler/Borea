@@ -7,6 +7,7 @@ using Borea.Core.Listings;
 using Borea.Core.Logging;
 using Borea.Core.Mods;
 using Borea.Core.Planning;
+using Borea.Core.Secrets;
 using Borea.Core.Settings;
 using Borea.Core.Stewardship;
 using Borea.Core.Tests.Mods;
@@ -295,6 +296,31 @@ public sealed class LoggingDecoratorsTests
     }
 
     [Theory]
+    [InlineData(GitHubResumeOutcome.SignedIn, null, "Signed in to GitHub as octocat with the sign-in kept on this computer.")]
+    [InlineData(GitHubResumeOutcome.Refused, null, "GitHub refused the sign-in kept on this computer, so Borea deleted it.")]
+    [InlineData(GitHubResumeOutcome.Unreachable, null, "Cannot reach GitHub to resume the sign-in kept on this computer. It stays for the next start.")]
+    [InlineData(GitHubResumeOutcome.NothingKept, SecretStoreProblem.Missing, "Cannot keep the GitHub sign-in on this computer, Missing.")]
+    public async Task GitHub_Resume_WritesTheOutcome(GitHubResumeOutcome outcome, SecretStoreProblem? problem, string message)
+    {
+        var inner = new FakeGitHubSession { ResumeOutcome = outcome, KeepSignedInProblem = problem };
+        var session = new LoggingGitHubSession(inner, _log);
+
+        Assert.Equal(outcome, await session.ResumeAsync());
+
+        Assert.Equal([message], _log.Messages);
+    }
+
+    [Fact]
+    public async Task GitHub_ResumeWithNothingKept_WritesNothing()
+    {
+        var session = new LoggingGitHubSession(new FakeGitHubSession(), _log) { KeepSignedIn = true };
+
+        await session.ResumeAsync();
+
+        Assert.Empty(_log.Messages);
+    }
+
+    [Theory]
     [InlineData(ListingPublishOutcome.Opened, "Opened listing pull request https://github.com/KSAModding/content-index/pull/90")]
     [InlineData(ListingPublishOutcome.Updated, "Updated listing pull request https://github.com/KSAModding/content-index/pull/90")]
     public async Task ListingPublisher_OpenedOrUpdated_WritesTheUrl(ListingPublishOutcome outcome, string message)
@@ -515,7 +541,27 @@ public sealed class LoggingDecoratorsTests
 
         public event EventHandler? StateChanged;
 
-        public Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, CancellationToken cancellationToken = default)
+        public GitHubResumeOutcome ResumeOutcome { get; init; } = GitHubResumeOutcome.NothingKept;
+
+        public bool KeepSignedIn { get; set; }
+
+        public SecretStoreProblem? KeepSignedInProblem { get; init; }
+
+        public event EventHandler? KeepSignedInProblemChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<GitHubResumeOutcome> ResumeAsync(CancellationToken cancellationToken = default)
+        {
+            if (ResumeOutcome == GitHubResumeOutcome.SignedIn)
+                State = GitHubSessionState.SignedInAs("octocat");
+
+            return Task.FromResult(ResumeOutcome);
+        }
+
+        public Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, bool keepSignedIn = true, CancellationToken cancellationToken = default)
         {
             if (Outcome != GitHubSignInOutcome.SignedIn)
                 return Task.FromResult(new GitHubSignInResult(Outcome));

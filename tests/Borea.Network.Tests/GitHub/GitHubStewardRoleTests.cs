@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Borea.Core.GitHub;
+using Borea.Core.Secrets;
 using Borea.Core.Stewardship;
 using Borea.Network.GitHub;
 
@@ -359,8 +360,24 @@ public sealed class GitHubStewardRoleTests
 
         public string InstallUrlFor(long repositoryId) => inner.InstallUrlFor(repositoryId);
 
-        public Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, CancellationToken cancellationToken = default) =>
-            inner.SignInAsync(progress, cancellationToken);
+        public bool KeepSignedIn
+        {
+            get => inner.KeepSignedIn;
+            set => inner.KeepSignedIn = value;
+        }
+
+        public SecretStoreProblem? KeepSignedInProblem => inner.KeepSignedInProblem;
+
+        public event EventHandler? KeepSignedInProblemChanged
+        {
+            add => inner.KeepSignedInProblemChanged += value;
+            remove => inner.KeepSignedInProblemChanged -= value;
+        }
+
+        public Task<GitHubResumeOutcome> ResumeAsync(CancellationToken cancellationToken = default) => inner.ResumeAsync(cancellationToken);
+
+        public Task<GitHubSignInResult> SignInAsync(IProgress<GitHubDeviceCode>? progress = null, bool keepSignedIn = true, CancellationToken cancellationToken = default) =>
+            inner.SignInAsync(progress, keepSignedIn, cancellationToken);
 
         public void SignOut() => inner.SignOut();
 

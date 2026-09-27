@@ -4,6 +4,8 @@ public sealed record GitHubSessionState
 {
     public static GitHubSessionState SignedOut { get; } = new(GitHubSessionStatus.SignedOut, login: null, deviceCode: null);
 
+    public static GitHubSessionState Resuming { get; } = new(GitHubSessionStatus.Resuming, login: null, deviceCode: null);
+
     public GitHubSessionStatus Status { get; }
 
     /// <summary>The GitHub login while signed in, otherwise null.</summary>

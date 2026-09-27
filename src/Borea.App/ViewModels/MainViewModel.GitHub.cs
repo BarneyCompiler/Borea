@@ -128,7 +128,7 @@ public partial class MainViewModel
     /// Opens the sign-in modal unless already signed in, and completes when the modal closes,
     /// with true when the session is signed in then.
     /// </summary>
-    /// <param name="forListing">The listing page asks, so the session it starts ends with that page.</param>
+    /// <param name="forListing">The listing page asks, so the session it starts is never kept and ends with that page.</param>
     internal Task<bool> SignInToGitHubAsync(bool forListing = false)
     {
         if (_services is not { } services || !services.GitHub.IsAvailable)
@@ -190,7 +190,7 @@ public partial class MainViewModel
 
         try
         {
-            var result = await session.SignInAsync(progress, cancel.Token);
+            var result = await session.SignInAsync(progress, keepSignedIn: !forListing, cancel.Token);
             if (result.SignedIn)
             {
                 _isGitHubSessionFromListing = forListing;

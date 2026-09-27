@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using Borea.Core.GitHub;
+using Borea.Core.Logging;
+using Borea.Core.Secrets;
 using Borea.Network.GitHub;
 
 namespace Borea.Network.Tests;
@@ -15,6 +17,8 @@ public sealed class GitHubSessionTests
     private const string TokenJson = """{"access_token":"ghu_secret","expires_in":28800,"refresh_token":"ghr_secret","refresh_token_expires_in":15897600,"token_type":"bearer","scope":""}""";
     private const string PendingJson = """{"error":"authorization_pending","error_description":"The authorization request is still pending.","error_uri":"https://docs.github.com"}""";
     private const string UserJson = """{"login":"octocat","id":1}""";
+    private const string RefreshedJson = """{"access_token":"ghu_refreshed","expires_in":28800,"refresh_token":"ghr_refreshed","refresh_token_expires_in":15897600,"token_type":"bearer","scope":""}""";
+    private const string Kept = GitHubSession.RefreshTokenSecret;
 
     private readonly StepTimeProvider _time = new();
     private readonly ConcurrentQueue<SentRequest> _sent = new();
@@ -420,6 +424,388 @@ public sealed class GitHubSessionTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => session.SendAsync(new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user")));
     }
 
+    [Fact]
+    public async Task SignInAsync_KeepSignedIn_KeepsTheRefreshTokenAndTheNextStartSignsInWithoutTheCode()
+    {
+        var secrets = new FakeSecretStore();
+        _tokenAnswers.Enqueue(() => Json(TokenJson));
+        var first = Session(secrets, keep: true);
+
+        Assert.True((await first.SignInAsync()).SignedIn);
+        await first.WhenSecretsStoredAsync();
+
+        Assert.Equal("ghr_secret", secrets[Kept]);
+        _sent.Clear();
+        _tokenAnswers.Enqueue(() => Json(RefreshedJson));
+        var next = Session(secrets, keep: true);
+        var states = new List<GitHubSessionStatus>();
+        next.StateChanged += (_, _) => states.Add(next.State.Status);
+
+        var outcome = await next.ResumeAsync();
+
+        Assert.Equal(GitHubResumeOutcome.SignedIn, outcome);
+        Assert.Equal(GitHubSessionState.SignedInAs("octocat"), next.State);
+        Assert.Equal([GitHubSessionStatus.Resuming, GitHubSessionStatus.SignedIn], states);
+        var sent = _sent.ToArray();
+        Assert.Equal([GitHubSession.AccessTokenUrl, GitHubSession.UserUrl], sent.Select(request => request.Url));
+        Assert.Equal("client_id=Iv23.testclient&grant_type=refresh_token&refresh_token=ghr_secret", sent[0].Body);
+        Assert.Null(sent[0].Authorization);
+        Assert.Equal("Bearer ghu_refreshed", sent[1].Authorization);
+
+        _otherAnswer = _ => Json("{}");
+        using var response = await next.SendAsync(new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user/repos"));
+        Assert.Equal("Bearer ghu_refreshed", _sent.Last().Authorization);
+    }
+
+    [Fact]
+    public async Task ResumeAsync_Refreshed_ReplacesTheKeptToken()
+    {
+        var secrets = new FakeSecretStore { [Kept] = "ghr_secret" };
+        _tokenAnswers.Enqueue(() => Json(RefreshedJson));
+        var session = Session(secrets, keep: true);
+
+        await session.ResumeAsync();
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal("ghr_refreshed", secrets[Kept]);
+    }
+
+    [Fact]
+    public async Task ResumeAsync_AccountUnreachableAfterTheRefresh_KeepsTheNewTokenForTheNextStart()
+    {
+        var secrets = new FakeSecretStore { [Kept] = "ghr_secret" };
+        _tokenAnswers.Enqueue(() => Json(RefreshedJson));
+        _otherAnswer = _ => throw new HttpRequestException("No route to host.");
+        var session = Session(secrets, keep: true);
+
+        var outcome = await session.ResumeAsync();
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal(GitHubResumeOutcome.Unreachable, outcome);
+        Assert.Equal(GitHubSessionState.SignedOut, session.State);
+        Assert.Equal("ghr_refreshed", secrets[Kept]);
+    }
+
+    [Theory]
+    [InlineData("bad_refresh_token")]
+    [InlineData("unauthorized")]
+    public async Task ResumeAsync_Refused_DeletesTheKeptTokenAndEndsSignedOut(string error)
+    {
+        var secrets = new FakeSecretStore { [Kept] = "ghr_secret" };
+        _tokenAnswers.Enqueue(() => Json($$"""{"error":"{{error}}","error_description":"The refresh token passed is incorrect or expired."}"""));
+        var session = Session(secrets, keep: true);
+        var states = new List<GitHubSessionStatus>();
+        session.StateChanged += (_, _) => states.Add(session.State.Status);
+
+        var outcome = await session.ResumeAsync();
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal(GitHubResumeOutcome.Refused, outcome);
+        Assert.Equal(GitHubSessionState.SignedOut, session.State);
+        Assert.Equal([GitHubSessionStatus.Resuming, GitHubSessionStatus.SignedOut], states);
+        Assert.Null(secrets[Kept]);
+        Assert.DoesNotContain(_sent, request => request.Url == GitHubSession.UserUrl);
+        Assert.Null(session.KeepSignedInProblem);
+    }
+
+    [Fact]
+    public async Task ResumeAsync_AccountRefusesTheNewToken_DeletesTheKeptToken()
+    {
+        var secrets = new FakeSecretStore { [Kept] = "ghr_secret" };
+        _tokenAnswers.Enqueue(() => Json(RefreshedJson));
+        _otherAnswer = _ => new HttpResponseMessage(HttpStatusCode.Unauthorized);
+        var session = Session(secrets, keep: true);
+
+        var outcome = await session.ResumeAsync();
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal(GitHubResumeOutcome.Refused, outcome);
+        Assert.Equal(GitHubSessionState.SignedOut, session.State);
+        Assert.Null(secrets[Kept]);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ResumeAsync_GitHubUnreachable_KeepsTheTokenAndEndsSignedOut(bool noRoute)
+    {
+        var secrets = new FakeSecretStore { [Kept] = "ghr_secret" };
+        _tokenAnswers.Enqueue(() => noRoute
+            ? throw new HttpRequestException("No route to host.")
+            : new HttpResponseMessage(HttpStatusCode.BadGateway) { Content = new StringContent("<html>Bad Gateway</html>") });
+        var session = Session(secrets, keep: true);
+
+        var outcome = await session.ResumeAsync();
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal(GitHubResumeOutcome.Unreachable, outcome);
+        Assert.Equal(GitHubSessionState.SignedOut, session.State);
+        Assert.Equal("ghr_secret", secrets[Kept]);
+        Assert.Equal(["read"], secrets.Calls);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task ResumeAsync_BusyGitHubAnswersWithAnError_KeepsTheToken(HttpStatusCode status)
+    {
+        var secrets = new FakeSecretStore { [Kept] = "ghr_secret" };
+        _tokenAnswers.Enqueue(() => new HttpResponseMessage(status)
+        {
+            Content = new StringContent("""{"error":"temporarily_unavailable"}""", Encoding.UTF8, "application/json"),
+        });
+        var session = Session(secrets, keep: true);
+
+        var outcome = await session.ResumeAsync();
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal(GitHubResumeOutcome.Unreachable, outcome);
+        Assert.Equal("ghr_secret", secrets[Kept]);
+        Assert.Equal(["read"], secrets.Calls);
+    }
+
+    [Fact]
+    public async Task ResumeAsync_NothingKept_StaysSignedOutWithoutARequest()
+    {
+        var session = Session(new FakeSecretStore(), keep: true);
+        var changes = 0;
+        session.StateChanged += (_, _) => changes++;
+
+        Assert.Equal(GitHubResumeOutcome.NothingKept, await session.ResumeAsync());
+
+        Assert.Empty(_sent);
+        Assert.Equal(0, changes);
+        Assert.Equal(GitHubSessionState.SignedOut, session.State);
+    }
+
+    [Fact]
+    public async Task SignOut_DeletesTheKeptToken()
+    {
+        var secrets = new FakeSecretStore();
+        var session = await SignedInSessionAsync(secrets);
+        Assert.Equal("ghr_secret", secrets[Kept]);
+
+        session.SignOut();
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Null(secrets[Kept]);
+        Assert.Equal(GitHubResumeOutcome.NothingKept, await Session(secrets, keep: true).ResumeAsync());
+    }
+
+    [Fact]
+    public async Task KeepSignedIn_TurnedOff_DeletesTheKeptTokenAndKeepsTheSessionInMemory()
+    {
+        var secrets = new FakeSecretStore();
+        var session = await SignedInSessionAsync(secrets);
+
+        session.KeepSignedIn = false;
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Null(secrets[Kept]);
+        Assert.Equal(GitHubSessionState.SignedInAs("octocat"), session.State);
+
+        session.KeepSignedIn = true;
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal("ghr_secret", secrets[Kept]);
+    }
+
+    [Fact]
+    public async Task KeepSignedInOff_NeverReadsOrWritesAndOnlyDeletes()
+    {
+        var secrets = new FakeSecretStore();
+        _tokenAnswers.Enqueue(() => Json(TokenJson));
+        var session = Session(secrets, keep: false);
+
+        Assert.True((await session.SignInAsync()).SignedIn);
+        session.SignOut();
+        var next = Session(secrets, keep: false);
+        var outcome = await next.ResumeAsync();
+        await session.WhenSecretsStoredAsync();
+        await next.WhenSecretsStoredAsync();
+
+        Assert.Equal(GitHubResumeOutcome.NothingKept, outcome);
+        Assert.Equal(["delete", "delete", "delete"], secrets.Calls);
+    }
+
+    [Fact]
+    public async Task KeepSignedInTurnedOff_DeleteFailed_TheNextStartWithItOffDeletesTheToken()
+    {
+        var secrets = new FakeSecretStore();
+        var session = await SignedInSessionAsync(secrets);
+        secrets.Failure = SecretStoreProblem.Refused;
+
+        session.KeepSignedIn = false;
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal("ghr_secret", secrets[Kept]);
+        Assert.Equal(SecretStoreProblem.Refused, session.KeepSignedInProblem);
+        secrets.Failure = null;
+        var next = Session(secrets, keep: false);
+        await next.WhenSecretsStoredAsync();
+
+        Assert.Null(secrets[Kept]);
+        Assert.Null(next.KeepSignedInProblem);
+    }
+
+    [Fact]
+    public async Task SignInAsync_NotKept_WritesNothingAndDeletesTheTokenOfAnEarlierSession()
+    {
+        var secrets = new FakeSecretStore { [Kept] = "ghr_earlier" };
+        _tokenAnswers.Enqueue(() => Json(TokenJson));
+        var session = Session(secrets, keep: true);
+
+        Assert.True((await session.SignInAsync(keepSignedIn: false)).SignedIn);
+        session.KeepSignedIn = false;
+        session.KeepSignedIn = true;
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal(GitHubSessionState.SignedInAs("octocat"), session.State);
+        Assert.Null(secrets[Kept]);
+        Assert.DoesNotContain("write", secrets.Calls);
+    }
+
+    [Fact]
+    public async Task SignInAsync_TokenWithoutARefreshToken_DeletesTheTokenOfAnEarlierSession()
+    {
+        var secrets = new FakeSecretStore { [Kept] = "ghr_earlier" };
+        _tokenAnswers.Enqueue(() => Json("""{"access_token":"ghu_secret","token_type":"bearer","scope":""}"""));
+        var session = Session(secrets, keep: true);
+
+        Assert.True((await session.SignInAsync()).SignedIn);
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Null(secrets[Kept]);
+        Assert.Equal(["delete"], secrets.Calls);
+    }
+
+    [Fact]
+    public async Task WithoutASecretStore_KeepsTheSessionInMemoryAndSaysWhy()
+    {
+        _tokenAnswers.Enqueue(() => Json(TokenJson));
+        var session = Session(secrets: null, keep: true);
+
+        Assert.Equal(SecretStoreProblem.Unsupported, session.KeepSignedInProblem);
+        Assert.Equal(GitHubResumeOutcome.NothingKept, await session.ResumeAsync());
+        Assert.True((await session.SignInAsync()).SignedIn);
+    }
+
+    [Theory]
+    [InlineData(SecretStoreProblem.Missing)]
+    [InlineData(SecretStoreProblem.Refused)]
+    public async Task FailingSecretStore_WritesNothingAndSaysWhy(SecretStoreProblem problem)
+    {
+        var secrets = new FakeSecretStore { Failure = problem };
+        _tokenAnswers.Enqueue(() => Json(TokenJson));
+        var session = Session(secrets, keep: true);
+        var reports = 0;
+        session.KeepSignedInProblemChanged += (_, _) => reports++;
+
+        Assert.Equal(GitHubResumeOutcome.NothingKept, await session.ResumeAsync());
+        Assert.Equal(problem, session.KeepSignedInProblem);
+        secrets.Failure = null;
+        Assert.True((await session.SignInAsync()).SignedIn);
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Null(secrets[Kept]);
+        Assert.Equal(["read"], secrets.Calls);
+        Assert.Equal(1, reports);
+        Assert.Equal(GitHubSessionState.SignedInAs("octocat"), session.State);
+
+        session.SignOut();
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal(["read", "delete"], secrets.Calls);
+    }
+
+    [Fact]
+    public async Task SignInAsync_WhileResuming_Throws()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _tokenGate = release.Task;
+        _tokenAnswers.Enqueue(() => Json(RefreshedJson));
+        var session = Session(new FakeSecretStore { [Kept] = "ghr_secret" }, keep: true);
+        var resume = session.ResumeAsync();
+        await WaitUntilAsync(() => session.State.Status == GitHubSessionStatus.Resuming);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.SignInAsync());
+
+        release.SetResult();
+        Assert.Equal(GitHubResumeOutcome.SignedIn, await resume);
+    }
+
+    [Fact]
+    public async Task SignOut_WhileResuming_StaysSignedOutAndKeepsNothing()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _tokenGate = release.Task;
+        _tokenAnswers.Enqueue(() => Json(RefreshedJson));
+        var secrets = new FakeSecretStore { [Kept] = "ghr_secret" };
+        var session = Session(secrets, keep: true);
+        var resume = session.ResumeAsync();
+        await WaitUntilAsync(() => session.State.Status == GitHubSessionStatus.Resuming);
+
+        session.SignOut();
+        release.SetResult();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => resume);
+        await session.WhenSecretsStoredAsync();
+        Assert.Equal(GitHubSessionState.SignedOut, session.State);
+        Assert.Null(secrets[Kept]);
+    }
+
+    [Fact]
+    public async Task SendAsync_Unauthorized_KeepsTheKeptTokenForTheNextStart()
+    {
+        var secrets = new FakeSecretStore();
+        var session = await SignedInSessionAsync(secrets);
+        _otherAnswer = _ => new HttpResponseMessage(HttpStatusCode.Unauthorized);
+
+        using var response = await session.SendAsync(new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user/repos"));
+        await session.WhenSecretsStoredAsync();
+
+        Assert.Equal(GitHubSessionState.SignedOut, session.State);
+        Assert.Equal("ghr_secret", secrets[Kept]);
+    }
+
+    [Fact]
+    public async Task LogLinesAndErrors_HoldNoToken()
+    {
+        var log = new ListLog();
+        var secrets = new FakeSecretStore();
+        _tokenAnswers.Enqueue(() => Json(TokenJson));
+        var first = new LoggingGitHubSession(Session(secrets, keep: true), log);
+        await first.SignInAsync();
+        await ((GitHubSession)first.Inner).WhenSecretsStoredAsync();
+
+        _tokenAnswers.Enqueue(() => Json(RefreshedJson));
+        var resumed = new LoggingGitHubSession(Session(secrets, keep: true), log);
+        await resumed.ResumeAsync();
+        await ((GitHubSession)resumed.Inner).WhenSecretsStoredAsync();
+
+        _tokenAnswers.Enqueue(() => throw new HttpRequestException("No route to host."));
+        await new LoggingGitHubSession(Session(secrets, keep: true), log).ResumeAsync();
+
+        _tokenAnswers.Enqueue(() => Json("""{"error":"bad_refresh_token"}"""));
+        await new LoggingGitHubSession(Session(secrets, keep: true), log).ResumeAsync();
+
+        await new LoggingGitHubSession(Session(new FakeSecretStore { Failure = SecretStoreProblem.Refused }, keep: true), log).ResumeAsync();
+        var refusal = await Assert.ThrowsAsync<ArgumentException>(() => resumed.SendAsync(new HttpRequestMessage(HttpMethod.Get, "https://example.com/")));
+        resumed.SignOut();
+
+        Assert.Equal(
+        [
+            "Signed in to GitHub as octocat.",
+            "Signed in to GitHub as octocat with the sign-in kept on this computer.",
+            "Cannot reach GitHub to resume the sign-in kept on this computer. It stays for the next start.",
+            "GitHub refused the sign-in kept on this computer, so Borea deleted it.",
+            "Cannot keep the GitHub sign-in on this computer, Refused.",
+            "Signed out of GitHub.",
+        ],
+            log.Lines);
+        Assert.All(log.Lines.Append(refusal.Message), line => Assert.DoesNotMatch("gh[ur]_", line));
+    }
+
     private async Task<GitHubSession> SignedInSessionAsync()
     {
         _tokenAnswers.Enqueue(() => Json(TokenJson));
@@ -428,7 +814,20 @@ public sealed class GitHubSessionTests
         return session;
     }
 
+    /// <summary>A session that keeps its sign-in in <paramref name="secrets"/>, already signed in once.</summary>
+    private async Task<GitHubSession> SignedInSessionAsync(FakeSecretStore secrets)
+    {
+        _tokenAnswers.Enqueue(() => Json(TokenJson));
+        var session = Session(secrets, keep: true);
+        Assert.True((await session.SignInAsync()).SignedIn);
+        await session.WhenSecretsStoredAsync();
+        return session;
+    }
+
     private GitHubSession Session() => new(new HttpClient(new FakeHttpMessageHandler(Respond)), ClientId, Slug, _time);
+
+    private GitHubSession Session(ISecretStore? secrets, bool keep) =>
+        new(new HttpClient(new FakeHttpMessageHandler(Respond)), ClientId, Slug, _time, secrets) { KeepSignedIn = keep };
 
     private async Task<HttpResponseMessage> Respond(HttpRequestMessage request)
     {
@@ -469,6 +868,92 @@ public sealed class GitHubSessionTests
     }
 
     private sealed record SentRequest(string Url, string? Body, string? Authorization, string? Accept, string? ApiVersion);
+
+    /// <summary>A secret store in memory. It records the kind of every call, never the secret, and fails every call with <see cref="Failure"/> while that is set.</summary>
+    private sealed class FakeSecretStore : ISecretStore
+    {
+        private readonly object _gate = new();
+        private readonly Dictionary<string, string> _secrets = [];
+        private readonly List<string> _calls = [];
+
+        public SecretStoreProblem? Failure { get; set; }
+
+        public IReadOnlyList<string> Calls
+        {
+            get
+            {
+                lock (_gate)
+                    return _calls.ToArray();
+            }
+        }
+
+        public string? this[string name]
+        {
+            get
+            {
+                lock (_gate)
+                    return _secrets.GetValueOrDefault(name);
+            }
+
+            init => _secrets[name] = value!;
+        }
+
+        public string? Read(string name)
+        {
+            Record("read");
+            lock (_gate)
+                return _secrets.GetValueOrDefault(name);
+        }
+
+        public void Write(string name, string secret)
+        {
+            Record("write");
+            lock (_gate)
+                _secrets[name] = secret;
+        }
+
+        public void Delete(string name)
+        {
+            Record("delete");
+            lock (_gate)
+                _secrets.Remove(name);
+        }
+
+        private void Record(string call)
+        {
+            lock (_gate)
+                _calls.Add(call);
+
+            if (Failure is { } problem)
+                throw new SecretStoreException(problem, "The fake store fails.");
+        }
+    }
+
+    private sealed class ListLog : IBoreaLog
+    {
+        private readonly List<string> _lines = [];
+
+        public IReadOnlyList<string> Lines
+        {
+            get
+            {
+                lock (_lines)
+                    return _lines.ToArray();
+            }
+        }
+
+        public string CurrentFilePath => "borea.log";
+
+        public void Write(string message)
+        {
+            lock (_lines)
+                _lines.Add(message);
+        }
+
+        public void Write(string message, Exception exception) => Write(message + " " + exception);
+
+        public IReadOnlyList<string> ReadRecentLines(int maxLines) => Lines;
+    }
 
     private sealed class ListProgress<T>(List<T> reports) : IProgress<T>
     {

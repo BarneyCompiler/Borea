@@ -1,11 +1,14 @@
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Borea.Core.Dependencies;
+using Borea.Core.Game;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
 using Borea.Core.Settings;
 using Borea.Storage.ModLoaders;
 using Borea.Storage.Settings;
+using Borea.Storage.Tests.Game;
+using Borea.Storage.Tests.Launch;
 using Borea.Storage.Tests.Mods;
 using Borea.Storage.Tests.Paths;
 
@@ -32,6 +35,7 @@ public sealed class FileLoaderInstallerTests : IDisposable
     private readonly FileBoreaSettingsRepository _settings;
     private readonly FakeModDownloader _downloader = new();
     private readonly FileLoaderInstaller _installer;
+    private readonly List<string> _links = [];
 
     public FileLoaderInstallerTests()
     {
@@ -42,11 +46,7 @@ public sealed class FileLoaderInstallerTests : IDisposable
         _installer = new FileLoaderInstaller(_pathProvider, _downloader, _settings, new LoaderConfigurator());
     }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_tempRoot))
-            Directory.Delete(_tempRoot, recursive: true);
-    }
+    public void Dispose() => WineFixtures.Delete(_tempRoot, _links);
 
     private string DefaultDirectory => Path.Combine(_pathProvider.GetLoadersRoot(), LoaderId);
 
@@ -824,6 +824,61 @@ public sealed class FileLoaderInstallerTests : IDisposable
         Assert.False(File.Exists(Assert.Single(_downloader.ArchivePaths)));
     }
 
+    private string Prefix => Path.Combine(_tempRoot, "prefix");
+
+    /// <summary>An installer whose probe finds the prefix with only c: on drive_c.</summary>
+    private FileLoaderInstaller DriveCOnlyInstaller() => new(
+        _pathProvider,
+        _downloader,
+        _settings,
+        new LoaderConfigurator(new FakeWineProbe(new WineInstall(
+            Prefix,
+            WineFixtures.Drives(new Dictionary<char, string> { ['c'] = Path.Combine(Prefix, "drive_c") }),
+            Wrapper: null))));
+
+    [Fact]
+    public async Task InstallAsync_GameInDriveCOfAPrefix_WritesTheWindowsGamePath()
+    {
+        await _settings.SaveAsync(new BoreaSettings(Path.Combine(Prefix, "drive_c", "Program Files", "Kitten Space Agency")));
+        _downloader.Bytes = StarMapZip();
+
+        await DriveCOnlyInstaller().InstallAsync(StarMap(), StarMapRelease());
+
+        var json = (JsonObject)JsonNode.Parse(await File.ReadAllTextAsync(ConfigPath(DefaultDirectory)))!;
+        Assert.Equal(@"C:\Program Files\Kitten Space Agency", (string?)json["GameLocation"]);
+    }
+
+    [Fact]
+    public async Task InstallAsync_GameInAPrefixThatNoDriveHolds_StopsBeforeTheDownloadAndWritesNothing()
+    {
+        await _settings.SaveAsync(new BoreaSettings(Path.Combine(Prefix, "games", "Kitten Space Agency")));
+        _downloader.Bytes = StarMapZip();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => DriveCOnlyInstaller().InstallAsync(StarMap(), StarMapRelease()));
+
+        Assert.Contains("no drive of that prefix holds it", error.Message);
+        Assert.Empty(_downloader.ArchivePaths);
+        Assert.False(File.Exists(ConfigPath(DefaultDirectory)));
+        Assert.False(Directory.Exists(DefaultDirectory));
+        Assert.Empty((await _settings.GetAsync())!.LoaderInstallations);
+    }
+
+    [UnixFact("Windows cannot name a file 'c:', so the drive links exist only on Linux and macOS.")]
+    public async Task InstallAsync_RealPrefixWithOnlyDriveC_FailsWithTheUnmappedPathAndWritesNoConfiguration()
+    {
+        WineFixtures.Prefix(Prefix);
+        _links.Add(WineFixtures.LinkDrive(Prefix, 'c', "../drive_c"));
+        var game = Directory.CreateDirectory(Path.Combine(Prefix, "games", "Kitten Space Agency")).FullName;
+        await _settings.SaveAsync(new BoreaSettings(game));
+        _downloader.Bytes = StarMapZip();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => InstallAsync());
+
+        Assert.Contains("no drive of that prefix holds it", error.Message);
+        Assert.False(File.Exists(ConfigPath(DefaultDirectory)));
+        Assert.Empty((await _settings.GetAsync())!.LoaderInstallations);
+    }
+
     [Fact]
     public async Task InstallAsync_NullArguments_ThrowArgumentNullException()
     {
@@ -861,5 +916,7 @@ public sealed class FileLoaderInstallerTests : IDisposable
             string gameDirectory,
             CancellationToken cancellationToken = default) =>
             throw new IOException("The configuration file cannot be written.");
+
+        public string GamePathValue(string gameDirectory) => gameDirectory;
     }
 }

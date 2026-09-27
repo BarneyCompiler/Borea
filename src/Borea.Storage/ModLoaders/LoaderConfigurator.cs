@@ -1,8 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Borea.Core.Game;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
 using Borea.Storage.Files;
+using Borea.Storage.Game;
 using Tomlyn;
 using Tomlyn.Model;
 using Tomlyn.Parsing;
@@ -12,7 +14,8 @@ namespace Borea.Storage.ModLoaders;
 
 /// <summary>
 /// The file is read as a tree, the one key is set, and the tree is written
-/// back, so every other key survives.
+/// back, so every other key survives. A game in a Wine prefix gets its
+/// Windows path, which the loader in the prefix can open.
 /// </summary>
 public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurationReader
 {
@@ -26,6 +29,29 @@ public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurati
 
     private static readonly JsonSerializerOptions JsonWriteOptions = new() { WriteIndented = true };
 
+    private readonly IWinePrefixProbe _wine;
+
+    public LoaderConfigurator()
+        : this(new WinePrefixProbe())
+    {
+    }
+
+    public LoaderConfigurator(IWinePrefixProbe wine)
+    {
+        _wine = wine ?? throw new ArgumentNullException(nameof(wine));
+    }
+
+    public string GamePathValue(string gameDirectory)
+    {
+        var game = Path.TrimEndingDirectorySeparator(Absolute(gameDirectory, nameof(gameDirectory)));
+        if (NativeLinuxBuild.IsIn(game) || _wine.Find(game) is not { } install)
+            return game;
+
+        return _wine.ToWindowsPath(install, game)
+            ?? throw new InvalidOperationException(
+                $"The game folder '{game}' is in the Wine prefix '{install.PrefixRoot}', and no drive of that prefix holds it, so a mod loader in the prefix could not find the game. Borea changed nothing. Give the folder a drive in the Wine configuration, or move the game to drive C.");
+    }
+
     public async Task<string?> ConfigureAsync(
         ModMetadata loader,
         string loaderDirectory,
@@ -38,7 +64,7 @@ public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurati
             throw new ArgumentException("Only a mod loader has a configuration file to write.", nameof(loader));
 
         var directory = Absolute(loaderDirectory, nameof(loaderDirectory));
-        var game = Path.TrimEndingDirectorySeparator(Absolute(gameDirectory, nameof(gameDirectory)));
+        _ = Absolute(gameDirectory, nameof(gameDirectory));
 
         var configure = loader.Provides?.Configure;
         if (configure?.GamePath is null)
@@ -46,6 +72,8 @@ public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurati
 
         if (configure.Format is not (ConfigureFormat.Json or ConfigureFormat.Toml))
             throw new NotSupportedException($"The listing of {loader.Name} keeps its configuration in a format this version of Borea cannot write.");
+
+        var game = GamePathValue(gameDirectory);
 
         var keys = configure.GamePath.Split('.');
         var file = Path.GetFullPath(Path.Combine(directory, configure.File.Replace('/', Path.DirectorySeparatorChar)));
@@ -64,6 +92,7 @@ public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurati
     public async Task<string?> ReadConfiguredGamePathAsync(
         ModMetadata loader,
         string loaderDirectory,
+        string? gameDirectory = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(loader);
@@ -88,9 +117,41 @@ public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurati
             return null;
 
         var keys = configure.GamePath.Split('.');
-        return configure.Format == ConfigureFormat.Json
+        var configured = configure.Format == ConfigureFormat.Json
             ? ReadJsonGamePath(text, keys, file, loader)
             : ReadTomlGamePath(text, keys, file, loader);
+        return configured is null ? null : HostGamePath(configured, gameDirectory, directory);
+    }
+
+    /// <summary>
+    /// Maps a Windows path through the prefix of the game, or else of the
+    /// loader. A value that names the game directory gives the directory as
+    /// Borea keeps it, because the mapped path has its links resolved and would
+    /// not compare equal. Any other value stays as it is, such as the host path
+    /// an older Borea wrote.
+    /// </summary>
+    private string HostGamePath(string configured, string? gameDirectory, string loaderDirectory)
+    {
+        if (!WineDriveMap.IsDrivePath(configured))
+            return configured;
+
+        if (!string.IsNullOrWhiteSpace(gameDirectory) && Path.IsPathFullyQualified(gameDirectory))
+        {
+            var game = Path.TrimEndingDirectorySeparator(Path.GetFullPath(gameDirectory));
+            if (_wine.Find(game) is { } install)
+            {
+                if (_wine.ToWindowsPath(install, game) is { } windows
+                    && string.Equals(windows.TrimEnd('\\'), configured.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                {
+                    return game;
+                }
+
+                if (install.Drives.ToHost(configured) is { } host)
+                    return host;
+            }
+        }
+
+        return _wine.Find(loaderDirectory)?.Drives.ToHost(configured) ?? configured;
     }
 
     private static string? ReadJsonGamePath(string text, string[] keys, string file, ModMetadata loader)

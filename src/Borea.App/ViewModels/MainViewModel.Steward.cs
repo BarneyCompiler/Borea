@@ -55,6 +55,7 @@ public partial class MainViewModel
         CurrentWindowContent = false;
         CurrentWindowPack = false;
         CurrentWindowSteward = true;
+        StewardPage.CloseReview();
         _ = StewardPage.RefreshTabAsync();
     }
 

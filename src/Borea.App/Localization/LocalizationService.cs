@@ -438,6 +438,106 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string StewardQueueNotFound => Resources.StewardQueueNotFound;
 
+    public string StewardReviewLoading => Resources.StewardReviewLoading;
+
+    public string StewardReviewNotFound => Resources.StewardReviewNotFound;
+
+    public string FormatStewardReviewFrom(string repository)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewFromFormat, repository);
+
+    public string StewardReviewFromGone => Resources.StewardReviewFromGone;
+
+    public string StewardReviewClosed => Resources.StewardReviewClosed;
+
+    public string StewardReviewMerged => Resources.StewardReviewMerged;
+
+    public string StewardReviewOpenOnGitHub => Resources.StewardReviewOpenOnGitHub;
+
+    public string FormatStewardReviewCommit(string commit)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewCommitFormat, commit);
+
+    public string FormatStewardReviewValidate(string state)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewValidateFormat, state);
+
+    public string StewardReviewValidateSuccess => Resources.StewardReviewValidateSuccess;
+
+    public string StewardReviewValidateFailure => Resources.StewardReviewValidateFailure;
+
+    public string StewardReviewValidateError => Resources.StewardReviewValidateError;
+
+    public string StewardReviewValidatePending => Resources.StewardReviewValidatePending;
+
+    public string StewardReviewValidateMissing => Resources.StewardReviewValidateMissing;
+
+    public string StewardReviewValidateUnknown => Resources.StewardReviewValidateUnknown;
+
+    public string FormatStewardReviewValidateUnreadable(string reason)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewValidateUnreadableFormat, reason);
+
+    public string StewardReviewCommitNotFound => Resources.StewardReviewCommitNotFound;
+
+    public string StewardReviewValidateDetails => Resources.StewardReviewValidateDetails;
+
+    public string StewardReviewRunChecks => Resources.StewardReviewRunChecks;
+
+    public string StewardReviewRunChecksHint => Resources.StewardReviewRunChecksHint;
+
+    public string StewardReviewVerdict => Resources.StewardReviewVerdict;
+
+    public string StewardReviewDocuments => Resources.StewardReviewDocuments;
+
+    public string StewardReviewNotText => Resources.StewardReviewNotText;
+
+    public string FormatStewardReviewParseError(string error)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewParseErrorFormat, error);
+
+    public string StewardReviewOwnership => Resources.StewardReviewOwnership;
+
+    public string FormatStewardReviewOwnershipVerified(string login)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewOwnershipVerifiedFormat, login);
+
+    public string FormatStewardReviewOwnershipMissing(string login)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewOwnershipMissingFormat, login);
+
+    public string FormatStewardReviewOwnershipUnknown(string login)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewOwnershipUnknownFormat, login);
+
+    public string StewardReviewOwnershipNoAuthor => Resources.StewardReviewOwnershipNoAuthor;
+
+    public string FormatStewardReviewProofOwner(string login, string repository)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewProofOwnerFormat, login, repository);
+
+    public string FormatStewardReviewProofMarker(string login, string repository)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewProofMarkerFormat, login, repository);
+
+    public string FormatStewardReviewProofNone(string login, string repository, string topic)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewProofNoneFormat, login, repository, topic);
+
+    public string StewardReviewProofNoHost => Resources.StewardReviewProofNoHost;
+
+    public string FormatStewardReviewProofFork(string repository)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewProofForkFormat, repository);
+
+    public string FormatStewardReviewProofRenamed(string repository, string renamedTo)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewProofRenamedFormat, repository, renamedTo);
+
+    public string FormatStewardReviewProofSpaceDockLink(string mod)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewProofSpaceDockLinkFormat, mod);
+
+    public string FormatStewardReviewFiles(string count)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewFilesFormat, count);
+
+    public string StewardReviewFileAdded => Resources.StewardReviewFileAdded;
+
+    public string StewardReviewFileModified => Resources.StewardReviewFileModified;
+
+    public string StewardReviewFileRemoved => Resources.StewardReviewFileRemoved;
+
+    public string FormatStewardReviewFileRenamed(string previousPath)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardReviewFileRenamedFormat, previousPath);
+
+    public string StewardReviewNoPatch => Resources.StewardReviewNoPatch;
+
     public string StewardTabWatcher => Resources.StewardTabWatcher;
 
     public string StewardWatcherHint => Resources.StewardWatcherHint;

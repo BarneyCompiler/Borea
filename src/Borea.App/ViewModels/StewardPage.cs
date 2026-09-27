@@ -10,7 +10,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace Borea.App.ViewModels;
 
 /// <summary>
-/// The Steward page, opened from the GitHub account in Settings. Its Queue tab lists the pull requests that wait for a steward.
+/// The Steward page, opened from the GitHub account in Settings. Its Queue tab lists the pull requests that wait for a steward,
+/// and each one opens its review in place of the tabs.
 /// Its Status tab lists the states of index-status.toml on the base branch with Lift on each, which is the only way back
 /// for a delisted listing, because it has no content page. Its Watcher tab lists the issues of the watcher and its watchdog.
 /// A tab reads GitHub when it shows for the first time.
@@ -30,6 +31,13 @@ public sealed partial class StewardPage : ObservableObject
     public StewardQueueTab Queue { get; }
 
     public StewardWatcherTab Watcher { get; }
+
+    /// <summary>The review that shows in place of the tabs, or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReviewOpen))]
+    private StewardReview? _review;
+
+    public bool IsReviewOpen => Review is not null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsQueueTab))]
@@ -74,9 +82,9 @@ public sealed partial class StewardPage : ObservableObject
     /// <summary>Reads the file again. A second call during a read joins it.</summary>
     internal Task RefreshAsync() => IsLoading ? _load : _load = LoadAsync();
 
-    /// <summary>Reads the tab that shows again.</summary>
+    /// <summary>Reads the review or the tab that shows again.</summary>
     [RelayCommand]
-    internal Task RefreshTabAsync() => Tab switch
+    internal Task RefreshTabAsync() => Review is { } review ? review.RefreshAsync() : Tab switch
     {
         StewardPageTab.Queue => Queue.RefreshAsync(),
         StewardPageTab.Watcher => Watcher.RefreshAsync(),
@@ -95,6 +103,18 @@ public sealed partial class StewardPage : ObservableObject
         };
     }
 
+    /// <summary>Shows the review of the pull request in place of the tabs and reads it.</summary>
+    internal Task OpenReviewAsync(StewardQueueItem item)
+    {
+        var review = new StewardReview(_owner, item);
+        Review = review;
+        return review.RefreshAsync();
+    }
+
+    /// <summary>Goes back to the tab that showed before the review.</summary>
+    [RelayCommand]
+    internal void CloseReview() => Review = null;
+
     [RelayCommand]
     private Task ShowQueue() => ShowTabAsync(StewardPageTab.Queue);
 
@@ -106,11 +126,12 @@ public sealed partial class StewardPage : ObservableObject
 
     internal void OnQueueCountChanged() => OnPropertyChanged(nameof(QueueTabText));
 
-    /// <summary>Builds the texts of the Queue and Watcher tabs again in the language that is now selected.</summary>
+    /// <summary>Builds the texts of the tabs and of the open review again in the language that is now selected.</summary>
     internal void RefreshText()
     {
         Queue.RefreshText();
         Watcher.RefreshText();
+        Review?.RefreshText();
         OnPropertyChanged(nameof(QueueTabText));
     }
 

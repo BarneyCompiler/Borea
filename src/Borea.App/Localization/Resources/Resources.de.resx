@@ -279,6 +279,132 @@
   <data name="StewardQueueNotFound" xml:space="preserve">
     <value>GitHub hat das Repository nicht gefunden.</value>
   </data>
+  <data name="StewardReviewLoading" xml:space="preserve">
+    <value>Der Pull Request wird von GitHub gelesen...</value>
+  </data>
+  <data name="StewardReviewNotFound" xml:space="preserve">
+    <value>GitHub hat diesen Pull Request nicht gefunden.</value>
+  </data>
+  <data name="StewardReviewFromFormat" xml:space="preserve">
+    <value>aus {0}</value>
+  </data>
+  <data name="StewardReviewFromGone" xml:space="preserve">
+    <value>aus einem Repository, das es nicht mehr gibt</value>
+  </data>
+  <data name="StewardReviewClosed" xml:space="preserve">
+    <value>Geschlossen</value>
+  </data>
+  <data name="StewardReviewMerged" xml:space="preserve">
+    <value>Gemergt</value>
+  </data>
+  <data name="StewardReviewOpenOnGitHub" xml:space="preserve">
+    <value>Auf GitHub öffnen</value>
+  </data>
+  <data name="StewardReviewCommitFormat" xml:space="preserve">
+    <value>Head-Commit {0}</value>
+  </data>
+  <data name="StewardReviewValidateFormat" xml:space="preserve">
+    <value>validate: {0}</value>
+  </data>
+  <data name="StewardReviewValidateSuccess" xml:space="preserve">
+    <value>bestanden</value>
+  </data>
+  <data name="StewardReviewValidateFailure" xml:space="preserve">
+    <value>fehlgeschlagen</value>
+  </data>
+  <data name="StewardReviewValidateError" xml:space="preserve">
+    <value>die Prüfungen konnten nicht entscheiden</value>
+  </data>
+  <data name="StewardReviewValidatePending" xml:space="preserve">
+    <value>läuft</value>
+  </data>
+  <data name="StewardReviewValidateMissing" xml:space="preserve">
+    <value>auf diesem Commit noch nicht gesetzt</value>
+  </data>
+  <data name="StewardReviewValidateUnknown" xml:space="preserve">
+    <value>ein Zustand, den Borea nicht kennt</value>
+  </data>
+  <data name="StewardReviewValidateUnreadableFormat" xml:space="preserve">
+    <value>validate auf diesem Commit ist nicht lesbar. {0}</value>
+  </data>
+  <data name="StewardReviewCommitNotFound" xml:space="preserve">
+    <value>GitHub hat diesen Commit nicht gefunden.</value>
+  </data>
+  <data name="StewardReviewValidateDetails" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="StewardReviewRunChecks" xml:space="preserve">
+    <value>Prüfungen auf GitHub starten</value>
+  </data>
+  <data name="StewardReviewRunChecksHint" xml:space="preserve">
+    <value>Zum Beispiel, wenn der Autor das Topic ohne Push ergänzt hat. Borea startet den Lauf nicht selbst.</value>
+  </data>
+  <data name="StewardReviewVerdict" xml:space="preserve">
+    <value>Urteil der Prüfungen</value>
+  </data>
+  <data name="StewardReviewDocuments" xml:space="preserve">
+    <value>Dokumente im Head-Commit</value>
+  </data>
+  <data name="StewardReviewNotText" xml:space="preserve">
+    <value>Die Datei ist kein UTF-8-Text.</value>
+  </data>
+  <data name="StewardReviewParseErrorFormat" xml:space="preserve">
+    <value>Das Dokument lässt sich nicht lesen: {0}</value>
+  </data>
+  <data name="StewardReviewOwnership" xml:space="preserve">
+    <value>Eigentumsnachweis</value>
+  </data>
+  <data name="StewardReviewOwnershipVerifiedFormat" xml:space="preserve">
+    <value>{0} hat einen Eigentumsnachweis.</value>
+  </data>
+  <data name="StewardReviewOwnershipMissingFormat" xml:space="preserve">
+    <value>{0} hat keinen Eigentumsnachweis, daher entscheidet ein Steward.</value>
+  </data>
+  <data name="StewardReviewOwnershipUnknownFormat" xml:space="preserve">
+    <value>Borea konnte den Eigentumsnachweis von {0} nicht prüfen.</value>
+  </data>
+  <data name="StewardReviewOwnershipNoAuthor" xml:space="preserve">
+    <value>Das Konto, das den Pull Request geöffnet hat, gibt es nicht mehr, daher kann Borea seinen Nachweis nicht prüfen.</value>
+  </data>
+  <data name="StewardReviewProofOwnerFormat" xml:space="preserve">
+    <value>{0} besitzt {1}.</value>
+  </data>
+  <data name="StewardReviewProofMarkerFormat" xml:space="preserve">
+    <value>{1} nennt {0} in .github/ksa-content-index.toml.</value>
+  </data>
+  <data name="StewardReviewProofNoneFormat" xml:space="preserve">
+    <value>{0} besitzt {1} nicht, und {1} hat weder das Topic {2} noch eine Markierungsdatei, die {0} nennt.</value>
+  </data>
+  <data name="StewardReviewProofNoHost" xml:space="preserve">
+    <value>Der Eintrag nennt unter releases weder ein GitHub-Repository noch eine SpaceDock-Mod.</value>
+  </data>
+  <data name="StewardReviewProofForkFormat" xml:space="preserve">
+    <value>{0} ist ein Fork und weist nichts nach.</value>
+  </data>
+  <data name="StewardReviewProofRenamedFormat" xml:space="preserve">
+    <value>{0} heißt jetzt {1}.</value>
+  </data>
+  <data name="StewardReviewProofSpaceDockLinkFormat" xml:space="preserve">
+    <value>Der Quellcode-Link der SpaceDock-Mod {0} nennt kein GitHub-Repository.</value>
+  </data>
+  <data name="StewardReviewFilesFormat" xml:space="preserve">
+    <value>Geänderte Dateien ({0})</value>
+  </data>
+  <data name="StewardReviewFileAdded" xml:space="preserve">
+    <value>Neu</value>
+  </data>
+  <data name="StewardReviewFileModified" xml:space="preserve">
+    <value>Geändert</value>
+  </data>
+  <data name="StewardReviewFileRemoved" xml:space="preserve">
+    <value>Entfernt</value>
+  </data>
+  <data name="StewardReviewFileRenamedFormat" xml:space="preserve">
+    <value>Umbenannt von {0}</value>
+  </data>
+  <data name="StewardReviewNoPatch" xml:space="preserve">
+    <value>GitHub sendet für diese Datei keinen Diff, zum Beispiel weil sie binär oder sehr groß ist.</value>
+  </data>
   <data name="StewardTabWatcher" xml:space="preserve">
     <value>Watcher</value>
   </data>

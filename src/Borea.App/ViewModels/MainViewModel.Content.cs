@@ -329,13 +329,17 @@ public partial class MainViewModel
         _ => key.Length == 0 ? key : char.ToUpperInvariant(key[0]) + key[1..],
     };
 
-    /// <summary>Fills the links of a detail panel in the order of #8. Each link keeps its key, which picks its icon.</summary>
+    /// <summary>Fills the links of a detail panel in the order of #8.</summary>
     private void FillLinks(ObservableCollection<ContentLink> links, IReadOnlyDictionary<string, string> source)
     {
         links.Clear();
-        foreach (var link in source.OrderBy(link => LinkOrder(link.Key)))
-            links.Add(new ContentLink(LinkLabel(link.Key), link.Value, link.Key));
+        foreach (var link in ContentLinksOf(source))
+            links.Add(link);
     }
+
+    /// <summary>The links of a detail panel in the order of #8. Each link keeps its key, which picks its icon.</summary>
+    internal IReadOnlyList<ContentLink> ContentLinksOf(IReadOnlyDictionary<string, string> source) =>
+        source.OrderBy(link => LinkOrder(link.Key)).Select(link => new ContentLink(LinkLabel(link.Key), link.Value, link.Key)).ToList();
 
     [RelayCommand]
     private void ShowContentDescription() => ContentTab = ContentPageTab.Description;

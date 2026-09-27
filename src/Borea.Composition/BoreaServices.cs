@@ -254,6 +254,9 @@ public sealed class BoreaServices : IDisposable
     /// <summary>The open pull requests of both index repositories that wait for a steward.</summary>
     public required IStewardQueue StewardQueue { get; init; }
 
+    /// <summary>One pull request of an index repository, as a steward reviews it.</summary>
+    public required IPullRequestReviews PullRequestReviews { get; init; }
+
     /// <summary>The open issues of the watcher and its watchdog in both index repositories.</summary>
     public required IWatcherIssues WatcherIssues { get; init; }
 
@@ -315,6 +318,7 @@ public sealed class BoreaServices : IDisposable
     /// <param name="indexStatusEditor">Opens the steward pull requests of index-status.toml. Null builds one on the GitHub session.</param>
     /// <param name="stewardQueue">Lists the pull requests that wait for a steward. Null builds one on the GitHub session.</param>
     /// <param name="watcherIssues">Lists the issues of the watcher and its watchdog. Null builds one that reads GitHub without the token.</param>
+    /// <param name="pullRequestReviews">Reads one pull request for a steward. Null builds one on the GitHub session.</param>
     /// <param name="selfUpdater">Replaces this Borea build. Null reads the build that runs.</param>
     internal static Task<BoreaServices> BuildAsync(
         string? boreaRoot,
@@ -332,12 +336,13 @@ public sealed class BoreaServices : IDisposable
         ISelfUpdater? selfUpdater = null,
         IIndexStatusEditor? indexStatusEditor = null,
         IStewardQueue? stewardQueue = null,
-        IWatcherIssues? watcherIssues = null)
+        IWatcherIssues? watcherIssues = null,
+        IPullRequestReviews? pullRequestReviews = null)
     {
         ArgumentNullException.ThrowIfNull(httpHandler);
         ArgumentNullException.ThrowIfNull(fallbackRepository);
         ArgumentNullException.ThrowIfNull(installCandidates);
-        return BuildCoreAsync(boreaRoot, BoreaLogSource.App, httpHandler, fallbackRepository, installCandidates, new RunningLaunches(), cancellationToken, processStarter, images, sharedProfileRoot, isGameProcessRunning, isOtherBoreaRunning, gitHub, listingPublisher, selfUpdater, indexStatusEditor, stewardQueue, watcherIssues);
+        return BuildCoreAsync(boreaRoot, BoreaLogSource.App, httpHandler, fallbackRepository, installCandidates, new RunningLaunches(), cancellationToken, processStarter, images, sharedProfileRoot, isGameProcessRunning, isOtherBoreaRunning, gitHub, listingPublisher, selfUpdater, indexStatusEditor, stewardQueue, watcherIssues, pullRequestReviews);
     }
 
     private static async Task<BoreaServices> BuildCoreAsync(
@@ -358,7 +363,8 @@ public sealed class BoreaServices : IDisposable
         ISelfUpdater? selfUpdater = null,
         IIndexStatusEditor? indexStatusEditor = null,
         IStewardQueue? stewardQueue = null,
-        IWatcherIssues? watcherIssues = null)
+        IWatcherIssues? watcherIssues = null,
+        IPullRequestReviews? pullRequestReviews = null)
     {
         // the settings file lives under Borea's own root and needs no
         // game path to be found, so a provider without one reads it.
@@ -438,6 +444,7 @@ public sealed class BoreaServices : IDisposable
         isGameProcessRunning ??= RunningProcesses.IsGameRunning;
         var gitHubSession = new LoggingGitHubSession(gitHub ?? new GitHubSession(http, BoreaGitHubApp.ClientId, BoreaGitHubApp.Slug), log);
         var stewardRole = new GitHubStewardRole(gitHubSession, http);
+        var listingOwnership = new ListingOwnershipCheck(gitHubSession, http, listingFormat);
 
         return new BoreaServices(http)
         {
@@ -512,10 +519,11 @@ public sealed class BoreaServices : IDisposable
             ListingFormat = listingFormat,
             ListingValidator = new ListingValidator(new ListingSchemaStore(listedDocuments, paths)),
             ListingPublisher = new LoggingListingPublisher(listingPublisher ?? new ListingPublisher(gitHubSession, http, listingFormat), log),
-            ListingOwnership = new ListingOwnershipCheck(gitHubSession, http, listingFormat),
+            ListingOwnership = listingOwnership,
             StewardRole = stewardRole,
             IndexStatusEditor = new LoggingIndexStatusEditor(indexStatusEditor ?? new GitHubIndexStatusEditor(gitHubSession, stewardRole, http, listingFormat), log),
             StewardQueue = stewardQueue ?? new GitHubStewardQueue(gitHubSession, http),
+            PullRequestReviews = pullRequestReviews ?? new GitHubPullRequestReviews(gitHubSession, http, listingFormat, listingOwnership),
             WatcherIssues = watcherIssues ?? new GitHubWatcherIssues(gitHubSession, http),
         };
     }

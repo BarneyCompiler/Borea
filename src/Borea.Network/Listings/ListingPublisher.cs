@@ -22,7 +22,7 @@ public sealed class ListingPublisher : IListingPublisher
 
     internal const string Upstream = ListingPullRequestLinks.Repository;
 
-    internal const string StatusContext = "validate";
+    internal const string StatusContext = PullRequestReview.StatusContext;
 
     internal const string StewardLabel = StewardQueueKinds.NeedsStewardLabel;
 

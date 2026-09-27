@@ -1,0 +1,40 @@
+WINE REGISTRY Version 2
+;; All keys relative to \\Machine
+
+#arch=win64
+
+[Software\\Classes\\odd\]name] 1758900000
+#time=1dc2f0c2a3b4c5d
+"InstallLocation"="C:\\Not\\A\\Game"
+
+[Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall] 1758900000
+#time=1dc2f0c2a3b4c5d
+
+[Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{A6C53918-1F1B-4C7B-AF34-63C696A3E822}_is1] 1758900100
+#time=1dc2f0c2a3b4c5e
+"DisplayName"="StarMap version 0.4.7"
+"InstallLocation"="C:\\Users\\J\xfcrgen\\StarMap\\"
+"Publisher"="Klaas \"KlaasWhite\" White"
+
+[Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{BA65F5AF-CD20-48A4-A957-410CB9660FF7}_is1] 1758900200
+#time=1dc2f0c2a3b4c5f
+"Comments"="Line one\nline two\11tab"
+"DisplayName"="Kitten Space Agency"
+"EstimatedSize"=dword:00200000
+"Icon"=hex(2):43,00,3a,00,5c,00,00,00
+"InstallLocation"="C:\\Program Files\\Kitten Space Agency\\"
+"NoModify"=hex:01,02,03,04,05,06,07,08,09,0a,0b,0c,0d,0e,0f,10,11,12,13,14,15,\
+  16,17,18,19,1a
+"Publisher"="RocketWerkz \x00e9dition"
+
+[Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{BA65F5AF-CD20-48A4-A957-410CB9660FF7}_is1\\Nested] 1758900300
+"DisplayName"="StarMap version nested"
+"InstallLocation"="C:\\Nested"
+
+[Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Some Other App] 1758900400
+"DisplayName"="Some Other App"
+"InstallLocation"="C:\\Other"
+
+[Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Unmapped StarMap] 1758900500
+"DisplayName"="StarMap version 0.4.5"
+"InstallLocation"="D:\\StarMap"

@@ -51,6 +51,22 @@ public sealed class BoreaServicesTests : IDisposable
     }
 
     [Fact]
+    public void HostInstallCandidates_FitTheHost()
+    {
+        var candidates = BoreaServices.HostInstallCandidates();
+
+        if (OperatingSystem.IsWindows())
+            Assert.IsType<WindowsInstallCandidateSource>(candidates);
+        else if (OperatingSystem.IsMacOS())
+            Assert.IsType<WrapperInstallCandidateSource>(candidates);
+        else
+        {
+            Assert.IsNotType<WrapperInstallCandidateSource>(candidates);
+            Assert.Empty(candidates.GetGameDirectories());
+        }
+    }
+
+    [Fact]
     public async Task BuildAsync_NoSettingsFile_WritesNothing()
     {
         using var services = await BoreaServices.BuildAsync(_tempRoot);

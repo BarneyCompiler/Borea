@@ -567,7 +567,7 @@
                                         <TextBlock Classes="body-md" Classes.positive="{Binding ListingEditor.IsPullRequestGood}" Classes.danger="{Binding ListingEditor.IsPullRequestBad}" Text="{Binding ListingEditor.PullRequestStateText}" TextWrapping="Wrap" IsVisible="{Binding ListingEditor.PullRequestStateText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                         <views:MarkdownView Markdown="{Binding ListingEditor.PullRequestVerdict}" IsVisible="{Binding ListingEditor.PullRequestVerdict, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                         <TextBlock Classes="body-sm danger" Text="{Binding ListingEditor.StatusError}" TextWrapping="Wrap" IsVisible="{Binding ListingEditor.StatusError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                        <Button Classes="link" Command="{Binding SignInToGitHubCommand}" HorizontalAlignment="Left" IsVisible="{Binding ListingEditor.NeedsSignInToFollow}">
+                                        <Button Classes="link" Command="{Binding ListingEditor.SignInCommand}" HorizontalAlignment="Left" IsVisible="{Binding ListingEditor.NeedsSignInToFollow}">
                                             <TextBlock Classes="action-md" Text="{Binding Localization.ListingSignIn}" />
                                         </Button>
                                     </StackPanel>

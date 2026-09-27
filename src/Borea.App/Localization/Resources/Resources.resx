@@ -192,6 +192,9 @@
   <data name="SettingsGitHubSignedInAsFormat" xml:space="preserve">
     <value>Signed in as {0}</value>
   </data>
+  <data name="SettingsGitHubSteward" xml:space="preserve">
+    <value>Steward of the content index</value>
+  </data>
   <data name="SettingsGitHubSignOutHint" xml:space="preserve">
     <value>Sign out makes Borea forget the access. To revoke it, go to GitHub.</value>
   </data>
@@ -205,7 +208,7 @@
     <value>Sign in to GitHub</value>
   </data>
   <data name="GitHubSignInHint" xml:space="preserve">
-    <value>Enter this code on GitHub. Borea can then write to your fork of the content index and open pull requests to the content index, nothing else. The access expires after 8 hours.</value>
+    <value>Enter this code on GitHub. Borea can then write to your fork of the content index and open pull requests to the content index. For a steward, Borea can also review, merge and close pull requests of the content index and write to its steward branches. Nothing else. The access expires after 8 hours.</value>
   </data>
   <data name="GitHubSignInCodeWarning" xml:space="preserve">
     <value>Borea asks for this code only in this window, never anywhere else.</value>

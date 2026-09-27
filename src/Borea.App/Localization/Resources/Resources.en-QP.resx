@@ -147,6 +147,9 @@
   <data name="SharedModStoreBrokenOutFormat" xml:space="preserve">
     <value>{0} scribbled on its own booty, so every sea now has its own copy of it.</value>
   </data>
+  <data name="SettingsGitHubSteward" xml:space="preserve">
+    <value>Steward o' the content index</value>
+  </data>
   <data name="LibraryFolderMoving" xml:space="preserve">
     <value>Haulin' the List o' Loot to a new treasure chest...</value>
   </data>

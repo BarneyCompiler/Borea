@@ -377,6 +377,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatSettingsGitHubSignedInAs(string login)
         => string.Format(CultureInfo.CurrentCulture, Resources.SettingsGitHubSignedInAsFormat, login);
 
+    public string SettingsGitHubSteward => Resources.SettingsGitHubSteward;
+
     public string SettingsGitHubSignOutHint => Resources.SettingsGitHubSignOutHint;
 
     public string SettingsGitHubSignOut => Resources.SettingsGitHubSignOut;

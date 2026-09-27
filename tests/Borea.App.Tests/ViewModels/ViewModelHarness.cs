@@ -226,6 +226,7 @@ internal sealed class ViewModelHarness : IDisposable
             ("GameDetected", viewModel.WhenGameDetectedAsync()),
             ("IndexChecked", viewModel.WhenIndexCheckedAsync()),
             ("GitHubSignInDone", viewModel.WhenGitHubSignInDoneAsync()),
+            ("StewardRoleChecked", viewModel.WhenStewardRoleCheckedAsync()),
             ("LinkRegistrationDone", viewModel.WhenLinkRegistrationDoneAsync()),
             ("TasksSaved", viewModel.Tasks.WhenSavedAsync()),
         ];

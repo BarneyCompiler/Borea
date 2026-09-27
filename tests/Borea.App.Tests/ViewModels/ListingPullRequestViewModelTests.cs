@@ -1,3 +1,4 @@
+using System.Net;
 using Borea.App.ViewModels;
 using Borea.Core.GitHub;
 using Borea.Core.Index;
@@ -311,7 +312,6 @@ public sealed class ListingPullRequestViewModelTests
     [Fact]
     public async Task Publish_OpensThePullRequestAndFollowsItUntilItMerges()
     {
-        _session.SignIn();
         _publisher.Statuses.Enqueue(new ListingPullRequestStatus(ListingPullRequestState.ChecksRunning, null));
         _publisher.Statuses.Enqueue(new ListingPullRequestStatus(ListingPullRequestState.ValidatedMerging, "Validated.\n\nThis pull request merges on its own once the checks finish."));
         _publisher.Statuses.Enqueue(new ListingPullRequestStatus(ListingPullRequestState.Merged, null));
@@ -351,11 +351,11 @@ public sealed class ListingPullRequestViewModelTests
     [Fact]
     public async Task ClosedWithoutAMerge_SignsOut()
     {
-        _session.SignIn();
         _publisher.Statuses.Enqueue(new ListingPullRequestStatus(ListingPullRequestState.Closed, null));
         using var harness = await CreateAsync();
         var editor = await ValidNewListingAsync(harness);
 
+        await editor.SignInCommand.ExecuteAsync(null);
         await editor.PublishCommand.ExecuteAsync(null);
         await editor.Following;
 
@@ -367,12 +367,12 @@ public sealed class ListingPullRequestViewModelTests
     [Fact]
     public async Task RefreshOfAClosedPullRequest_KeepsALaterSignIn()
     {
-        _session.SignIn();
         _publisher.Statuses.Enqueue(new ListingPullRequestStatus(ListingPullRequestState.Closed, null));
         using var harness = await CreateAsync();
         var editor = await ValidNewListingAsync(harness);
         await editor.PublishCommand.ExecuteAsync(null);
         await editor.Following;
+        Assert.Equal(GitHubSessionStatus.SignedOut, _session.State.Status);
 
         _session.SignIn();
         await editor.RefreshStatusCommand.ExecuteAsync(null);
@@ -567,10 +567,10 @@ public sealed class ListingPullRequestViewModelTests
     [Fact]
     public async Task LeavingThePage_SignsOutAndStopsFollowing()
     {
-        _session.SignIn();
         using var harness = await CreateAsync();
         var editor = await ValidNewListingAsync(harness);
         editor.FollowInterval = TimeSpan.FromHours(1);
+        await editor.SignInCommand.ExecuteAsync(null);
         await editor.PublishCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => _publisher.StatusReads == 1);
 
@@ -589,10 +589,10 @@ public sealed class ListingPullRequestViewModelTests
     [Fact]
     public async Task LeavingThePageWhilePublishing_SignsOutAfterThePublish()
     {
-        _session.SignIn();
         _publisher.Hold = new TaskCompletionSource();
         using var harness = await CreateAsync();
         var editor = await ValidNewListingAsync(harness);
+        await editor.SignInCommand.ExecuteAsync(null);
 
         var publishing = editor.PublishCommand.ExecuteAsync(null);
         harness.ViewModel.SetMainWindowLibrary();
@@ -603,6 +603,70 @@ public sealed class ListingPullRequestViewModelTests
         Assert.Equal(GitHubSessionStatus.SignedOut, _session.State.Status);
         Assert.True(editor.HasPullRequest);
         Assert.Equal(0, _publisher.StatusReads);
+    }
+
+    [Theory]
+    [InlineData(ListingPullRequestState.Merged)]
+    [InlineData(ListingPullRequestState.Closed)]
+    public async Task SignInFromSettings_StaysWhenThePullRequestIsFinal(ListingPullRequestState final)
+    {
+        _publisher.Statuses.Enqueue(new ListingPullRequestStatus(final, null));
+        using var harness = await CreateAsync();
+        var editor = await ValidNewListingAsync(harness);
+        await SignInFromSettingsAsync(harness);
+
+        await editor.PublishCommand.ExecuteAsync(null);
+        await editor.Following;
+
+        Assert.False(editor.HasOpenPullRequest);
+        Assert.Equal(GitHubSessionStatus.SignedIn, _session.State.Status);
+    }
+
+    [Fact]
+    public async Task SignInFromSettings_StaysWhenThePageCloses()
+    {
+        using var harness = await CreateAsync();
+        var editor = await ValidNewListingAsync(harness);
+        editor.FollowInterval = TimeSpan.FromHours(1);
+        await SignInFromSettingsAsync(harness);
+        await editor.PublishCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => _publisher.StatusReads == 1);
+
+        harness.ViewModel.SetMainWindowLibrary();
+        await editor.Following;
+
+        Assert.Equal(GitHubSessionStatus.SignedIn, _session.State.Status);
+    }
+
+    [Fact]
+    public async Task SignInFromSettings_StaysWhenThePageClosesWhilePublishing()
+    {
+        _publisher.Hold = new TaskCompletionSource();
+        using var harness = await CreateAsync();
+        var editor = await ValidNewListingAsync(harness);
+        await SignInFromSettingsAsync(harness);
+
+        var publishing = editor.PublishCommand.ExecuteAsync(null);
+        harness.ViewModel.SetMainWindowLibrary();
+        _publisher.Hold.SetResult();
+        await publishing;
+
+        Assert.True(editor.HasPullRequest);
+        Assert.Equal(GitHubSessionStatus.SignedIn, _session.State.Status);
+    }
+
+    [Fact]
+    public async Task SignInFromSettingsAfterAPageSignIn_StaysWhenThePageCloses()
+    {
+        using var harness = await CreateAsync();
+        var editor = await ValidNewListingAsync(harness);
+        await editor.SignInCommand.ExecuteAsync(null);
+        harness.ViewModel.SignOutOfGitHubCommand.Execute(null);
+        await SignInFromSettingsAsync(harness);
+
+        harness.ViewModel.SetMainWindowLibrary();
+
+        Assert.Equal(GitHubSessionStatus.SignedIn, _session.State.Status);
     }
 
     [Fact]
@@ -760,6 +824,13 @@ public sealed class ListingPullRequestViewModelTests
 
     private Task<ViewModelHarness> CreateAsync() => ViewModelHarness.CreateAsync(gitHub: _session, listingPublisher: _publisher);
 
+    private static async Task SignInFromSettingsAsync(ViewModelHarness harness)
+    {
+        harness.ViewModel.SignInToGitHubCommand.Execute(null);
+        await harness.ViewModel.WhenGitHubSignInDoneAsync();
+        Assert.True(harness.ViewModel.IsGitHubSignedIn);
+    }
+
     private static async Task<ListingEditor> ValidNewListingAsync(ViewModelHarness harness)
     {
         var editor = harness.ViewModel.ListingEditor;
@@ -824,7 +895,7 @@ public sealed class ListingPullRequestViewModelTests
         }
 
         public Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent("""{"message":"Not Found"}""") });
     }
 
     internal sealed class FakePublisher : IListingPublisher

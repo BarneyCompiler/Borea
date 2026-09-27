@@ -228,6 +228,7 @@ public sealed class ContentIndexModPackRepositoryTests
         public string GetAppPreferencesPath() => "app-preferences.json";
         public string GetTaskHistoryPath() => throw new NotSupportedException();
         public string GetAppLockPath() => throw new NotSupportedException();
+        public string GetSecretsFolder() => throw new NotSupportedException();
         public string GetInstancesRoot() => throw new NotSupportedException();
         public string GetStaticModFilesRoot() => throw new NotSupportedException();
         public string GetLoadersRoot() => throw new NotSupportedException();

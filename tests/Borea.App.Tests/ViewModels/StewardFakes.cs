@@ -120,6 +120,34 @@ internal sealed class FakePullRequestReviews : IPullRequestReviews
     }
 }
 
+/// <summary>Records every action it was sent, and answers each with the next of <see cref="Failures"/> or a success.</summary>
+internal sealed class FakePullRequestActions : IPullRequestActions
+{
+    public List<(string Action, PullRequestReview PullRequest, string? Text, bool SkipRequiredReview)> Sent { get; } = [];
+
+    public Queue<Exception> Failures { get; } = [];
+
+    public TaskCompletionSource? Hold { get; set; }
+
+    public Task ReviewAsync(PullRequestReview pullRequest, PullRequestReviewKind kind, string? body, CancellationToken cancellationToken = default) =>
+        RunAsync(kind.ToString(), pullRequest, body, false);
+
+    public Task MergeAsync(PullRequestReview pullRequest, bool skipRequiredReview, CancellationToken cancellationToken = default) =>
+        RunAsync("Merge", pullRequest, null, skipRequiredReview);
+
+    public Task CloseAsync(PullRequestReview pullRequest, string comment, CancellationToken cancellationToken = default) =>
+        RunAsync("Close", pullRequest, comment, false);
+
+    private async Task RunAsync(string action, PullRequestReview pullRequest, string? text, bool skipRequiredReview)
+    {
+        Sent.Add((action, pullRequest, text, skipRequiredReview));
+        if (Hold is { } hold)
+            await hold.Task;
+        if (Failures.TryDequeue(out var failure))
+            throw failure;
+    }
+}
+
 /// <summary>Answers the Watcher tab from its lists and counts the reads.</summary>
 internal sealed class FakeWatcherIssues : IWatcherIssues
 {

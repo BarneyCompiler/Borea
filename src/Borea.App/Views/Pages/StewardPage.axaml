@@ -274,7 +274,7 @@
                     </Panel>
                 </StackPanel>
 
-                <!-- Review: one pull request in place of the tabs. It reads only, the steward decides on GitHub -->
+                <!-- Review: one pull request in place of the tabs, with the steward actions on it -->
                 <Panel IsVisible="{Binding IsReviewOpen}">
                     <StackPanel DataContext="{Binding Review}" x:DataType="vm:StewardReview" Margin="0,24,0,0">
                         <WrapPanel ItemSpacing="8" LineSpacing="4">
@@ -335,6 +335,21 @@
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
+
+                        <!-- the steward actions, each with a confirmation, and why Merge is off -->
+                        <StackPanel Spacing="8" Margin="0,16,0,0" IsVisible="{Binding CanAct}">
+                            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                <Button Classes="cta" Command="{Binding MergeCommand}" IsEnabled="{Binding CanMerge}">
+                                    <TextBlock Classes="action-lg" Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardActionMerge}" VerticalAlignment="Center" />
+                                </Button>
+                                <Button Classes="text tall" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardActionApprove}" Command="{Binding ApproveCommand}" VerticalAlignment="Center" />
+                                <Button Classes="text tall" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardActionRequestChanges}" Command="{Binding RequestChangesCommand}" VerticalAlignment="Center" />
+                                <Button Classes="text tall" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardActionComment}" Command="{Binding CommentCommand}" VerticalAlignment="Center" />
+                                <Button Classes="text tall" Content="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.StewardActionClose}" Command="{Binding ClosePullRequestCommand}" VerticalAlignment="Center" />
+                            </WrapPanel>
+                            <TextBlock Classes="body-sm secondary" Text="{Binding MergeBlockedText}" TextWrapping="Wrap" IsVisible="{Binding MergeBlockedText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Classes="body-sm" Text="{Binding OwnWarning}" TextWrapping="Wrap" IsVisible="{Binding OwnWarning, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </StackPanel>
 
                         <!-- the verdict of the checks, as Markdown -->
                         <StackPanel Spacing="12" Margin="0,32,0,0" IsVisible="{Binding CommitText, Converter={x:Static ObjectConverters.IsNotNull}}">

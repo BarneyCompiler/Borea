@@ -276,6 +276,49 @@ public sealed class GitHubApiTests
     }
 
     [Fact]
+    public async Task QueryAsync_SendsTheQueryAndItsVariablesWithTheToken_AndGivesTheData()
+    {
+        On("POST", Api + "/graphql", () => Json("""{"data":{"repository":{"pullRequest":{"number":5}}}}"""));
+        var (api, _) = await SignedInAsync();
+
+        var data = await api.QueryAsync<JsonElement>("query($number: Int!) { repository { pullRequest(number: $number) { number } } }", new Dictionary<string, object> { ["number"] = 5 }, CancellationToken.None);
+
+        Assert.Equal(5, data.GetProperty("repository").GetProperty("pullRequest").GetProperty("number").GetInt32());
+        var sent = Assert.Single(_sent);
+        Assert.Equal(("POST " + Api + "/graphql", "Bearer " + Token), (sent.Line, sent.Authorization));
+        Assert.Equal("""{"query":"query($number: Int!) { repository { pullRequest(number: $number) { number } } }","variables":{"number":5}}""", sent.Body);
+    }
+
+    [Theory]
+    [InlineData("""{"data":null,"errors":[{"type":"NOT_FOUND","message":"Could not resolve to a Repository."}]}""", "NotFound", "Could not resolve to a Repository.")]
+    [InlineData("""{"data":{"repository":null},"errors":[{"type":"FORBIDDEN","message":"Resource not accessible by integration"}]}""", "Forbidden", "Resource not accessible by integration")]
+    [InlineData("""{"errors":[{"type":"RATE_LIMITED","message":"API rate limit exceeded"}]}""", "RateLimited", "API rate limit exceeded")]
+    [InlineData("""{"errors":[{"message":"Parse error on \"}\""}]}""", "UnexpectedResponse", "Parse error on \"}\"")]
+    [InlineData("""{"data":null}""", "UnexpectedResponse", null)]
+    public async Task QueryAsync_ErrorInASuccess_Throws(string answer, string failure, string? detail)
+    {
+        On("POST", Api + "/graphql", () => Json(answer));
+        var (api, _) = await SignedInAsync();
+
+        var exception = await Assert.ThrowsAsync<GitHubApiException>(() => api.QueryAsync<Dictionary<string, JsonElement>>("query { viewer { login } }", new Dictionary<string, object>(), CancellationToken.None));
+
+        Assert.Equal((failure, detail), (exception.Failure.ToString(), exception.Detail));
+        Assert.Equal(exception.Failure == GitHubApiFailure.RateLimited, exception.RetryAt is not null);
+    }
+
+    [Theory]
+    [InlineData("mutation { mergePullRequest(input: { pullRequestId: \"x\" }) { clientMutationId } }")]
+    [InlineData("{ viewer { login } }")]
+    public async Task QueryAsync_NoQuery_SendsNothing(string document)
+    {
+        var (api, _) = await SignedInAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => api.QueryAsync<JsonElement>(document, new Dictionary<string, object>(), CancellationToken.None));
+
+        Assert.Empty(_sent);
+    }
+
+    [Fact]
     public void Parse_NotTheExpectedJson_IsAnUnexpectedResponse()
     {
         var failure = Assert.Throws<GitHubApiException>(() => GitHubApi.Parse<StatusDto>("<html>"));

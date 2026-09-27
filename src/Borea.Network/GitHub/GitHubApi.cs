@@ -11,7 +11,7 @@ using Borea.Core.Stewardship;
 namespace Borea.Network.GitHub;
 
 /// <summary>
-/// The REST API of GitHub, through the signed-in session or without the token. It follows redirects only inside https://api.github.com.
+/// The REST API of GitHub, through the signed-in session or without the token, and GraphQL queries through the session. It follows redirects only inside https://api.github.com.
 /// It never commits to or moves the base branch of a KSAModding repository directly, because the token of a steward bypasses the ruleset of that branch.
 /// </summary>
 internal sealed class GitHubApi
@@ -25,6 +25,8 @@ internal sealed class GitHubApi
     internal static readonly TimeSpan SecondaryLimitWait = TimeSpan.FromMinutes(1);
 
     internal static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+
+    private static readonly JsonSerializerOptions GraphQlJson = new(JsonSerializerDefaults.Web);
 
     private const int MaxRedirects = 5;
 
@@ -130,6 +132,46 @@ internal sealed class GitHubApi
             reply = await SendAsync(HttpMethod.Get, url, null, cancellationToken, anonymous: true).ConfigureAwait(false);
 
         return Parse<T>(Ensure(reply));
+    }
+
+    /// <summary>
+    /// Sends a GraphQL query through the session and gives its data. GraphQL answers an error with a success, so an error in the answer throws.
+    /// Only a query goes, because the branch guard knows only the paths of the REST API.
+    /// </summary>
+    /// <exception cref="ArgumentException">The document is no query.</exception>
+    /// <exception cref="GitHubApiException">The request failed, or GitHub answered with an error or without data.</exception>
+    public async Task<T> QueryAsync<T>(string query, IReadOnlyDictionary<string, object> variables, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        if (!query.TrimStart().StartsWith("query", StringComparison.Ordinal))
+            throw new ArgumentException("Borea sends only a GraphQL query.", nameof(query));
+
+        var body = new Dictionary<string, object> { ["query"] = query, ["variables"] = variables };
+        var reply = await SendAsync(HttpMethod.Post, Root + "/graphql", body, cancellationToken).ConfigureAwait(false);
+        GraphQlReply<T> answer;
+        try
+        {
+            answer = JsonSerializer.Deserialize<GraphQlReply<T>>(Ensure(reply), GraphQlJson) ?? throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse);
+        }
+        catch (JsonException exception)
+        {
+            throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse, innerException: exception);
+        }
+
+        if (answer.Errors is [var error, ..])
+        {
+            var failure = error.Type switch
+            {
+                "NOT_FOUND" => GitHubApiFailure.NotFound,
+                "FORBIDDEN" => GitHubApiFailure.Forbidden,
+                "RATE_LIMITED" => GitHubApiFailure.RateLimited,
+                _ => GitHubApiFailure.UnexpectedResponse,
+            };
+            var retryAt = failure == GitHubApiFailure.RateLimited ? _time.GetUtcNow() + SecondaryLimitWait : (DateTimeOffset?)null;
+            throw new GitHubApiException(failure, error.Message, retryAt, reply.Status);
+        }
+
+        return answer.Data ?? throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse);
     }
 
     /// <summary>The file and its blob sha at <paramref name="reference"/>, or null when it is not there. The text is null when the file is no UTF-8 text.</summary>
@@ -379,6 +421,20 @@ internal sealed class GitHubApi
         public string? Message { get; set; }
 
         public List<JsonElement>? Errors { get; set; }
+    }
+
+    private sealed class GraphQlReply<T>
+    {
+        public T? Data { get; set; }
+
+        public List<GraphQlError>? Errors { get; set; }
+    }
+
+    private sealed class GraphQlError
+    {
+        public string? Type { get; set; }
+
+        public string? Message { get; set; }
     }
 
     private sealed class ContentDto

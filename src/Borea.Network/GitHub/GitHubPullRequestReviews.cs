@@ -8,11 +8,13 @@ using Borea.Network.Listings;
 namespace Borea.Network.GitHub;
 
 /// <summary>
-/// IPullRequestReviews on the REST API. The pull request, its files, its comments and its documents go with the token of the signed-in session,
-/// and the commit status goes without it, because the App has no Commit statuses permission.
+/// IPullRequestReviews and IPullRequestActions on the REST API, and the review decision of a merge through a GraphQL query. The pull request, its files,
+/// its comments, its documents, the review decision and every action go with the token of the signed-in session, and the commit status goes without it,
+/// because the App has no Commit statuses permission.
 /// </summary>
 public sealed partial class GitHubPullRequestReviews : IPullRequestReviews
 {
+    private readonly IGitHubSession _session;
     private readonly GitHubApi _api;
     private readonly IListingFormat _format;
     private readonly IListingOwnershipCheck _ownership;
@@ -23,18 +25,15 @@ public sealed partial class GitHubPullRequestReviews : IPullRequestReviews
     {
         _format = format ?? throw new ArgumentNullException(nameof(format));
         _ownership = ownership ?? throw new ArgumentNullException(nameof(ownership));
+        _session = session ?? throw new ArgumentNullException(nameof(session));
         _api = new GitHubApi(session, http, time);
     }
 
     public async Task<PullRequestReview> ReadAsync(string repository, int number, CancellationToken cancellationToken = default)
     {
-        if (!StewardQueue.Repositories.Contains(repository, StringComparer.OrdinalIgnoreCase))
-            throw new ArgumentException($"{repository} is no index repository.", nameof(repository));
-
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(number);
+        var pulls = PullsUrlOf(repository, number);
         try
         {
-            var pulls = $"{GitHubApi.Root}/repos/{repository}/pulls/{number.ToString(CultureInfo.InvariantCulture)}";
             var pull = await _api.GetAsync<PullDto>(pulls, cancellationToken).ConfigureAwait(false);
             if (!Uri.TryCreate(pull.HtmlUrl, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps || pull.Number != number
                 || pull.Head?.Sha is not { } head || !CommitSha().IsMatch(head) || pull.Base?.Ref is not { Length: > 0 } baseBranch)
@@ -82,6 +81,16 @@ public sealed partial class GitHubPullRequestReviews : IPullRequestReviews
         {
             throw new StewardException(StewardFailure.SignedOut, innerException: exception);
         }
+    }
+
+    /// <exception cref="ArgumentException">The repository is no index repository.</exception>
+    private static string PullsUrlOf(string repository, int number)
+    {
+        if (!StewardQueue.Repositories.Contains(repository, StringComparer.OrdinalIgnoreCase))
+            throw new ArgumentException($"{repository} is no index repository.", nameof(repository));
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(number);
+        return $"{GitHubApi.Root}/repos/{repository}/pulls/{number.ToString(CultureInfo.InvariantCulture)}";
     }
 
     private async Task<IReadOnlyList<PullRequestFile>> FilesAsync(string pulls, Uri url, CancellationToken cancellationToken)

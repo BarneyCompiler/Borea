@@ -1917,6 +1917,15 @@
   <data name="ListingFileType" xml:space="preserve">
     <value>TOML-Datei</value>
   </data>
+  <data name="ListingCopyOwnerFile" xml:space="preserve">
+    <value>owner.json kopieren</value>
+  </data>
+  <data name="ListingSaveOwnerFile" xml:space="preserve">
+    <value>owner.json speichern</value>
+  </data>
+  <data name="ListingOwnerFileType" xml:space="preserve">
+    <value>JSON-Datei</value>
+  </data>
   <data name="ListingOpenPullRequest" xml:space="preserve">
     <value>Pull Request auf GitHub öffnen</value>
   </data>
@@ -1924,7 +1933,13 @@
     <value>GitHub öffnet eine neue Datei in deiner eigenen Kopie von content-index und danach das Formular für den Pull Request. GitHub füllt diesen Text ein, wenn er in den Link passt. Ist er zu lang, kopiert Borea ihn, und du fügst ihn in die Seite ein. Der Pull Request wird von selbst gemergt, wenn du den Release-Host kontrollierst: Das Repository gehört dir, hat das Topic ksa-index-&lt;dein GitHub-Name&gt; oder enthält .github/ksa-content-index.toml. Eine SpaceDock-Mod beweist das über das GitHub-Repository in ihrem Quellcode-Link.</value>
   </data>
   <data name="ListingPackPullRequestTextFormat" xml:space="preserve">
-    <value>GitHub öffnet die neue Datei {0} in deiner eigenen Kopie von content-index. Eine Pack-Datei ist fast immer zu lang für den Link, deshalb kopiert Borea sie, und du fügst sie in die Seite ein und öffnest den Pull Request. Die erste Version eines neuen Packs braucht außerdem eine owner.json mit deinem GitHub-Konto im selben Ordner, und ein Steward nimmt sie an. Spätere Versionen von diesem Konto werden von selbst gemergt.</value>
+    <value>GitHub öffnet die neue Datei {0} in deiner eigenen Kopie von content-index. Eine Pack-Datei ist fast immer zu lang für den Link, deshalb kopiert Borea sie, und du fügst sie in die Seite ein und öffnest den Pull Request. Eine Version von dem Konto, dem das Pack gehört, wird von selbst gemergt.</value>
+  </data>
+  <data name="ListingNewPackPullRequestTextFormat" xml:space="preserve">
+    <value>GitHub öffnet die neue Datei {0} in deiner eigenen Kopie von content-index. Eine Pack-Datei ist fast immer zu lang für den Link, deshalb kopiert Borea sie, und du fügst sie in die Seite ein. Die erste Version eines neuen Packs fügt demselben Pull Request außerdem {1} hinzu. Ein Steward nimmt einen ersten Anspruch an, wenn die Prüfungen bestanden sind, und bei einem neuen GitHub-Konto können die Prüfungen warten, bis ein Steward sie startet.</value>
+  </data>
+  <data name="ListingOwnerFileTextFormat" xml:space="preserve">
+    <value>Die erste Version eines neuen Packs fügt auch {0} hinzu, die dein GitHub-Konto als Besitzer des Packs nennt. Wenn Borea den Pull Request von deinem Konto öffnet, schreibt es diese Datei selbst. Im Browser fügst du sie mit Add file zum Branch desselben Pull Requests hinzu und trägst deinen GitHub-Namen und die numerische ID ein, die https://api.github.com/users/&lt;dein GitHub-Name&gt; zeigt.</value>
   </data>
   <data name="ListingEditPullRequestText" xml:space="preserve">
     <value>GitHub öffnet die eingetragene Datei zum Bearbeiten, und Borea kopiert den neuen Text. Füge ihn über dem alten Text ein und öffne den Pull Request. Die Prüfungen beweisen, dass du den Release-Host kontrollierst, den der Eintrag jetzt nennt.</value>
@@ -1934,6 +1949,9 @@
   </data>
   <data name="ListingCopied" xml:space="preserve">
     <value>Eintragsdatei kopiert.</value>
+  </data>
+  <data name="ListingOwnerFileCopied" xml:space="preserve">
+    <value>owner.json kopiert.</value>
   </data>
   <data name="ListingSavedFormat" xml:space="preserve">
     <value>{0} gespeichert.</value>
@@ -1946,6 +1964,9 @@
   </data>
   <data name="ListingOpenedPaste" xml:space="preserve">
     <value>Borea hat die Datei kopiert. Füge sie in die Seite ein, die GitHub geöffnet hat.</value>
+  </data>
+  <data name="ListingOpenedAddOwnerFormat" xml:space="preserve">
+    <value>Füge danach auf GitHub mit Add file {0} zum Branch desselben Pull Requests hinzu, und füge dort die Besitzerdatei aus Borea ein.</value>
   </data>
   <data name="ListingOpenFailedFormat" xml:space="preserve">
     <value>GitHub konnte nicht geöffnet werden: {0}</value>
@@ -1980,6 +2001,12 @@
   <data name="ListingOwnershipUnknown" xml:space="preserve">
     <value>Borea konnte nicht prüfen, wer den Release-Host kontrolliert. Die Prüfungen entscheiden, wenn du den Pull Request öffnest.</value>
   </data>
+  <data name="ListingOwnershipPackUnknown" xml:space="preserve">
+    <value>Borea konnte nicht lesen, wem die Pack-ID gehört. Die Prüfungen entscheiden, wenn du den Pull Request öffnest.</value>
+  </data>
+  <data name="ListingOwnershipFirstClaim" xml:space="preserve">
+    <value>Die Pack-ID ist frei. Der Pull Request beansprucht sie für dein Konto, und ein Steward nimmt einen ersten Anspruch an, wenn die Prüfungen bestanden sind.</value>
+  </data>
   <data name="ListingProofOwnerFormat" xml:space="preserve">
     <value>{0} gehört dir.</value>
   </data>
@@ -1988,6 +2015,9 @@
   </data>
   <data name="ListingProofMarkerFormat" xml:space="preserve">
     <value>{0} nennt dich in .github/ksa-content-index.toml.</value>
+  </data>
+  <data name="ListingProofPackOwnerFormat" xml:space="preserve">
+    <value>{0} auf main nennt dein Konto.</value>
   </data>
   <data name="ListingFixTopicFormat" xml:space="preserve">
     <value>Damit er sich selbst mergt, füge {0} das Topic {1} hinzu.</value>
@@ -2012,6 +2042,15 @@
   </data>
   <data name="ListingFixOtherFilesFormat" xml:space="preserve">
     <value>Borea ergänzt deinen offenen Pull Request #{0}, der auch andere Dateien ändert. Nimm sie heraus, damit er sich selbst mergt.</value>
+  </data>
+  <data name="ListingFirstClaimDetailFormat" xml:space="preserve">
+    <value>Borea fügt dem Pull Request {0} mit deinem Konto hinzu. Bei einem neuen GitHub-Konto können die Prüfungen warten, bis ein Steward sie startet.</value>
+  </data>
+  <data name="ListingFixPackOwnedByOtherFormat" xml:space="preserve">
+    <value>{0} auf main nennt das Konto {1}. Ein Steward entscheidet, ob das Pack einen neuen Besitzer bekommt.</value>
+  </data>
+  <data name="ListingFixPackIdTakenFormat" xml:space="preserve">
+    <value>Der Index hat schon {0}, und IDs, die sich nur in Groß- und Kleinschreibung unterscheiden, sind dieselbe ID. Wähle eine andere ID.</value>
   </data>
   <data name="ListingOpenRepository" xml:space="preserve">
     <value>Repository öffnen</value>
@@ -2105,6 +2144,9 @@
   </data>
   <data name="ListingWhatFile" xml:space="preserve">
     <value>die Eintragsdatei</value>
+  </data>
+  <data name="ListingWhatPackOwner" xml:space="preserve">
+    <value>die Besitzerdatei des Packs</value>
   </data>
   <data name="ListingWhatPullRequest" xml:space="preserve">
     <value>den Pull Request</value>

@@ -797,7 +797,26 @@ public sealed class ListingEditorTests
 
         Assert.Equal("https://github.com/KSAModding/content-index/new/main?filename=packs/my-pack/1.0.0.toml", Assert.Single(opened));
         Assert.Equal(editor.DocumentText, window.CopiedText);
-        Assert.Equal(harness.Localization.ListingOpenedPaste, editor.OutputMessage);
+        Assert.Equal($"{harness.Localization.ListingOpenedPaste} {harness.Localization.FormatListingOpenedAddOwner("packs/my-pack/owner.json")}", editor.OutputMessage);
+    }
+
+    [Fact]
+    public async Task NewPack_WithoutSignIn_CopiesAndSavesTheOwnerFileAndSaysWhereEachFileGoes()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, _, window) = await ValidPackAsync(harness);
+        var localization = harness.Localization;
+
+        await editor.CopyOwnerFileCommand.ExecuteAsync(null);
+        var copied = window.CopiedText;
+        await editor.SaveOwnerFileCommand.ExecuteAsync(null);
+
+        Assert.True(editor.IsNewPack);
+        Assert.Equal("{\n  \"github_login\": \"your-github-login\",\n  \"github_id\": 0\n}\n", editor.OwnerFile);
+        Assert.Equal(editor.OwnerFile, copied);
+        Assert.Equal(("owner.json", editor.OwnerFile), window.Saved);
+        Assert.Equal(localization.FormatListingOwnerFileText("packs/my-pack/owner.json"), editor.OwnerFileText);
+        Assert.Equal(localization.FormatListingNewPackPullRequestText("packs/my-pack/1.0.0.toml", "packs/my-pack/owner.json"), editor.PullRequestText);
     }
 
     /// <summary>A new pack that the checks accept, with AdvancedFlightComputer 0.7.5 as its one member.</summary>
@@ -964,6 +983,33 @@ public sealed class ListingEditorTests
         Assert.Equal("1.0.3", editor.PackVersion);
         Assert.StartsWith($"https://github.com/KSAModding/content-index/new/main?filename=packs/{Pack117Id}/1.0.3.toml", Assert.Single(opened), StringComparison.Ordinal);
         Assert.StartsWith(harness.Localization.FormatListingPackVersionTaken("1.0.2", "1.0.3"), editor.OutputMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Publish_NextVersionThatMainGainedAfterTheLoad_PublishesTheRaisedVersionWithoutAnOwnerFile()
+    {
+        var main = new Dictionary<string, string> { [$"{Pack117Id}/1.0.1.toml"] = Pack117 };
+        var session = new ListingPullRequestViewModelTests.FakeSession();
+        session.SignIn();
+        var publisher = new ListingPullRequestViewModelTests.FakePublisher();
+        using var harness = await ViewModelHarness.CreateAsync(respond: MainBranch(main), editSnapshot: PackViewModelTests.WithPacks(Pack117Entry()), gitHub: session, listingPublisher: publisher);
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        await editor.MakeNextVersionAsync(Pack117Id);
+        Assert.True(editor.CanPublish, string.Join("\n", editor.Errors));
+        main[$"{Pack117Id}/1.0.2.toml"] = Pack117;
+
+        await editor.PublishCommand.ExecuteAsync(null);
+
+        Assert.False(editor.IsNewPack);
+        Assert.Equal(harness.Localization.FormatListingPackPullRequestText($"packs/{Pack117Id}/1.0.3.toml"), editor.PullRequestText);
+        Assert.Equal("1.0.3", editor.PackVersion);
+        var submission = Assert.Single(publisher.Submissions);
+        Assert.Equal("1.0.3", submission.PackVersion);
+        Assert.Equal(new ListingFile($"packs/{Pack117Id}/1.0.3.toml", editor.DocumentText), Assert.Single(submission.Files));
+        Assert.Equal($"{harness.Localization.FormatListingPackVersionTaken("1.0.2", "1.0.3")} {harness.Localization.FormatListingOpened("90")}", editor.OutputMessage);
+        harness.ViewModel.SetMainWindowLibrary();
+        await editor.Following;
     }
 
     [Fact]
@@ -1286,7 +1332,13 @@ public sealed class ListingEditorTests
 
         public PickedBinaryFile? ImageToOpen { get; set; }
 
-        public Task<string?> SaveTextFileAsync(string title, string suggestedFileName, string fileTypeName, string text) => Task.FromResult<string?>(suggestedFileName);
+        public (string Name, string Text)? Saved { get; private set; }
+
+        public Task<string?> SaveTextFileAsync(string title, string suggestedFileName, string fileTypeName, string text)
+        {
+            Saved = (suggestedFileName, text);
+            return Task.FromResult<string?>(suggestedFileName);
+        }
 
         public Task<PickedTextFile?> OpenTextFileAsync(string title, string fileTypeName) => Task.FromResult<PickedTextFile?>(null);
 

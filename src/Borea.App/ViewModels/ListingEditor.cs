@@ -28,7 +28,7 @@ public enum ListingStep
 
 /// <summary>
 /// The "List or change your mod" page: a listing draft for content-index, checked while the author types,
-/// and handed to GitHub as a pull request of one document.
+/// and handed to GitHub as a pull request.
 /// </summary>
 public sealed partial class ListingEditor : ObservableObject
 {
@@ -105,7 +105,7 @@ public sealed partial class ListingEditor : ObservableObject
 
     /// <summary>The draft is the next version of a listed pack, a new file whose id is the id of that pack.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsNew), nameof(HasFixedId), nameof(NextVersionText))]
+    [NotifyPropertyChangedFor(nameof(IsNew), nameof(HasFixedId), nameof(NextVersionText), nameof(IsNewPack), nameof(PullRequestText))]
     private bool _isNextVersion;
 
     public bool HasFixedId => IsEdit || IsNextVersion;
@@ -115,7 +115,7 @@ public sealed partial class ListingEditor : ObservableObject
     public string? NextVersionText => IsNextVersion ? Localization.FormatListingNextVersion(_base.Id, _base.Original?.GetString("version") ?? string.Empty) : null;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanUseLoader), nameof(IsPack), nameof(NewTitle), nameof(PullRequestText), nameof(UsesBrowserOnly), nameof(OffersSignedInPublish))]
+    [NotifyPropertyChangedFor(nameof(CanUseLoader), nameof(IsPack), nameof(IsNewPack), nameof(NewTitle), nameof(PullRequestText))]
     private string _type = ListingDraft.ModType;
 
     /// <summary>A mod-loader carries no [loader].</summary>
@@ -239,7 +239,7 @@ public sealed partial class ListingEditor : ObservableObject
 
     /// <summary>The draft as the fields describe it now.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PullRequestText))]
+    [NotifyPropertyChangedFor(nameof(PullRequestText), nameof(OwnerFilePath), nameof(OwnerFileText))]
     private ListingDraft _draft = new();
 
     /// <summary>The listing file the draft gives, in the layout of content-index.</summary>
@@ -254,7 +254,7 @@ public sealed partial class ListingEditor : ObservableObject
     internal ListingPullRequestPage? LastPullRequestPage { get; private set; }
 
     public string PullRequestText => IsPack
-        ? Localization.FormatListingPackPullRequestText(Draft.Path)
+        ? IsNextVersion ? Localization.FormatListingPackPullRequestText(Draft.Path) : Localization.FormatListingNewPackPullRequestText(Draft.Path, OwnerFilePath)
         : IsEdit ? Localization.ListingEditPullRequestText : Localization.ListingNewPullRequestText;
 
     public bool CanOpenPullRequest => !HasErrors && ModIds.IsValid(Draft.Id);
@@ -553,6 +553,8 @@ public sealed partial class ListingEditor : ObservableObject
         var opened = error is not null
             ? Localization.FormatListingOpenFailed(error)
             : page.CarriesText ? Localization.ListingOpenedWithText : Localization.ListingOpenedPaste;
+        if (IsNewPack)
+            opened = $"{opened} {Localization.FormatListingOpenedAddOwner(OwnerFilePath)}";
         OutputMessage = raised is null ? opened : $"{raised} {opened}";
     }
 

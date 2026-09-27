@@ -300,7 +300,7 @@ public sealed class LoggingDecoratorsTests
     {
         var publisher = new LoggingListingPublisher(new FakeListingPublisher { Outcome = outcome }, _log);
 
-        await publisher.PublishAsync(new ListingSubmission("MyMod", "My Mod", string.Empty, IsEdit: false));
+        await publisher.PublishAsync(new ListingSubmission("MyMod", "My Mod", [], IsEdit: false));
 
         Assert.Equal([message], _log.Messages);
     }
@@ -310,7 +310,7 @@ public sealed class LoggingDecoratorsTests
     {
         var publisher = new LoggingListingPublisher(new FakeListingPublisher { Outcome = ListingPublishOutcome.Unchanged }, _log);
 
-        await publisher.PublishAsync(new ListingSubmission("MyMod", "My Mod", string.Empty, IsEdit: false));
+        await publisher.PublishAsync(new ListingSubmission("MyMod", "My Mod", [], IsEdit: false));
 
         Assert.Empty(_log.Messages);
     }
@@ -321,7 +321,7 @@ public sealed class LoggingDecoratorsTests
         var failure = new ListingPublishException(ListingPublishFailure.Refused, ListingPublishStep.PullRequest, "Validation Failed");
         var publisher = new LoggingListingPublisher(new FakeListingPublisher { Failure = failure }, _log);
 
-        var thrown = await Assert.ThrowsAsync<ListingPublishException>(() => publisher.PublishAsync(new ListingSubmission("MyMod", "My Mod", string.Empty, IsEdit: false)));
+        var thrown = await Assert.ThrowsAsync<ListingPublishException>(() => publisher.PublishAsync(new ListingSubmission("MyMod", "My Mod", [], IsEdit: false)));
 
         Assert.Same(failure, thrown);
         Assert.Equal(["Listing pull request of MyMod failed. PullRequest failed: Refused, Validation Failed"], _log.Messages);
@@ -333,7 +333,7 @@ public sealed class LoggingDecoratorsTests
 
         public ListingPublishException? Failure { get; init; }
 
-        public Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, CancellationToken cancellationToken = default) =>
+        public Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, ContentIndexSnapshot? snapshot = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(ListingOwnership.Unknown);
 
         public Task<ListingPullRequest> PublishAsync(ListingSubmission submission, IProgress<ListingPublishStep>? progress = null, CancellationToken cancellationToken = default) =>

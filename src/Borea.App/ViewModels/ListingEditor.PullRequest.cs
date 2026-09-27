@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Borea.Core.Listings;
+using Borea.Core.Mods;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -43,13 +44,10 @@ public sealed partial class ListingEditor
 
     public bool NeedsSignIn => CanSignIn && !IsSignedIn;
 
-    /// <summary>
-    /// Only the browser opens the pull request: this build has no GitHub sign-in, or the draft is a pack version,
-    /// which the signed-in publish cannot write yet because it knows only the path of a listing.
-    /// </summary>
-    public bool UsesBrowserOnly => !CanSignIn || IsPack;
+    /// <summary>This build has no GitHub sign-in, so only the browser opens the pull request.</summary>
+    public bool UsesBrowserOnly => !CanSignIn;
 
-    public bool OffersSignedInPublish => CanSignIn && !IsPack;
+    public bool OffersSignedInPublish => CanSignIn;
 
     public string? PublishText => _owner.GitHubLogin is { } login ? Localization.FormatListingPublishText(login) : CanSignIn ? Localization.ListingSignInText : null;
 
@@ -95,7 +93,7 @@ public sealed partial class ListingEditor
     };
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasOwnership), nameof(IsOwnershipVerified), nameof(OwnershipText), nameof(OwnershipDetail), nameof(OwnershipFixUrl), nameof(OwnershipFixLabel), nameof(CanCheckOwnershipAgain))]
+    [NotifyPropertyChangedFor(nameof(HasOwnership), nameof(IsOwnershipVerified), nameof(OwnershipText), nameof(OwnershipDetail), nameof(OwnershipFixUrl), nameof(OwnershipFixLabel), nameof(CanCheckOwnershipAgain), nameof(OwnerFile))]
     private ListingOwnership? _ownership;
 
     [ObservableProperty]
@@ -105,14 +103,15 @@ public sealed partial class ListingEditor
 
     public bool IsOwnershipVerified => Ownership?.State == ListingOwnershipState.Verified;
 
-    /// <summary>A fork step has its own Check again, which runs the whole publish.</summary>
-    public bool CanCheckOwnershipAgain => Ownership is { State: not ListingOwnershipState.Verified } && !HasForkStep;
+    /// <summary>A fork step has its own Check again, which runs the whole publish. A first claim has nothing to fix.</summary>
+    public bool CanCheckOwnershipAgain => Ownership is { State: not (ListingOwnershipState.Verified or ListingOwnershipState.FirstClaim) } && !HasForkStep;
 
     public string? OwnershipText => Ownership?.State switch
     {
         ListingOwnershipState.Verified => Localization.ListingOwnershipVerified,
         ListingOwnershipState.NotVerified => Localization.ListingOwnershipSteward,
-        ListingOwnershipState.CouldNotEvaluate => Localization.ListingOwnershipUnknown,
+        ListingOwnershipState.CouldNotEvaluate => IsPack ? Localization.ListingOwnershipPackUnknown : Localization.ListingOwnershipUnknown,
+        ListingOwnershipState.FirstClaim => Localization.ListingOwnershipFirstClaim,
         _ => null,
     };
 
@@ -128,6 +127,9 @@ public sealed partial class ListingEditor
             if (IsSpaceDockLinkProblem(ownership))
                 return Localization.FormatListingFixSpaceDockLink(ownership.SpaceDockMod!);
 
+            if (ownership.State == ListingOwnershipState.FirstClaim)
+                return Localization.FormatListingFirstClaimDetail(OwnerFilePath);
+
             if (ownership.State == ListingOwnershipState.Verified)
             {
                 return ownership.Proof switch
@@ -135,6 +137,7 @@ public sealed partial class ListingEditor
                     ListingOwnershipProof.Owner => Localization.FormatListingProofOwner(repository),
                     ListingOwnershipProof.Topic => Localization.FormatListingProofTopic(repository, ListingOwnership.TopicFor(login)),
                     ListingOwnershipProof.MarkerFile => Localization.FormatListingProofMarker(repository),
+                    ListingOwnershipProof.PackOwner => Localization.FormatListingProofPackOwner(OwnerFilePath),
                     _ => null,
                 };
             }
@@ -149,6 +152,8 @@ public sealed partial class ListingEditor
                 ListingOwnershipProblem.SpaceDockModUnusable => Localization.FormatListingFixSpaceDockMod(ownership.SpaceDockMod ?? string.Empty),
                 ListingOwnershipProblem.SpaceDockNoSourceLink => Localization.FormatListingFixSpaceDockLink(ownership.SpaceDockMod ?? string.Empty),
                 ListingOwnershipProblem.PullRequestHasOtherFiles => Localization.FormatListingFixOtherFiles(ownership.PullRequest?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
+                ListingOwnershipProblem.PackOwnedByOther => Localization.FormatListingFixPackOwnedByOther(OwnerFilePath, ownership.PackOwner ?? string.Empty),
+                ListingOwnershipProblem.PackIdTaken => Localization.FormatListingFixPackIdTaken(ownership.TakenBy ?? string.Empty),
                 _ => null,
             };
         }
@@ -225,7 +230,20 @@ public sealed partial class ListingEditor
         if (!IsSignedIn && !await _owner.SignInToGitHubAsync())
             return;
 
-        var submission = new ListingSubmission(Draft.Id, Draft.Name, DocumentText, IsEdit);
+        string? raised = null;
+        if (IsNextVersion)
+        {
+            var (free, message) = await FreeVersionAsync();
+            if (!free)
+            {
+                OutputMessage = message;
+                return;
+            }
+
+            raised = message;
+        }
+
+        var submission = ListingSubmission.Of(Draft, DocumentText);
         using var cancel = new CancellationTokenSource();
         _publishing = cancel;
         OutputMessage = null;
@@ -245,12 +263,13 @@ public sealed partial class ListingEditor
                 return;
 
             var number = Number(pullRequest);
-            OutputMessage = pullRequest.Outcome switch
+            var outcome = pullRequest.Outcome switch
             {
                 ListingPublishOutcome.Updated => Localization.FormatListingUpdated(number),
                 ListingPublishOutcome.Unchanged => Localization.FormatListingUnchanged(number),
                 _ => Localization.FormatListingOpened(number),
             };
+            OutputMessage = raised is null ? outcome : $"{raised} {outcome}";
             Follow(pullRequest);
         }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested)
@@ -354,14 +373,16 @@ public sealed partial class ListingEditor
     /// <summary>Runs the ownership pre-check again when the account, the id or a release host changed.</summary>
     private void ScheduleOwnershipCheck()
     {
-        if (!IsSignedIn || !IsFormStep || IsPack || !_owner.CurrentWindowListing || _owner.Services is null)
+        // A pack id that cannot be a folder of content-index has nothing to check yet, so the page shows no ownership line.
+        if (!IsSignedIn || !IsFormStep || !_owner.CurrentWindowListing || _owner.Services is null || (IsPack && !ModIds.IsValid(Draft.Id)))
         {
             StopOwnershipCheck();
             return;
         }
 
+        // A pack without a snapshot cannot be free, so the check runs again once the snapshot is there.
         var listed = IsEdit ? _base : null;
-        var key = string.Join('|', _owner.GitHubLogin, Draft.Id, ListingAuthority.Of(Draft), listed is null ? null : ListingAuthority.Of(listed));
+        var key = string.Join('|', _owner.GitHubLogin, Draft.Path, ListingAuthority.Of(Draft), listed is null ? null : ListingAuthority.Of(listed), _snapshot is null);
         if (key == _ownershipKey)
             return;
 
@@ -381,7 +402,7 @@ public sealed partial class ListingEditor
         try
         {
             await Task.Delay(OwnershipDelay, cancellationToken);
-            var ownership = await services.ListingPublisher.CheckOwnershipAsync(submitted, listed, cancellationToken);
+            var ownership = await services.ListingPublisher.CheckOwnershipAsync(submitted, listed, _snapshot, cancellationToken);
             if (!cancellationToken.IsCancellationRequested)
                 Ownership = ownership;
         }
@@ -520,6 +541,7 @@ public sealed partial class ListingEditor
         OnPropertyChanged(nameof(OffersSignedInPublish));
         OnPropertyChanged(nameof(CanPublish));
         OnPropertyChanged(nameof(PublishText));
+        OnPropertyChanged(nameof(OwnerFile));
         ScheduleOwnershipCheck();
         FindListed();
         ForkStep = null;
@@ -545,6 +567,7 @@ public sealed partial class ListingEditor
         OnPropertyChanged(nameof(OwnershipFixLabel));
         OnPropertyChanged(nameof(ForkStepText));
         OnPropertyChanged(nameof(ForkStepLabel));
+        OnPropertyChanged(nameof(OwnerFileText));
         OnPropertyChanged(nameof(PullRequestTitle));
         OnPropertyChanged(nameof(PullRequestStateText));
     }
@@ -562,6 +585,7 @@ public sealed partial class ListingEditor
     {
         var what = exception.Step switch
         {
+            ListingPublishStep.Ownership => Localization.ListingWhatPackOwner,
             ListingPublishStep.FindPullRequest => Localization.ListingWhatPullRequests,
             ListingPublishStep.Fork => Localization.ListingWhatFork,
             ListingPublishStep.Branch => Localization.ListingWhatBranch,

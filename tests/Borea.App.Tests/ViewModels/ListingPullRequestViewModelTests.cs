@@ -1,5 +1,6 @@
 using Borea.App.ViewModels;
 using Borea.Core.GitHub;
+using Borea.Core.Index;
 using Borea.Core.Listings;
 
 namespace Borea.App.Tests.ViewModels;
@@ -90,9 +91,10 @@ public sealed class ListingPullRequestViewModelTests
     }
 
     [Fact]
-    public async Task SignedIn_PackDraft_OffersOnlyTheBrowserPathAndPublishesNothing()
+    public async Task SignedIn_NewPack_ChecksTheClaimAgainstTheSnapshotAndPublishesThePackVersion()
     {
         _session.SignIn();
+        _publisher.Ownership = new ListingOwnership(ListingOwnershipState.FirstClaim, Claim: new ListingPackOwner("octocat", 583231));
         using var harness = await CreateAsync();
         var editor = harness.ViewModel.ListingEditor;
         editor.OwnershipDelay = TimeSpan.Zero;
@@ -100,16 +102,117 @@ public sealed class ListingPullRequestViewModelTests
         ListingEditorTests.FillPack(editor);
 
         await editor.OwnershipCheck;
+
+        Assert.True(editor.CanOpenPullRequest, string.Join("\n", editor.Errors));
+        Assert.False(editor.UsesBrowserOnly);
+        Assert.True(editor.OffersSignedInPublish);
+        Assert.True(editor.CanPublish);
+        var (submitted, listed, snapshot) = _publisher.Checks[^1];
+        Assert.Equal("packs/my-pack/1.0.0.toml", submitted.Path);
+        Assert.Null(listed);
+        Assert.NotNull(snapshot);
+        Assert.False(editor.IsOwnershipVerified);
+        Assert.False(editor.CanCheckOwnershipAgain);
+        Assert.Equal(harness.Localization.ListingOwnershipFirstClaim, editor.OwnershipText);
+        Assert.Equal(harness.Localization.FormatListingFirstClaimDetail("packs/my-pack/owner.json"), editor.OwnershipDetail);
+        Assert.Equal(new ListingPackOwner("octocat", 583231).ToJson(), editor.OwnerFile);
+
         await editor.PublishCommand.ExecuteAsync(null);
 
-        Assert.True(editor.IsSignedIn);
-        Assert.True(editor.CanOpenPullRequest, string.Join("\n", editor.Errors));
-        Assert.True(editor.UsesBrowserOnly);
-        Assert.False(editor.OffersSignedInPublish);
-        Assert.False(editor.CanPublish);
-        Assert.Null(editor.Ownership);
-        Assert.Empty(_publisher.Checks);
-        Assert.Empty(_publisher.Submissions);
+        var submission = Assert.Single(_publisher.Submissions);
+        Assert.Equal(("my-pack", "1.0.0", false), (submission.Id, submission.PackVersion, submission.IsEdit));
+        Assert.Equal(new ListingFile("packs/my-pack/1.0.0.toml", editor.DocumentText), Assert.Single(submission.Files));
+        Assert.Equal("Opened pull request #90.", editor.OutputMessage);
+        harness.ViewModel.SetMainWindowLibrary();
+        await editor.Following;
+    }
+
+    [Theory]
+    [InlineData(ListingOwnershipState.Verified, null)]
+    [InlineData(ListingOwnershipState.NotVerified, ListingOwnershipProblem.PackOwnedByOther)]
+    [InlineData(ListingOwnershipState.NotVerified, ListingOwnershipProblem.PackIdTaken)]
+    public async Task SignedIn_PackOwnership_NamesTheOwnerFileOrTheHolder(ListingOwnershipState state, ListingOwnershipProblem? problem)
+    {
+        _session.SignIn();
+        _publisher.Ownership = new ListingOwnership(state, state == ListingOwnershipState.Verified ? ListingOwnershipProof.PackOwner : null, problem, PackOwner: "someone", TakenBy: "My-Pack");
+        using var harness = await CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        editor.OwnershipDelay = TimeSpan.Zero;
+        await harness.ViewModel.OpenListingAsync();
+        ListingEditorTests.FillPack(editor);
+
+        await editor.OwnershipCheck;
+
+        var localization = harness.Localization;
+        Assert.Equal(state == ListingOwnershipState.Verified ? localization.ListingOwnershipVerified : localization.ListingOwnershipSteward, editor.OwnershipText);
+        Assert.Equal(
+            problem switch
+            {
+                ListingOwnershipProblem.PackOwnedByOther => localization.FormatListingFixPackOwnedByOther("packs/my-pack/owner.json", "someone"),
+                ListingOwnershipProblem.PackIdTaken => localization.FormatListingFixPackIdTaken("My-Pack"),
+                _ => localization.FormatListingProofPackOwner("packs/my-pack/owner.json"),
+            },
+            editor.OwnershipDetail);
+    }
+
+    [Fact]
+    public async Task SignedIn_PackOwnershipUnknown_NamesThePackIdAndNoReleaseHost()
+    {
+        _session.SignIn();
+        _publisher.Ownership = ListingOwnership.Unknown;
+        using var harness = await CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        editor.OwnershipDelay = TimeSpan.Zero;
+        await harness.ViewModel.OpenListingAsync();
+        ListingEditorTests.FillPack(editor);
+
+        await editor.OwnershipCheck;
+
+        Assert.Equal(harness.Localization.ListingOwnershipPackUnknown, editor.OwnershipText);
+        Assert.NotEqual(harness.Localization.ListingOwnershipUnknown, editor.OwnershipText);
+        Assert.Null(editor.OwnershipDetail);
+    }
+
+    [Fact]
+    public async Task SignedIn_PackIdThatCannotBeClaimed_ChecksNothing()
+    {
+        _session.SignIn();
+        _publisher.Ownership = new ListingOwnership(ListingOwnershipState.FirstClaim);
+        using var harness = await CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        editor.OwnershipDelay = TimeSpan.Zero;
+        await harness.ViewModel.OpenListingAsync();
+
+        editor.StartPackCommand.Execute(null);
+        await editor.OwnershipCheck;
+        editor.Id = "my pack";
+        await editor.OwnershipCheck;
+
+        Assert.DoesNotContain(_publisher.Checks, check => check.Submitted.IsPack);
+        Assert.False(editor.HasOwnership);
+        Assert.Null(editor.OwnershipText);
+
+        editor.Id = "my-pack";
+        await editor.OwnershipCheck;
+
+        Assert.Equal("my-pack", _publisher.Checks[^1].Submitted.Id);
+        Assert.Equal(harness.Localization.ListingOwnershipFirstClaim, editor.OwnershipText);
+    }
+
+    [Fact]
+    public async Task Publish_PackOwnerFileUnreadable_NamesTheOwnerFile()
+    {
+        _session.SignIn();
+        _publisher.Failure = new ListingPublishException(ListingPublishFailure.NotFound, ListingPublishStep.Ownership);
+        using var harness = await CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        editor.OwnershipDelay = TimeSpan.Zero;
+        await harness.ViewModel.OpenListingAsync();
+        ListingEditorTests.FillPack(editor);
+
+        await editor.PublishCommand.ExecuteAsync(null);
+
+        Assert.Equal(harness.Localization.FormatListingErrorNotFound(harness.Localization.ListingWhatPackOwner), editor.PublishError);
     }
 
     [Fact]
@@ -229,7 +332,8 @@ public sealed class ListingPullRequestViewModelTests
         await editor.Following;
 
         var submission = Assert.Single(_publisher.Submissions);
-        Assert.Equal(new ListingSubmission("MyMod", "My Mod", editor.DocumentText, IsEdit: false), submission);
+        Assert.Equal(("MyMod", "My Mod", false, (string?)null), (submission.Id, submission.Name, submission.IsEdit, submission.PackVersion));
+        Assert.Equal(new ListingFile("listings/MyMod.toml", editor.DocumentText), Assert.Single(submission.Files));
         Assert.Equal("Opened pull request #90.", editor.OutputMessage);
         Assert.Null(editor.PublishError);
         Assert.True(editor.HasPullRequest);
@@ -730,7 +834,7 @@ public sealed class ListingPullRequestViewModelTests
 
         public ListingOwnership Ownership { get; set; } = new(ListingOwnershipState.Verified, ListingOwnershipProof.Topic, Repository: "owner/MyMod");
 
-        public List<(ListingDraft Submitted, ListingDraft? Listed)> Checks { get; } = [];
+        public List<(ListingDraft Submitted, ListingDraft? Listed, ContentIndexSnapshot? Snapshot)> Checks { get; } = [];
 
         public List<ListingSubmission> Submissions { get; } = [];
 
@@ -754,10 +858,10 @@ public sealed class ListingPullRequestViewModelTests
 
         public int StatusReads => Volatile.Read(ref _statusReads);
 
-        public Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, CancellationToken cancellationToken = default)
+        public Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, ContentIndexSnapshot? snapshot = null, CancellationToken cancellationToken = default)
         {
             lock (_gate)
-                Checks.Add((submitted, listed));
+                Checks.Add((submitted, listed, snapshot));
             return Task.FromResult(Ownership);
         }
 

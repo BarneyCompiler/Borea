@@ -4,7 +4,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Borea.Core.GitHub;
+using Borea.Core.Index;
 using Borea.Core.Listings;
+using Borea.Core.Mods;
 using Borea.Network.GitHub;
 using Borea.Network.SpaceDock;
 
@@ -12,7 +14,8 @@ namespace Borea.Network.Listings;
 
 /// <summary>
 /// IListingPublisher on the signed-in GitHub session: the author's fork of content-index where the Borea App is installed,
-/// one branch per listing, and the pull request from the author's own account. The ownership pre-check follows tools/ownership.py of content-index.
+/// one branch per listing or pack version, and the pull request from the author's own account. The ownership pre-check
+/// follows tools/ownership.py and tools/pack_ownership.py of content-index.
 /// </summary>
 public sealed class ListingPublisher : IListingPublisher
 {
@@ -57,20 +60,23 @@ public sealed class ListingPublisher : IListingPublisher
         _time = time ?? TimeProvider.System;
     }
 
-    public async Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, CancellationToken cancellationToken = default)
+    public async Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, ContentIndexSnapshot? snapshot = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submitted);
         var login = Login(ListingPublishStep.Ownership);
         try
         {
             var user = await GetAsync<UserDto>($"{Api}/user", ListingPublishStep.Ownership, cancellationToken).ConfigureAwait(false);
-            var ownership = await VerifyChangeAsync(submitted, listed, login, user.Id, cancellationToken).ConfigureAwait(false);
-            if (ownership.State != ListingOwnershipState.Verified)
+            var ownership = submitted.IsPack
+                ? await VerifyPackAsync(submitted.Id, new ListingPackOwner(user.Login.Length > 0 ? user.Login : login, user.Id), snapshot, cancellationToken).ConfigureAwait(false)
+                : await VerifyChangeAsync(submitted, listed, login, user.Id, cancellationToken).ConfigureAwait(false);
+            if (ownership.State is not (ListingOwnershipState.Verified or ListingOwnershipState.FirstClaim))
                 return ownership;
 
-            // The file goes into this pull request, and content-index sends a pull request with other files to a steward.
-            var open = await FindOpenPullRequestAsync(login, submitted.Path, cancellationToken).ConfigureAwait(false);
-            return open is { OnlyThisFile: false }
+            // The files go into this pull request, and content-index sends a pull request with other files to a steward.
+            string[] paths = ownership.State == ListingOwnershipState.FirstClaim ? [submitted.Path, ListingPackOwner.PathOf(submitted.Id)] : [submitted.Path];
+            var open = await FindOpenPullRequestAsync(login, paths, cancellationToken).ConfigureAwait(false);
+            return open is { OnlyTheseFiles: false }
                 ? new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.PullRequestHasOtherFiles, PullRequest: open.Pull.Number)
                 : ownership;
         }
@@ -87,9 +93,10 @@ public sealed class ListingPublisher : IListingPublisher
 
         progress?.Report(ListingPublishStep.Fork);
         var fork = await FindForkAsync(login, cancellationToken).ConfigureAwait(false);
+        submission = await WithOwnerRecordAsync(submission, cancellationToken).ConfigureAwait(false);
 
         progress?.Report(ListingPublishStep.FindPullRequest);
-        if (await FindOpenPullRequestAsync(login, submission.Path, cancellationToken).ConfigureAwait(false) is { } open)
+        if (await FindOpenPullRequestAsync(login, submission.Files.Select(file => file.Path).ToList(), cancellationToken).ConfigureAwait(false) is { } open)
         {
             if (!string.Equals(open.Pull.Head!.Repo!.FullName, fork.FullName, StringComparison.OrdinalIgnoreCase))
                 throw new ListingPublishException(ListingPublishFailure.PullRequestNotOnFork, ListingPublishStep.FindPullRequest, open.Pull.Number.ToString(CultureInfo.InvariantCulture));
@@ -106,28 +113,45 @@ public sealed class ListingPublisher : IListingPublisher
             cancellationToken).ConfigureAwait(false);
         var main = compare.BaseCommit?.Sha ?? throw Unexpected(ListingPublishStep.Branch);
         var start = compare.MergeBaseCommit?.Sha ?? throw Unexpected(ListingPublishStep.Branch);
-        var listed = await ReadFileAsync(Upstream, submission.Path, main, ListingPublishStep.Branch, cancellationToken).ConfigureAwait(false);
-        if (listed?.Text == submission.Text)
+        var listed = new List<RepositoryFile?>();
+        foreach (var file in submission.Files)
+            listed.Add(await ReadFileAsync(Upstream, file.Path, main, ListingPublishStep.Branch, cancellationToken).ConfigureAwait(false));
+        if (submission.Files.Select((file, index) => listed[index]?.Text == file.Text).All(same => same))
             throw new ListingPublishException(ListingPublishFailure.NoChange, ListingPublishStep.Commit);
 
-        var based = start == main ? listed : await ReadFileAsync(Upstream, submission.Path, start, ListingPublishStep.Branch, cancellationToken).ConfigureAwait(false);
-        if (based?.Sha != listed?.Sha)
-            throw new ListingPublishException(ListingPublishFailure.ForkNeedsSync, ListingPublishStep.Branch, fork.FullName);
+        if (start != main)
+        {
+            for (var index = 0; index < submission.Files.Count; index++)
+            {
+                var based = await ReadFileAsync(Upstream, submission.Files[index].Path, start, ListingPublishStep.Branch, cancellationToken).ConfigureAwait(false);
+                if (based?.Sha != listed[index]?.Sha)
+                    throw new ListingPublishException(ListingPublishFailure.ForkNeedsSync, ListingPublishStep.Branch, fork.FullName);
+            }
+        }
 
         progress?.Report(ListingPublishStep.Branch);
-        var branch = await CreateBranchAsync(fork, submission.Id, start, cancellationToken).ConfigureAwait(false);
+        var branch = await CreateBranchAsync(fork, BranchName(submission), start, cancellationToken).ConfigureAwait(false);
 
+        // The pull request opens after every file is on the branch, so the first run of the checks sees them all.
         progress?.Report(ListingPublishStep.Commit);
-        await PutFileAsync(fork.FullName, branch, submission, listed?.Sha, cancellationToken).ConfigureAwait(false);
+        for (var index = 0; index < submission.Files.Count; index++)
+            await PutFileAsync(fork.FullName, branch, submission, submission.Files[index], listed[index]?.Sha, cancellationToken).ConfigureAwait(false);
 
         progress?.Report(ListingPublishStep.PullRequest);
         var name = submission.Name.Trim().Length > 0 ? submission.Name.Trim() : submission.Id;
+        var (title, text) = submission switch
+        {
+            { PackVersion: { } version, ClaimsPack: true } => ($"List {name}", $"Lists the pack {name} with its first version {version}."),
+            { PackVersion: { } version } => ($"Add {name} {version}", $"Adds version {version} of the pack {name}."),
+            { IsEdit: true } => ($"Update {name}", $"Updates the listing of {name}."),
+            _ => ($"List {name}", $"Lists {name}."),
+        };
         var body = new Dictionary<string, object>
         {
-            ["title"] = submission.IsEdit ? $"Update {name}" : $"List {name}",
+            ["title"] = title,
             ["head"] = $"{fork.Owner}:{branch}",
             ["base"] = ListingPullRequestLinks.Branch,
-            ["body"] = submission.IsEdit ? $"Updates the listing of {name}." : $"Lists {name}.",
+            ["body"] = text,
             ["maintainer_can_modify"] = true,
         };
         var reply = await SendAsync(HttpMethod.Post, $"{Api}/repos/{Upstream}/pulls", body, ListingPublishStep.PullRequest, cancellationToken).ConfigureAwait(false);
@@ -190,6 +214,53 @@ public sealed class ListingPublisher : IListingPublisher
         }
 
         return await VerifyAsync(submitted, login, authorId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A pack has no release host, so its owner record on main decides (RFC 0033). The paths of content-index are case-sensitive,
+    /// so a missing record makes the id free only while no listing or pack of the snapshot holds it in another letter case.
+    /// </summary>
+    private async Task<ListingOwnership> VerifyPackAsync(string id, ListingPackOwner author, ContentIndexSnapshot? snapshot, CancellationToken cancellationToken)
+    {
+        // An id that cannot be a folder of content-index has no owner record, and it is never free to claim.
+        if (!ModIds.IsValid(id))
+            return ListingOwnership.Unknown;
+
+        var record = await ReadFileAsync(Upstream, ListingPackOwner.PathOf(id), ListingPullRequestLinks.Branch, ListingPublishStep.Ownership, cancellationToken).ConfigureAwait(false);
+        if (record is not null)
+        {
+            return ListingPackOwner.Parse(record.Text) switch
+            {
+                null => ListingOwnership.Unknown,
+                { Id: var owner } when owner == author.Id => new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.PackOwner),
+                var other => new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.PackOwnedByOther, PackOwner: other.Login),
+            };
+        }
+
+        if (snapshot is null)
+            return ListingOwnership.Unknown;
+
+        return ListingPackOwner.HolderOf(snapshot, id) is { } holder
+            ? new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.PackIdTaken, TakenBy: holder)
+            : new ListingOwnership(ListingOwnershipState.FirstClaim, Claim: author);
+    }
+
+    /// <summary>A pack without an owner record on main is a first claim, so the record of the signed-in account goes into the same pull request.</summary>
+    private async Task<ListingSubmission> WithOwnerRecordAsync(ListingSubmission submission, CancellationToken cancellationToken)
+    {
+        const ListingPublishStep step = ListingPublishStep.Ownership;
+        if (!submission.IsPack)
+            return submission;
+
+        var path = ListingPackOwner.PathOf(submission.Id);
+        if (await ReadFileAsync(Upstream, path, ListingPullRequestLinks.Branch, step, cancellationToken).ConfigureAwait(false) is not null)
+            return submission;
+
+        var user = await GetAsync<UserDto>($"{Api}/user", step, cancellationToken).ConfigureAwait(false);
+        if (user.Id <= 0 || user.Login.Length == 0)
+            throw Unexpected(step);
+
+        return submission with { Files = [.. submission.Files.Where(file => file.Path != path), new ListingFile(path, new ListingPackOwner(user.Login, user.Id).ToJson())] };
     }
 
     private async Task<ListingOwnership> VerifyAsync(ListingDraft draft, string login, long authorId, CancellationToken cancellationToken)
@@ -322,7 +393,11 @@ public sealed class ListingPublisher : IListingPublisher
     private static ListingOwnership NotVerified(ListingOwnershipProblem problem, string repository) =>
         new(ListingOwnershipState.NotVerified, Problem: problem, Repository: repository);
 
-    private async Task<OpenPullRequest?> FindOpenPullRequestAsync(string login, string path, CancellationToken cancellationToken)
+    /// <summary>
+    /// The author's open pull request that changes the document, the first of <paramref name="paths"/>. A pull request
+    /// of the same pack with another version file is another pull request, even when it shares the owner record.
+    /// </summary>
+    private async Task<OpenPullRequest?> FindOpenPullRequestAsync(string login, IReadOnlyList<string> paths, CancellationToken cancellationToken)
     {
         const ListingPublishStep step = ListingPublishStep.FindPullRequest;
         for (var page = 1; page <= MaxPages; page++)
@@ -331,8 +406,8 @@ public sealed class ListingPublisher : IListingPublisher
             foreach (var pull in pulls.Where(pull => string.Equals(pull.User?.Login, login, StringComparison.OrdinalIgnoreCase) && pull.Head?.Repo is not null))
             {
                 var files = await FilesAsync(pull.Number, cancellationToken).ConfigureAwait(false);
-                if (files.Contains(path, StringComparer.Ordinal))
-                    return new OpenPullRequest(pull, files.All(file => file == path));
+                if (files.Contains(paths[0], StringComparer.Ordinal))
+                    return new OpenPullRequest(pull, files.All(file => paths.Contains(file, StringComparer.Ordinal)));
             }
 
             if (pulls.Count < 100)
@@ -361,12 +436,18 @@ public sealed class ListingPublisher : IListingPublisher
         var url = PullRequestUrl(pull, ListingPublishStep.Commit);
         var repository = pull.Head!.Repo!.FullName;
         var branch = pull.Head.Ref;
-        var current = await ReadFileAsync(repository, submission.Path, branch, ListingPublishStep.Commit, cancellationToken).ConfigureAwait(false);
-        if (current?.Text == submission.Text)
-            return new ListingPullRequest(pull.Number, url, ListingPublishOutcome.Unchanged);
+        var outcome = ListingPublishOutcome.Unchanged;
+        foreach (var file in submission.Files)
+        {
+            var current = await ReadFileAsync(repository, file.Path, branch, ListingPublishStep.Commit, cancellationToken).ConfigureAwait(false);
+            if (current?.Text == file.Text)
+                continue;
 
-        await PutFileAsync(repository, branch, submission, current?.Sha, cancellationToken).ConfigureAwait(false);
-        return new ListingPullRequest(pull.Number, url, ListingPublishOutcome.Updated);
+            await PutFileAsync(repository, branch, submission, file, current?.Sha, cancellationToken).ConfigureAwait(false);
+            outcome = ListingPublishOutcome.Updated;
+        }
+
+        return new ListingPullRequest(pull.Number, url, outcome);
     }
 
     /// <summary>
@@ -424,12 +505,16 @@ public sealed class ListingPublisher : IListingPublisher
         return slash > 0 && repository.DefaultBranch.Length > 0 ? new Fork(repository.FullName, repository.FullName[..slash], repository.DefaultBranch) : null;
     }
 
-    /// <summary>Creates listing-&lt;id&gt; at <paramref name="sha"/>, or the first free listing-&lt;id&gt;-N. A refusal asks for a sync of the fork.</summary>
-    private async Task<string> CreateBranchAsync(Fork fork, string id, string sha, CancellationToken cancellationToken)
+    /// <summary>listing-&lt;id&gt; for a listing, pack-&lt;id&gt;-&lt;version&gt; for a pack version.</summary>
+    private static string BranchName(ListingSubmission submission) =>
+        (submission.PackVersion is { } version ? $"pack-{submission.Id}-{version}" : "listing-" + submission.Id).ToLowerInvariant();
+
+    /// <summary>Creates <paramref name="baseName"/> at <paramref name="sha"/>, or the first free name with -N. A refusal asks for a sync of the fork.</summary>
+    private async Task<string> CreateBranchAsync(Fork fork, string baseName, string sha, CancellationToken cancellationToken)
     {
         try
         {
-            return await CreateFreeBranchAsync(fork, id, sha, cancellationToken).ConfigureAwait(false);
+            return await CreateFreeBranchAsync(fork, baseName, sha, cancellationToken).ConfigureAwait(false);
         }
         catch (ListingPublishException exception) when (exception.Failure == ListingPublishFailure.Forbidden)
         {
@@ -437,10 +522,9 @@ public sealed class ListingPublisher : IListingPublisher
         }
     }
 
-    private async Task<string> CreateFreeBranchAsync(Fork fork, string id, string sha, CancellationToken cancellationToken)
+    private async Task<string> CreateFreeBranchAsync(Fork fork, string baseName, string sha, CancellationToken cancellationToken)
     {
         const ListingPublishStep step = ListingPublishStep.Branch;
-        var baseName = "listing-" + id.ToLowerInvariant();
         for (var number = 1; number <= MaxBranchNumber; number++)
         {
             var name = number == 1 ? baseName : $"{baseName}-{number.ToString(CultureInfo.InvariantCulture)}";
@@ -464,18 +548,25 @@ public sealed class ListingPublisher : IListingPublisher
         throw new ListingPublishException(ListingPublishFailure.Refused, step, $"{baseName} to {baseName}-{MaxBranchNumber} are taken");
     }
 
-    private async Task PutFileAsync(string repository, string branch, ListingSubmission submission, string? sha, CancellationToken cancellationToken)
+    private async Task PutFileAsync(string repository, string branch, ListingSubmission submission, ListingFile file, string? sha, CancellationToken cancellationToken)
     {
+        var message = submission switch
+        {
+            _ when file.Path != submission.Document.Path => $"Claim {submission.Id}",
+            { PackVersion: { } version } => $"Add {submission.Id} {version}",
+            { IsEdit: true } => $"Update {submission.Id}",
+            _ => $"List {submission.Id}",
+        };
         var body = new Dictionary<string, object>
         {
-            ["message"] = submission.IsEdit ? $"Update {submission.Id}" : $"List {submission.Id}",
-            ["content"] = Convert.ToBase64String(Encoding.UTF8.GetBytes(submission.Text)),
+            ["message"] = message,
+            ["content"] = Convert.ToBase64String(Encoding.UTF8.GetBytes(file.Text)),
             ["branch"] = branch,
         };
         if (sha is not null)
             body["sha"] = sha;
 
-        Ensure(await SendAsync(HttpMethod.Put, $"{Api}/repos/{repository}/contents/{submission.Path}", body, ListingPublishStep.Commit, cancellationToken).ConfigureAwait(false), ListingPublishStep.Commit);
+        Ensure(await SendAsync(HttpMethod.Put, $"{Api}/repos/{repository}/contents/{file.Path}", body, ListingPublishStep.Commit, cancellationToken).ConfigureAwait(false), ListingPublishStep.Commit);
     }
 
     /// <summary>The file and its blob sha at <paramref name="reference"/>, or null when it is not there.</summary>
@@ -658,11 +749,13 @@ public sealed class ListingPublisher : IListingPublisher
 
     private sealed record RepositoryFile(string Sha, string? Text);
 
-    private sealed record OpenPullRequest(PullDto Pull, bool OnlyThisFile);
+    private sealed record OpenPullRequest(PullDto Pull, bool OnlyTheseFiles);
 
     private sealed class UserDto
     {
         public long Id { get; set; }
+
+        public string Login { get; set; } = string.Empty;
     }
 
     private sealed class OwnerDto

@@ -1,3 +1,4 @@
+using Borea.Core.Index;
 using Borea.Core.Listings;
 
 namespace Borea.Core.Logging;
@@ -14,8 +15,8 @@ public sealed class LoggingListingPublisher : IListingPublisher
         _log = log ?? throw new ArgumentNullException(nameof(log));
     }
 
-    public Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, CancellationToken cancellationToken = default) =>
-        Inner.CheckOwnershipAsync(submitted, listed, cancellationToken);
+    public Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, ContentIndexSnapshot? snapshot = null, CancellationToken cancellationToken = default) =>
+        Inner.CheckOwnershipAsync(submitted, listed, snapshot, cancellationToken);
 
     public async Task<ListingPullRequest> PublishAsync(ListingSubmission submission, IProgress<ListingPublishStep>? progress = null, CancellationToken cancellationToken = default)
     {

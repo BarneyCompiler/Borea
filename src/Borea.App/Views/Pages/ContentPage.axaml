@@ -169,6 +169,7 @@
                                                 <MenuItem Header="{Binding SelectedContent.FavoriteText}" Command="{Binding SelectedContent.ToggleFavoriteCommand}" />
                                                 <MenuItem Header="{Binding Localization.StewardDispute}" Command="{Binding DisputeContentCommand}" IsVisible="{Binding CanEditContentStatus}" />
                                                 <MenuItem Header="{Binding Localization.StewardDelist}" Command="{Binding DelistContentCommand}" IsVisible="{Binding CanEditContentStatus}" />
+                                                <MenuItem Header="{Binding Localization.StewardAmend}" Command="{Binding AmendContentReleasesCommand}" IsVisible="{Binding CanAmendContentReleases}" />
                                             </MenuFlyout>
                                         </Button.Flyout>
                                         <Path Classes="icon-filled" Data="{StaticResource Icon.More}" />

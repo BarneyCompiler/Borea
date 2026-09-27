@@ -231,6 +231,20 @@ public sealed class GitHubApiTests
         Assert.Empty(_sent);
     }
 
+    [Theory]
+    [InlineData("POST", Upstream + "/git/refs", """{"ref":"refs/heads/feature/x","sha":"abc"}""")]
+    [InlineData("POST", Api + "/repos/KSAModding/content-index-releases/git/refs", """{"ref":"refs/tags/v1","sha":"abc"}""")]
+    [InlineData("PATCH", Upstream + "/git/refs/heads/feature/x", """{"sha":"abc"}""")]
+    public async Task SendAsync_RefThatAGitCommitCouldReachOutsideTheCommitPrefixes_IsRefusedWithNothingSent(string method, string url, string body)
+    {
+        var (api, _) = await SignedInAsync();
+
+        var failure = await Assert.ThrowsAsync<GitHubApiException>(() => api.SendAsync(new HttpMethod(method), url, Body(body), CancellationToken.None));
+
+        Assert.Equal(GitHubApiFailure.ProtectedBranch, failure.Failure);
+        Assert.Empty(_sent);
+    }
+
     [Fact]
     public async Task SendAsync_CommitToABaseBranchWithACommitPrefix_IsRefusedWithNothingSent()
     {
@@ -248,6 +262,10 @@ public sealed class GitHubApiTests
     [InlineData("PUT", Upstream + "/contents/listings/MyMod.toml", """{"message":"m","content":"eA==","branch":"listing-mymod"}""")]
     [InlineData("POST", Upstream + "/git/refs", """{"ref":"refs/heads/steward/delist-mymod","sha":"abc"}""")]
     [InlineData("PATCH", Upstream + "/git/refs/heads/steward/delist-mymod", """{"sha":"abc"}""")]
+    [InlineData("DELETE", Upstream + "/git/refs/heads/feature/x", null)]
+    [InlineData("POST", Upstream + "/git/blobs", """{"content":"eA==","encoding":"base64"}""")]
+    [InlineData("POST", Upstream + "/git/trees", """{"base_tree":"abc","tree":[]}""")]
+    [InlineData("POST", Upstream + "/git/commits", """{"message":"m","tree":"abc","parents":["def"]}""")]
     [InlineData("POST", Upstream + "/branches/mainline/rename", """{"new_name":"old"}""")]
     [InlineData("PUT", Upstream + "/pulls/90/merge", """{"sha":"abc","merge_method":"squash"}""")]
     [InlineData("POST", Upstream + "/pulls", """{"head":"octocat:listing-mymod","base":"main"}""")]

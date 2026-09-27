@@ -89,6 +89,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(HasContentDependenciesTab))]
     [NotifyPropertyChangedFor(nameof(ContentShareUrl))]
     [NotifyPropertyChangedFor(nameof(CanEditContentStatus))]
+    [NotifyPropertyChangedFor(nameof(CanAmendContentReleases))]
     private DiscoverItem? _selectedContent;
 
     public ObservableCollection<ContentLink> ContentLinks { get; } = [];

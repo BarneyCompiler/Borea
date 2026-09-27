@@ -753,6 +753,123 @@
   <data name="StewardErrorUnexpected" xml:space="preserve">
     <value>GitHub gave an answer that Borea does not understand.</value>
   </data>
+  <data name="StewardAmend" xml:space="preserve">
+    <value>Amend releases</value>
+  </data>
+  <data name="StewardAmendTitleFormat" xml:space="preserve">
+    <value>Amend releases of {0}</value>
+  </data>
+  <data name="StewardAmendExplanation" xml:space="preserve">
+    <value>Borea changes only what the selected releases claim, and opens one pull request in KSAModding/content-index-releases. A steward only narrows a release. The pull request waits in the queue until validate passes, and a steward merges it.</value>
+  </data>
+  <data name="StewardAmendLoading" xml:space="preserve">
+    <value>Reading the releases on GitHub...</value>
+  </data>
+  <data name="StewardAmendReleases" xml:space="preserve">
+    <value>Releases</value>
+  </data>
+  <data name="StewardAmendChecked" xml:space="preserve">
+    <value>The checked releases</value>
+  </data>
+  <data name="StewardAmendUpTo" xml:space="preserve">
+    <value>Every release up to and including</value>
+  </data>
+  <data name="StewardAmendAll" xml:space="preserve">
+    <value>Every release</value>
+  </data>
+  <data name="StewardAmendChange" xml:space="preserve">
+    <value>Change</value>
+  </data>
+  <data name="StewardAmendGameMin" xml:space="preserve">
+    <value>Raise the lowest game version (game_min)</value>
+  </data>
+  <data name="StewardAmendGameMax" xml:space="preserve">
+    <value>Add or lower the highest game version (game_max)</value>
+  </data>
+  <data name="StewardAmendGameHint" xml:space="preserve">
+    <value>A game build such as 2026.8.22.5348, or a month such as 2026.8, which gives its first build as game_min and its last build as game_max.</value>
+  </data>
+  <data name="StewardAmendLoaderMin" xml:space="preserve">
+    <value>Raise the loader min</value>
+  </data>
+  <data name="StewardAmendLoaderMax" xml:space="preserve">
+    <value>Add or lower the loader max</value>
+  </data>
+  <data name="StewardAmendYank" xml:space="preserve">
+    <value>Yank these releases</value>
+  </data>
+  <data name="StewardAmendDependencies" xml:space="preserve">
+    <value>Dependencies</value>
+  </data>
+  <data name="StewardAmendDependenciesHint" xml:space="preserve">
+    <value>A missing dependency is added with its kind. A dependency that the releases state gets a tighter min or max.</value>
+  </data>
+  <data name="StewardAmendAddDependency" xml:space="preserve">
+    <value>Add a missing dependency</value>
+  </data>
+  <data name="StewardAmendBoundDependency" xml:space="preserve">
+    <value>Tighten a dependency</value>
+  </data>
+  <data name="StewardAmendReasonHint" xml:space="preserve">
+    <value>One sentence for the pull request. With a yank, players see it too.</value>
+  </data>
+  <data name="StewardAmendPreview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="StewardAmendPreviewing" xml:space="preserve">
+    <value>Reading the release files on GitHub...</value>
+  </data>
+  <data name="StewardAmendPreviewHeading" xml:space="preserve">
+    <value>What changes</value>
+  </data>
+  <data name="StewardAmendUnchanged" xml:space="preserve">
+    <value>Already says this.</value>
+  </data>
+  <data name="StewardAmendNothing" xml:space="preserve">
+    <value>Every selected release already says this, so there is nothing to send.</value>
+  </data>
+  <data name="StewardAmendChanged" xml:space="preserve">
+    <value>The release files changed on GitHub since the preview. Check the new preview, then open the pull request.</value>
+  </data>
+  <data name="StewardAmendRefusedInvalidChange" xml:space="preserve">
+    <value>Borea cannot read this change. Check the versions and the ids.</value>
+  </data>
+  <data name="StewardAmendRefusedMonthNotOver" xml:space="preserve">
+    <value>A month for game_max must be over, because only then is its last build known. Name a build.</value>
+  </data>
+  <data name="StewardAmendRefusedUnknownMonth" xml:space="preserve">
+    <value>The game release list has no build in this month.</value>
+  </data>
+  <data name="StewardAmendRefusedUnknownRelease" xml:space="preserve">
+    <value>A selected release has no release file on GitHub.</value>
+  </data>
+  <data name="StewardAmendNoReleases" xml:space="preserve">
+    <value>content-index-releases has no stamped release of this listing yet.</value>
+  </data>
+  <data name="StewardAmendRefusedNotStamperFile" xml:space="preserve">
+    <value>A release file is not one that the stamper writes. Change it by hand on GitHub.</value>
+  </data>
+  <data name="StewardAmendRefusedNoLoader" xml:space="preserve">
+    <value>A release states no loader, so it has no loader bound to change.</value>
+  </data>
+  <data name="StewardAmendRefusedNoDependency" xml:space="preserve">
+    <value>A release does not state this dependency. Add it as a missing dependency.</value>
+  </data>
+  <data name="StewardAmendRefusedWidens" xml:space="preserve">
+    <value>This widens a release. A steward only narrows a release, and a widening comes from the owner of the listing.</value>
+  </data>
+  <data name="StewardAmendRefusedOutsideClass" xml:space="preserve">
+    <value>The checks of content-index-releases would refuse this change.</value>
+  </data>
+  <data name="StewardAmendErrorNotSteward" xml:space="preserve">
+    <value>GitHub does not let this account bypass the rules of content-index-releases, so it cannot do this.</value>
+  </data>
+  <data name="StewardAmendErrorNotFound" xml:space="preserve">
+    <value>GitHub did not find KSAModding/content-index-releases or a release file in it.</value>
+  </data>
+  <data name="StewardAmendErrorUnreadableFormat" xml:space="preserve">
+    <value>A file of content-index-releases has a form that Borea does not read. {0}</value>
+  </data>
   <data name="SettingsGitHubSignOutHint" xml:space="preserve">
     <value>Sign out makes Borea forget the access. To revoke it, go to GitHub.</value>
   </data>

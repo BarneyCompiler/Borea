@@ -25,6 +25,8 @@
 
   <ItemGroup>
     <None Update="Listings\Fixtures\forum-thread.html" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The copy of tools/amendment-vectors.json of content-index-releases at 6d9fd24f913a that Borea.Core.Tests keeps. -->
+    <None Include="..\Borea.Core.Tests\Stewardship\Fixtures\amendment-vectors.json" Link="GitHub\Fixtures\amendment-vectors.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

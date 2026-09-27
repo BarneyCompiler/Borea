@@ -228,6 +228,41 @@ internal sealed class GitHubApi
         throw new GitHubApiException(GitHubApiFailure.Refused, $"{name} to {name}-{MaxBranchNumber} are taken");
     }
 
+    /// <summary>
+    /// Commits the files onto <paramref name="parent"/> in one commit that no branch holds yet, so a failure halfway leaves no branch behind.
+    /// The branch guard checks the ref that later points at it.
+    /// </summary>
+    /// <param name="files">The path and the new UTF-8 text of each file.</param>
+    /// <returns>The sha of the new commit.</returns>
+    /// <exception cref="GitHubApiException">A request failed, or GitHub answered without a sha.</exception>
+    public async Task<string> CommitAsync(string repository, string parent, IReadOnlyCollection<(string Path, string Text)> files, string message, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        var git = $"{Root}/repos/{repository}/git";
+        var parentTree = (await GetAsync<CommitDto>($"{git}/commits/{parent}", cancellationToken).ConfigureAwait(false)).Tree?.Sha;
+        var entries = new List<Dictionary<string, object>>();
+        foreach (var (path, text) in files)
+        {
+            var blob = new Dictionary<string, object> { ["content"] = Convert.ToBase64String(StrictUtf8.GetBytes(text)), ["encoding"] = "base64" };
+            var sha = await CreateAsync($"{git}/blobs", blob, cancellationToken).ConfigureAwait(false);
+            entries.Add(new Dictionary<string, object> { ["path"] = path, ["mode"] = "100644", ["type"] = "blob", ["sha"] = sha });
+        }
+
+        var tree = await CreateAsync($"{git}/trees", new Dictionary<string, object>
+        {
+            ["base_tree"] = parentTree is { Length: > 0 } ? parentTree : throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse),
+            ["tree"] = entries,
+        }, cancellationToken).ConfigureAwait(false);
+        return await CreateAsync($"{git}/commits", new Dictionary<string, object> { ["message"] = message, ["tree"] = tree, ["parents"] = new[] { parent } }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Creates a git object and gives its sha.</summary>
+    private async Task<string> CreateAsync(string url, Dictionary<string, object> body, CancellationToken cancellationToken)
+    {
+        var created = Parse<ShaDto>(Ensure(await SendAsync(HttpMethod.Post, url, body, cancellationToken).ConfigureAwait(false)));
+        return created.Sha is { Length: > 0 } sha ? sha : throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse);
+    }
+
     /// <summary>The items of a list endpoint that answers with a JSON array, page by page, up to the first page with fewer than <see cref="PageSize"/> items.</summary>
     /// <param name="url">The endpoint with its own query, without per_page and page.</param>
     public IAsyncEnumerable<T> GetPagesAsync<T>(string url, CancellationToken cancellationToken, bool anonymous = false) =>
@@ -304,8 +339,9 @@ internal sealed class GitHubApi
     }
 
     /// <summary>
-    /// Why the guard refuses a write to a repository of the organization, or null. A commit goes only to a steward/ or listing- branch that is not protected,
-    /// and a ref, merge or branch change never touches a protected branch. A repository addressed by its id counts as one of the organization.
+    /// Why the guard refuses a write to a repository of the organization, or null. A commit, and a ref that is created or moved, go only to a steward/ or
+    /// listing- branch that is not protected, and a deleted ref, a merge or a branch change never touches a protected branch.
+    /// A repository addressed by its id counts as one of the organization.
     /// </summary>
     private string? RefusalOf(HttpMethod method, Uri target, string? json)
     {
@@ -332,8 +368,9 @@ internal sealed class GitHubApi
         return path switch
         {
             ["contents", ..] => CommitRefusal(FieldOf(json, "branch")),
-            ["git", "refs"] => Protected(BranchOfRef(FieldOf(json, "ref"))),
-            ["git", "refs", .. var name] => Protected(BranchOfRef(string.Join('/', name))),
+            ["git", "refs"] => CommitRefusal(BranchOfRef(FieldOf(json, "ref"))),
+            ["git", "refs", .. var name] when method == HttpMethod.Delete => Protected(BranchOfRef(string.Join('/', name))),
+            ["git", "refs", .. var name] => CommitRefusal(BranchOfRef(string.Join('/', name))),
             ["merges"] => Protected(FieldOf(json, "base")),
             ["merge-upstream"] => Protected(FieldOf(json, "branch")),
             ["branches", ..] => _protectedBranches.FirstOrDefault(branch => IsBranchPath(path[1..], branch)) is { } named ? Refused(named) : null,
@@ -456,6 +493,16 @@ internal sealed class GitHubApi
         public string? Type { get; set; }
 
         public string? Message { get; set; }
+    }
+
+    private sealed class ShaDto
+    {
+        public string? Sha { get; set; }
+    }
+
+    private sealed class CommitDto
+    {
+        public ShaDto? Tree { get; set; }
     }
 
     private sealed class ContentDto

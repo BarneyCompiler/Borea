@@ -72,8 +72,8 @@ public sealed record IndexStatusChange(IndexStatusAction Action, string Id, stri
         if (Report is { } report)
             body.Append(ClosesReport ? "\n\nCloses #" : "\n\nFor report #").Append(report.ToString(CultureInfo.InvariantCulture)).Append(ClosesReport ? string.Empty : ".");
 
-        if (owners.Count > 0)
-            body.Append("\n\n").Append(string.Join(' ', owners.Select(owner => "@" + owner))).Append(owners.Count == 1 ? " owns " : " own ").Append($"`{Id}`.");
+        if (OwnerMention.Of(owners, Id) is { } mention)
+            body.Append("\n\n").Append(mention);
 
         return body.ToString();
     }

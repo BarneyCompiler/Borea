@@ -105,6 +105,7 @@ public sealed class BoreaServicesTests : IDisposable
         Assert.IsType<ListingOwnershipCheck>(first.ListingOwnership);
         Assert.IsType<GitHubStewardRole>(first.StewardRole);
         Assert.IsType<GitHubIndexStatusEditor>(Assert.IsType<LoggingIndexStatusEditor>(first.IndexStatusEditor).Inner);
+        Assert.IsType<GitHubReleaseAmendments>(Assert.IsType<LoggingReleaseAmendments>(first.ReleaseAmendments).Inner);
         Assert.IsType<GitHubStewardQueue>(first.StewardQueue);
         Assert.IsType<GitHubPullRequestReviews>(first.PullRequestReviews);
         Assert.Same(first.PullRequestReviews, Assert.IsType<LoggingPullRequestActions>(first.PullRequestActions).Inner);

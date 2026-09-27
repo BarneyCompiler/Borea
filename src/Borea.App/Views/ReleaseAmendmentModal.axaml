@@ -1,0 +1,194 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Borea.App.ViewModels"
+             xmlns:views="using:Borea.App.Views"
+             x:Class="Borea.App.Views.ReleaseAmendmentModal"
+             x:DataType="vm:MainViewModel">
+    <!-- modal: a steward amendment of release files, which opens a pull request in content-index-releases after a preview -->
+    <Panel Background="#99000000" views:ModalBackdrop.CloseButton="{Binding #CloseButton}">
+        <Border Classes="modal" MaxWidth="800" HorizontalAlignment="Stretch" Margin="104,32,24,32" DataContext="{Binding StewardAmendment}" x:DataType="vm:ReleaseAmendmentDialog">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="24,24,24,0">
+                    <TextBlock Classes="heading-lg" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button x:Name="CloseButton" Grid.Column="1" Classes="icon" Command="{Binding CloseCommand}" AutomationProperties.Name="{Binding Localization.ModalClose}">
+                        <Path Classes="icon" Data="{StaticResource Icon.Close}" />
+                    </Button>
+                </Grid>
+                <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource Brush.Window}" Margin="0,24,0,0" />
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="36,16,24,24">
+                    <Button Classes="text tall" Content="{Binding Localization.LibraryCancel}" Command="{Binding CloseCommand}" VerticalAlignment="Center" IsVisible="{Binding !IsOpened}" />
+                    <Button Classes="text tall" Content="{Binding Localization.DiscoverIndexRetry}" Command="{Binding RetryCommand}" VerticalAlignment="Center" IsVisible="{Binding CanRetry}" />
+                    <Button Classes="text tall" Content="{Binding Localization.StewardAmendPreview}" Command="{Binding PreviewCommand}" VerticalAlignment="Center" IsVisible="{Binding !IsOpened}" />
+                    <Button Classes="cta" Command="{Binding OpenPullRequestCommand}" IsVisible="{Binding !IsOpened}">
+                        <TextBlock Classes="action-lg" Text="{Binding Localization.ListingPublish}" VerticalAlignment="Center" />
+                    </Button>
+                    <Button Classes="text tall" Content="{Binding Localization.ModalClose}" Command="{Binding CloseCommand}" VerticalAlignment="Center" IsVisible="{Binding IsOpened}" />
+                    <Button Classes="cta" Command="{Binding ShowPullRequestCommand}" IsVisible="{Binding IsOpened}">
+                        <TextBlock Classes="action-lg" Text="{Binding Localization.ListingOpenPullRequest}" VerticalAlignment="Center" />
+                    </Button>
+                </StackPanel>
+                <ScrollViewer>
+                    <StackPanel Margin="36,32,24,16" Spacing="16">
+                        <TextBlock Classes="body-md secondary" Text="{Binding Localization.StewardAmendExplanation}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsLoading}">
+                            <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                            <TextBlock Classes="body-md" Text="{Binding Localization.StewardAmendLoading}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- the releases, the change and the reason, which the preview and the pull request take as they are -->
+                        <StackPanel Spacing="16" IsVisible="{Binding HasVersions}" IsEnabled="{Binding CanEdit}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="heading-md heading" Text="{Binding Localization.StewardAmendReleases}" />
+                                <RadioButton GroupName="AmendScope" IsChecked="{Binding IsScopeChecked}">
+                                    <TextBlock Classes="body-sm" Text="{Binding Localization.StewardAmendChecked}" />
+                                </RadioButton>
+                                <ItemsControl ItemsSource="{Binding Versions}" Margin="28,0,0,0" IsVisible="{Binding IsScopeChecked}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel ItemSpacing="16" LineSpacing="4" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ReleaseAmendmentVersion">
+                                            <CheckBox IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding Version}">
+                                                <TextBlock Classes="body-sm" Text="{Binding Version}" />
+                                            </CheckBox>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <RadioButton GroupName="AmendScope" IsChecked="{Binding IsScopeUpTo}">
+                                    <TextBlock Classes="body-sm" Text="{Binding Localization.StewardAmendUpTo}" />
+                                </RadioButton>
+                                <ComboBox ItemsSource="{Binding VersionNames}" SelectedItem="{Binding UpTo}" Margin="28,0,0,0" MinWidth="180" MaxDropDownHeight="300" IsVisible="{Binding IsScopeUpTo}" AutomationProperties.Name="{Binding Localization.StewardAmendUpTo}" />
+                                <RadioButton GroupName="AmendScope" IsChecked="{Binding IsScopeAll}">
+                                    <TextBlock Classes="body-sm" Text="{Binding Localization.StewardAmendAll}" />
+                                </RadioButton>
+                            </StackPanel>
+
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="heading-md heading" Text="{Binding Localization.StewardAmendChange}" />
+                                <Grid ColumnDefinitions="*,16,*" RowDefinitions="Auto,6,Auto,8,Auto,16,Auto,6,Auto">
+                                    <TextBlock Classes="heading-sm" Text="{Binding Localization.StewardAmendGameMin}" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="2" Classes="heading-sm" Text="{Binding Localization.StewardAmendGameMax}" TextWrapping="Wrap" />
+                                    <TextBox Grid.Row="2" Classes="field" Text="{Binding GameMin}" PlaceholderText="2026.8.22.5348" AutomationProperties.Name="{Binding Localization.StewardAmendGameMin}" />
+                                    <TextBox Grid.Row="2" Grid.Column="2" Classes="field" Text="{Binding GameMax}" PlaceholderText="2026.8" AutomationProperties.Name="{Binding Localization.StewardAmendGameMax}" />
+                                    <TextBlock Grid.Row="4" Grid.ColumnSpan="3" Classes="body-sm secondary" Text="{Binding Localization.StewardAmendGameHint}" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="6" Classes="heading-sm" Text="{Binding Localization.StewardAmendLoaderMin}" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="6" Grid.Column="2" Classes="heading-sm" Text="{Binding Localization.StewardAmendLoaderMax}" TextWrapping="Wrap" />
+                                    <TextBox Grid.Row="8" Classes="field" Text="{Binding LoaderMin}" AutomationProperties.Name="{Binding Localization.StewardAmendLoaderMin}" />
+                                    <TextBox Grid.Row="8" Grid.Column="2" Classes="field" Text="{Binding LoaderMax}" AutomationProperties.Name="{Binding Localization.StewardAmendLoaderMax}" />
+                                </Grid>
+                                <CheckBox IsChecked="{Binding Yank}" Margin="0,8,0,0">
+                                    <TextBlock Classes="body-sm" Text="{Binding Localization.StewardAmendYank}" />
+                                </CheckBox>
+                            </StackPanel>
+
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="heading-md heading" Text="{Binding Localization.StewardAmendDependencies}" />
+                                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.StewardAmendDependenciesHint}" TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding Dependencies}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="8" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ReleaseAmendmentDependencyRow">
+                                            <Grid ColumnDefinitions="*,8,Auto">
+                                                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                    <TextBox Classes="field" Width="200" Text="{Binding Id}" PlaceholderText="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingId}" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingId}" />
+                                                    <ComboBox Width="150" ItemsSource="{x:Static vm:ReleaseAmendmentDependencyRow.Kinds}" SelectedItem="{Binding Kind}" IsVisible="{Binding IsMissing}" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingDependencyKind}" />
+                                                    <TextBox Classes="field" Width="120" Text="{Binding Min}" PlaceholderText="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingDependencyMin}" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingDependencyMin}" />
+                                                    <TextBox Classes="field" Width="120" Text="{Binding Max}" PlaceholderText="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingDependencyMax}" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingDependencyMax}" />
+                                                </WrapPanel>
+                                                <Button Grid.Column="2" Classes="icon" Command="{Binding RemoveCommand}" VerticalAlignment="Top" ToolTip.Tip="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingRemove}" AutomationProperties.Name="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ListingRemove}">
+                                                    <Path Classes="icon size-16" Data="{StaticResource Icon.Trash}" />
+                                                </Button>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <WrapPanel ItemSpacing="16" LineSpacing="8">
+                                    <Button Classes="link" Command="{Binding AddMissingDependencyCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Path Classes="icon size-16" Data="{StaticResource Icon.Plus}" />
+                                            <TextBlock Classes="action-md" Text="{Binding Localization.StewardAmendAddDependency}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Classes="link" Command="{Binding BoundDependencyCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Path Classes="icon size-16" Data="{StaticResource Icon.Plus}" />
+                                            <TextBlock Classes="action-md" Text="{Binding Localization.StewardAmendBoundDependency}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Classes="heading-md heading" Text="{Binding Localization.StewardReason}" />
+                                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.StewardAmendReasonHint}" TextWrapping="Wrap" />
+                                <TextBox Classes="field" Text="{Binding Reason}" MaxLength="500" AutomationProperties.Name="{Binding Localization.StewardReason}">
+                                    <TextBox.KeyBindings>
+                                        <KeyBinding Gesture="Enter" Command="{Binding PreviewCommand}" />
+                                        <KeyBinding Gesture="Escape" Command="{Binding CloseCommand}" />
+                                    </TextBox.KeyBindings>
+                                </TextBox>
+                                <TextBlock Classes="body-sm danger" Text="{Binding InvalidReasonText}" TextWrapping="Wrap" IsVisible="{Binding InvalidReasonText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsPreviewing}">
+                            <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                            <TextBlock Classes="body-md" Text="{Binding Localization.StewardAmendPreviewing}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Classes="body-md danger" Text="{Binding Refusal}" TextWrapping="Wrap" IsVisible="{Binding Refusal, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <TextBlock Classes="body-sm secondary" Text="{Binding RefusalDetails}" TextWrapping="Wrap" IsVisible="{Binding RefusalDetails, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <TextBlock Classes="body-md" Text="{Binding Notice}" TextWrapping="Wrap" IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                        <!-- the preview: each selected release file with its diff, or the note that it already says this -->
+                        <StackPanel Spacing="8" IsVisible="{Binding HasPreview}">
+                            <TextBlock Classes="heading-md heading" Text="{Binding Localization.StewardAmendPreviewHeading}" />
+                            <TextBlock Classes="body-md" Text="{Binding NothingText}" TextWrapping="Wrap" IsVisible="{Binding NothingText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <ItemsControl ItemsSource="{Binding Files}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ReleaseAmendmentFile">
+                                        <Border Classes="card" Padding="24,16">
+                                            <StackPanel Spacing="8">
+                                                <WrapPanel ItemSpacing="12" LineSpacing="4">
+                                                    <TextBlock Classes="label-md" Text="{Binding File.Path}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                    <TextBlock Classes="body-sm secondary" Text="{Binding UnchangedText}" VerticalAlignment="Center" IsVisible="{Binding !IsChanged}" />
+                                                </WrapPanel>
+                                                <Border Background="{StaticResource Brush.Window}" CornerRadius="8" Padding="12" IsVisible="{Binding IsChanged}">
+                                                    <ItemsControl ItemsSource="{Binding Lines}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:StewardPatchLine">
+                                                                <TextBlock FontFamily="{StaticResource Font.Mono}" FontSize="12" Text="{Binding Text}" TextWrapping="Wrap" Classes.positive="{Binding IsAdded}" Classes.danger="{Binding IsRemoved}" Classes.secondary="{Binding IsHunk}" />
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Classes="body-sm secondary" Text="{Binding MentionText}" TextWrapping="Wrap" IsVisible="{Binding MentionText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsOpening}">
+                            <ProgressBar Width="38" Height="6" VerticalAlignment="Center" IsIndeterminate="True" Foreground="{StaticResource Brush.Accent}" />
+                            <TextBlock Classes="body-md" Text="{Binding Localization.StewardOpening}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Classes="body-md" Text="{Binding OpenedText}" TextWrapping="Wrap" IsVisible="{Binding IsOpened}" />
+                        <TextBlock Classes="body-md danger" Text="{Binding Error}" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Panel>
+</UserControl>

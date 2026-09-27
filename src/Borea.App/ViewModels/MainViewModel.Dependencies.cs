@@ -123,7 +123,7 @@ public partial class MainViewModel
         };
     }
 
-    private DiscoverItem? IndexListing(string modId) => _listings.FirstOrDefault(item => item.Source == "index" && ModIds.Equals(item.ModId, modId));
+    internal DiscoverItem? IndexListing(string modId) => _listings.FirstOrDefault(item => item.Source == "index" && ModIds.Equals(item.ModId, modId));
 
     internal string? BoundsText(ModVersion? min, ModVersion? max) => (min, max) switch
     {

@@ -12,7 +12,8 @@ namespace Borea.App.ViewModels;
 /// <summary>
 /// The Steward page, opened from the GitHub account in Settings. Its Queue tab lists the pull requests that wait for a steward.
 /// Its Status tab lists the states of index-status.toml on the base branch with Lift on each, which is the only way back
-/// for a delisted listing, because it has no content page. A tab reads GitHub when it shows for the first time.
+/// for a delisted listing, because it has no content page. Its Watcher tab lists the issues of the watcher and its watchdog.
+/// A tab reads GitHub when it shows for the first time.
 /// </summary>
 public sealed partial class StewardPage : ObservableObject
 {
@@ -23,18 +24,24 @@ public sealed partial class StewardPage : ObservableObject
     {
         _owner = owner;
         Queue = new StewardQueueTab(owner);
+        Watcher = new StewardWatcherTab(owner);
     }
 
     public StewardQueueTab Queue { get; }
 
+    public StewardWatcherTab Watcher { get; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsQueueTab))]
     [NotifyPropertyChangedFor(nameof(IsStatusTab))]
+    [NotifyPropertyChangedFor(nameof(IsWatcherTab))]
     private StewardPageTab _tab;
 
     public bool IsQueueTab => Tab == StewardPageTab.Queue;
 
     public bool IsStatusTab => Tab == StewardPageTab.Status;
+
+    public bool IsWatcherTab => Tab == StewardPageTab.Watcher;
 
     /// <summary>The name of the Queue tab, with the number of pull requests that wait for a steward once it is known.</summary>
     public string QueueTabText => Queue.Count is { } count
@@ -69,15 +76,23 @@ public sealed partial class StewardPage : ObservableObject
 
     /// <summary>Reads the tab that shows again.</summary>
     [RelayCommand]
-    internal Task RefreshTabAsync() => IsQueueTab ? Queue.RefreshAsync() : RefreshAsync();
+    internal Task RefreshTabAsync() => Tab switch
+    {
+        StewardPageTab.Queue => Queue.RefreshAsync(),
+        StewardPageTab.Watcher => Watcher.RefreshAsync(),
+        _ => RefreshAsync(),
+    };
 
     /// <summary>Shows the tab, and reads it when it has not been read yet.</summary>
     internal Task ShowTabAsync(StewardPageTab tab)
     {
         Tab = tab;
-        return tab == StewardPageTab.Queue
-            ? Queue.IsLoaded ? Task.CompletedTask : Queue.RefreshAsync()
-            : IsLoaded ? Task.CompletedTask : RefreshAsync();
+        return tab switch
+        {
+            StewardPageTab.Queue => Queue.IsLoaded ? Task.CompletedTask : Queue.RefreshAsync(),
+            StewardPageTab.Watcher => Watcher.IsLoaded ? Task.CompletedTask : Watcher.RefreshAsync(),
+            _ => IsLoaded ? Task.CompletedTask : RefreshAsync(),
+        };
     }
 
     [RelayCommand]
@@ -86,12 +101,16 @@ public sealed partial class StewardPage : ObservableObject
     [RelayCommand]
     private Task ShowStatus() => ShowTabAsync(StewardPageTab.Status);
 
+    [RelayCommand]
+    private Task ShowWatcher() => ShowTabAsync(StewardPageTab.Watcher);
+
     internal void OnQueueCountChanged() => OnPropertyChanged(nameof(QueueTabText));
 
-    /// <summary>Builds the texts of the Queue tab again in the language that is now selected.</summary>
+    /// <summary>Builds the texts of the Queue and Watcher tabs again in the language that is now selected.</summary>
     internal void RefreshText()
     {
         Queue.RefreshText();
+        Watcher.RefreshText();
         OnPropertyChanged(nameof(QueueTabText));
     }
 
@@ -171,4 +190,5 @@ public enum StewardPageTab
 {
     Queue,
     Status,
+    Watcher,
 }

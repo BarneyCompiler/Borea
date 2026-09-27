@@ -106,6 +106,7 @@ public sealed class BoreaServicesTests : IDisposable
         Assert.IsType<GitHubStewardRole>(first.StewardRole);
         Assert.IsType<GitHubIndexStatusEditor>(Assert.IsType<LoggingIndexStatusEditor>(first.IndexStatusEditor).Inner);
         Assert.IsType<GitHubStewardQueue>(first.StewardQueue);
+        Assert.IsType<GitHubWatcherIssues>(first.WatcherIssues);
     }
 
     [Fact]

@@ -1486,10 +1486,10 @@
     <value>Start a mod pack</value>
   </data>
   <data name="ListingChangeTitle" xml:space="preserve">
-    <value>Change a listed mod</value>
+    <value>Change a listed mod or pack</value>
   </data>
   <data name="ListingChangeHint" xml:space="preserve">
-    <value>Load a listing of the content index, for example to add an icon.</value>
+    <value>Load a listing of the content index, for example to add an icon, or a pack to make its next version.</value>
   </data>
   <data name="ListingSearchListed" xml:space="preserve">
     <value>Search by name, id or author</value>
@@ -1499,6 +1499,9 @@
   </data>
   <data name="ListingNoListedMatch" xml:space="preserve">
     <value>No listed mod matches.</value>
+  </data>
+  <data name="ListingNoListedOrPackMatch" xml:space="preserve">
+    <value>No listed mod or pack matches.</value>
   </data>
   <data name="ListingLoad" xml:space="preserve">
     <value>Load</value>
@@ -1694,6 +1697,42 @@
   </data>
   <data name="ListingMemberGoneFormat" xml:space="preserve">
     <value>{0} {1} is no longer downloadable since {2}, so a client installs this pin only from a mirror or a copy it already has.</value>
+  </data>
+  <data name="ListingMemberNamedInRetractionFormat" xml:space="preserve">
+    <value>The retraction of version {0} names {1}: {2}</value>
+  </data>
+  <data name="ListingMemberUseNewerFormat" xml:space="preserve">
+    <value>Use {0}</value>
+  </data>
+  <data name="ListingCopyForumList" xml:space="preserve">
+    <value>Copy the member list for your forum thread</value>
+  </data>
+  <data name="ListingNextVersionFormat" xml:space="preserve">
+    <value>The next version of the pack {0} after version {1}. It is a new file, and the id cannot change.</value>
+  </data>
+  <data name="ListingPackNotListedFormat" xml:space="preserve">
+    <value>The content index has no version of the pack {0}.</value>
+  </data>
+  <data name="ListingPackVersionTakenFormat" xml:space="preserve">
+    <value>content-index already has version {0} of this pack, so this version is now {1}.</value>
+  </data>
+  <data name="ListingPackNoFreeVersionFormat" xml:space="preserve">
+    <value>content-index already has version {0} and every version after it that Borea checked. Enter a higher version.</value>
+  </data>
+  <data name="ListingPackCheckFailedFormat" xml:space="preserve">
+    <value>Borea could not check whether content-index already has version {0}: {1}</value>
+  </data>
+  <data name="ListingPackVersionNotHigherFormat" xml:space="preserve">
+    <value>{0} is not higher than {1}, the highest version of this pack, retracted versions included.</value>
+  </data>
+  <data name="ListingPackReleasedAtNotLaterFormat" xml:space="preserve">
+    <value>{0} is not later than {1}, the release time of version {2}.</value>
+  </data>
+  <data name="ListingPackRetractedFormat" xml:space="preserve">
+    <value>Version {0} of this pack is retracted: {1}</value>
+  </data>
+  <data name="ListingPackRetractedNoReasonFormat" xml:space="preserve">
+    <value>Version {0} of this pack is retracted.</value>
   </data>
   <data name="ListingDependenciesHint" xml:space="preserve">
     <value>Only what the mod.toml of your archive cannot say, such as version bounds or a conflict.</value>
@@ -2546,6 +2585,9 @@
   </data>
   <data name="PackCopyForumList" xml:space="preserve">
     <value>Copy forum list</value>
+  </data>
+  <data name="PackMakeNextVersion" xml:space="preserve">
+    <value>Make the next version</value>
   </data>
   <data name="PackForumListCopied" xml:space="preserve">
     <value>Copied the forum list to the clipboard.</value>

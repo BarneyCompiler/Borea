@@ -63,4 +63,7 @@ public sealed record ParsedPackVersion(
     ContentImages? Images = null)
 {
     public IReadOnlyList<RejectedIndexEntry> ImagesErrors { get; init; } = Array.Empty<RejectedIndexEntry>();
+
+    /// <summary>The version as the document writes it, build metadata included, because the name of its file uses it.</summary>
+    public string? VersionText { get; init; }
 }

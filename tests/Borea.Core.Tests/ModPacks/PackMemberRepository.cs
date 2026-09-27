@@ -38,7 +38,7 @@ internal sealed class PackMemberRepository(IReadOnlyList<ModMetadata> listings, 
         links: new Dictionary<string, string> { ["forums"] = $"https://forums.example/{id}" },
         gameMin: "2026.7.4.2131");
 
-    public static ModVersionMetadata Release(string id, string version, ReleaseStatus status = ReleaseStatus.Stable, bool yanked = false) => new(
+    public static ModVersionMetadata Release(string id, string version, ReleaseStatus status = ReleaseStatus.Stable, bool yanked = false, DateTimeOffset? unavailableSince = null) => new(
         1,
         id,
         ModVersion.Parse(version),
@@ -46,7 +46,7 @@ internal sealed class PackMemberRepository(IReadOnlyList<ModMetadata> listings, 
         DateTimeOffset.UnixEpoch,
         "2026.7.4.2131",
         2131,
-        new DownloadInfo($"https://example.com/{id}/{version}.zip", new string('A', 64), 1, "application/zip"),
+        new DownloadInfo($"https://example.com/{id}/{version}.zip", new string('A', 64), 1, "application/zip", unavailableSince: unavailableSince),
         1,
         Array.Empty<ModDependency>(),
         yanked: yanked);

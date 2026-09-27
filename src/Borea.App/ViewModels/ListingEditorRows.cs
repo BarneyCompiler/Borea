@@ -89,7 +89,10 @@ public sealed partial class ListingDependencyRow : ObservableObject
     private static string? Empty(string value) => value.Trim().Length == 0 ? null : value.Trim();
 }
 
-/// <summary>One [[mods]] entry of a pack: a listed mod and the release it pins. A pin no client can install shows why.</summary>
+/// <summary>
+/// One [[mods]] entry of a pack: a listed mod and the release it pins. A pin no client can install shows why, a pin whose mod
+/// has a newer release offers it, and a pin that a retraction of the listed pack names shows what the retraction says.
+/// </summary>
 public sealed partial class ListingPackMemberRow : ObservableObject
 {
     private readonly ListingEditor _owner;
@@ -102,6 +105,7 @@ public sealed partial class ListingPackMemberRow : ObservableObject
         Name = name;
         Releases = releases;
         _selected = releases.FirstOrDefault(release => release.Version == member.Version);
+        RetractionNote = owner.RetractionNotes(member.Id) is { Count: > 0 } notes ? string.Join("\n", notes) : null;
     }
 
     public string Id => _member.Id;
@@ -112,14 +116,34 @@ public sealed partial class ListingPackMemberRow : ObservableObject
     public IReadOnlyList<ListingReleaseChoice> Releases { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Note), nameof(HasNote))]
+    [NotifyPropertyChangedFor(nameof(Note), nameof(HasNote), nameof(Newer), nameof(NewerText), nameof(UseNewerText), nameof(HasNewer))]
     private ListingReleaseChoice? _selected;
 
     public string? Note => _owner.MemberNote(ToMember());
 
     public bool HasNote => Note is not null;
 
+    /// <summary>The newest release that is newer than the pin and at least as stable. A hint for the author, the pin stays until they move it.</summary>
+    public ListingReleaseChoice? Newer => _owner.NewerChoice(Id, ToMember().Version, Releases);
+
+    public string? NewerText => Newer is { } newer ? _owner.NewerText(newer.Version) : null;
+
+    public string? UseNewerText => Newer is { } newer ? _owner.UseNewerText(newer.Version) : null;
+
+    public bool HasNewer => Newer is not null;
+
+    public string? RetractionNote { get; }
+
+    public bool IsNamedInRetraction => RetractionNote is not null;
+
     internal ListingPackMember ToMember() => _member with { Version = Selected?.Version ?? _member.Version };
+
+    [RelayCommand]
+    private void UseNewer()
+    {
+        if (Newer is { } newer)
+            Selected = newer;
+    }
 
     [RelayCommand]
     private void Remove() => _owner.Remove(this);

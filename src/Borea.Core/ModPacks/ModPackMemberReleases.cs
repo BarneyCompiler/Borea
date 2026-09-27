@@ -1,3 +1,4 @@
+using Borea.Core.Index;
 using Borea.Core.Mods;
 
 namespace Borea.Core.ModPacks;
@@ -36,5 +37,23 @@ public static class ModPackMemberReleases
         }
 
         return newer;
+    }
+
+    /// <summary>
+    /// The newest release that makes a pin outdated by the "Newer releases" rule of RFC 0080: higher precedence, not yanked,
+    /// still downloadable (RFC 0078), and at least as stable as the pinned release. It reads the snapshot only, so it does not depend on the player's channel.
+    /// A pin on a release that the snapshot does not have is held to stable, the strictest level.
+    /// </summary>
+    public static ModVersionMetadata? NewerRelease(ContentIndexSnapshot snapshot, string modId, ModVersion pinned)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Listings.FirstOrDefault(listing => ModIds.Equals(listing.Id, modId)) is not { } listing)
+            return null;
+
+        var status = listing.Releases.FirstOrDefault(release => release.Version == pinned)?.ReleaseStatus ?? ReleaseStatus.Stable;
+        var channel = ReleaseChannels.NarrowestFor(status);
+        return listing.Releases
+            .Where(release => release.Version > pinned && release.IsOffered && channel.Includes(release.ReleaseStatus))
+            .MaxBy(release => release.Version);
     }
 }

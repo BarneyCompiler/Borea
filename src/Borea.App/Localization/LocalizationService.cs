@@ -998,6 +998,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ListingNoListedMatch => Resources.ListingNoListedMatch;
 
+    public string ListingNoListedOrPackMatch => Resources.ListingNoListedOrPackMatch;
+
     public string ListingLoad => Resources.ListingLoad;
 
     public string ListingSourceInvalid => Resources.ListingSourceInvalid;
@@ -1105,6 +1107,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ListingAddMember => Resources.ListingAddMember;
 
     public string ListingMemberRelease => Resources.ListingMemberRelease;
+
+    public string ListingCopyForumList => Resources.ListingCopyForumList;
 
     public string ListingDependenciesHint => Resources.ListingDependenciesHint;
 
@@ -1634,6 +1638,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string PackCopyForumList => Resources.PackCopyForumList;
 
+    public string PackMakeNextVersion => Resources.PackMakeNextVersion;
+
     public string PackForumListCopied => Resources.PackForumListCopied;
 
     public string PackForumListName => Resources.PackForumListName;
@@ -1957,6 +1963,37 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatListingMemberGone(string id, string version, string date)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberGoneFormat, id, version, date);
+
+    public string FormatListingMemberNamedInRetraction(string version, string id, string reason)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberNamedInRetractionFormat, version, id, reason);
+
+    public string FormatListingMemberUseNewer(string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingMemberUseNewerFormat, version);
+
+    public string FormatListingNextVersion(string id, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingNextVersionFormat, id, version);
+
+    public string FormatListingPackNotListed(string id)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackNotListedFormat, id);
+
+    public string FormatListingPackVersionTaken(string taken, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackVersionTakenFormat, taken, version);
+
+    public string FormatListingPackNoFreeVersion(string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackNoFreeVersionFormat, version);
+
+    public string FormatListingPackCheckFailed(string version, string reason)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackCheckFailedFormat, version, reason);
+
+    public string FormatListingPackVersionNotHigher(string version, string highest)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackVersionNotHigherFormat, version, highest);
+
+    public string FormatListingPackReleasedAtNotLater(string releasedAt, string newest, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackReleasedAtNotLaterFormat, releasedAt, newest, version);
+
+    public string FormatListingPackRetracted(string version, string? reason) => reason is null
+        ? string.Format(CultureInfo.CurrentCulture, Resources.ListingPackRetractedNoReasonFormat, version)
+        : string.Format(CultureInfo.CurrentCulture, Resources.ListingPackRetractedFormat, version, reason);
 
     public string FormatListingPackPullRequestText(string path)
         => string.Format(CultureInfo.CurrentCulture, Resources.ListingPackPullRequestTextFormat, path);

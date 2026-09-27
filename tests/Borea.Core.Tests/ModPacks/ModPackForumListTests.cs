@@ -31,4 +31,16 @@ public sealed class ModPackForumListTests
 
         Assert.Equal(["StarMap 0.4.6 - Not listed in the content index"], lines);
     }
+
+    [Fact]
+    public async Task WriteAsync_Pins_WritesTheLinesOfThePackThatPinsThem()
+    {
+        var mods = new PackMemberRepository([Listing("StarMap", "StarMap")], [Release("StarMap", "0.4.7")]);
+        var pack = Pack(("StarMap", "0.4.7"), ("Unlisted", "1.0.0"));
+
+        var lines = await ModPackForumList.WriteAsync(pack.Mods.ToList(), mods);
+
+        Assert.Equal(await ModPackForumList.WriteAsync(pack, mods), lines);
+        Assert.Equal(2, lines.Count);
+    }
 }

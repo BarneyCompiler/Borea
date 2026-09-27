@@ -10,13 +10,20 @@ namespace Borea.Core.ModPacks;
 /// </summary>
 public static class ModPackForumList
 {
-    public static async Task<IReadOnlyList<string>> WriteAsync(ModPackMetadata pack, IModRepository mods, CancellationToken cancellationToken = default)
+    public static Task<IReadOnlyList<string>> WriteAsync(ModPackMetadata pack, IModRepository mods, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(pack);
+        return WriteAsync(pack.Mods, mods, cancellationToken);
+    }
+
+    /// <summary>The same lines for pins that are not a listed pack version yet, such as the members of a draft.</summary>
+    public static async Task<IReadOnlyList<string>> WriteAsync(IEnumerable<ModPackEntry> pins, IModRepository mods, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pins);
         ArgumentNullException.ThrowIfNull(mods);
 
         var lines = new List<string>();
-        foreach (var pin in pack.Mods)
+        foreach (var pin in pins)
         {
             var release = await mods.GetReleaseAsync(pin.ContentId, pin.Version, cancellationToken).ConfigureAwait(false);
             var listing = release is null ? null : await mods.GetListingAsync(pin.ContentId, cancellationToken).ConfigureAwait(false);

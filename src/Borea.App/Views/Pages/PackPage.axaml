@@ -83,6 +83,7 @@
                                         <Button.Flyout>
                                             <MenuFlyout Placement="BottomEdgeAlignedRight">
                                                 <MenuItem Header="{Binding SelectedPack.FavoriteText}" Command="{Binding SelectedPack.ToggleFavoriteCommand}" />
+                                                <MenuItem Header="{Binding Localization.PackMakeNextVersion}" Command="{Binding MakeNextPackVersionCommand}" />
                                             </MenuFlyout>
                                         </Button.Flyout>
                                         <Path Classes="icon-filled" Data="{StaticResource Icon.More}" />

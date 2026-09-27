@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -9,6 +10,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Borea.App.Tests.ViewModels;
 using Borea.App.ViewModels;
 using Borea.App.Views;
 using Borea.Core.Index;
@@ -331,6 +333,102 @@ public sealed class ListingImageViewTests
     }
 
     [Fact]
+    public async Task State_IconShownAgainAfterItGaveItsBytesBack_TakesItsBitmapFromTheShelfWithoutADecode()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var states = await HeadlessApp.RunAsync(async () =>
+        {
+            var image = new ListingImage(new MainViewModel(), Icon(256, 256)) { Bytes = LeftHalfBluePng() };
+            var first = Show(image);
+            while (first.State != ListingImageView.DisplayState.Loaded)
+                await Task.Delay(10, timeout.Token);
+
+            var window = (Window)TopLevel.GetTopLevel(first)!;
+            window.Content = null;
+            image.Bytes = null;
+            var view = new ListingImageView { Image = image, Child = new Border() };
+            window.Content = view;
+            window.UpdateLayout();
+            var withoutBytes = view.State;
+
+            // bytes that do not decode turn a second decode into the placeholder
+            image.Bytes = [1, 2, 3, 4];
+            await Task.Delay(200, timeout.Token);
+            Dispatcher.UIThread.RunJobs();
+            return (WithoutBytes: withoutBytes, BytesBack: view.State);
+        });
+
+        Assert.Equal((ListingImageView.DisplayState.Loaded, ListingImageView.DisplayState.Loaded), states);
+    }
+
+    [Fact]
+    public async Task State_RecordWithTheSameDigestAndOtherFacts_DoesNotShowTheShelvedBitmap()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var states = await HeadlessApp.RunAsync(async () =>
+        {
+            var owner = new MainViewModel();
+            var record = Icon(256, 256);
+            var first = Show(new ListingImage(owner, record) { Bytes = LeftHalfBluePng() });
+            while (first.State != ListingImageView.DisplayState.Loaded)
+                await Task.Delay(10, timeout.Token);
+
+            var window = (Window)TopLevel.GetTopLevel(first)!;
+            window.Content = null;
+
+            // a record that states another size for the same file fails the check of its bytes, so it must not show the bitmap of the other record
+            var other = new ListingImage(owner, new IconImage(Url, record.Sha256, 512, 256, record.SizeBytes));
+            var view = new ListingImageView { Image = other, Child = new Border() };
+            window.Content = view;
+            window.UpdateLayout();
+            var shown = view.State;
+
+            other.Failure = ContentImageFailure.FactsMismatch;
+            return (Shown: shown, Failed: view.State);
+        });
+
+        Assert.Equal((ListingImageView.DisplayState.Loading, ListingImageView.DisplayState.Placeholder), states);
+    }
+
+    [Fact]
+    public async Task IconOfATileARowAndAPageHeader_ShownTogether_LoadsOnceAndKeepsItsBytesWhileOneShowsIt()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: ImageViewModelTests.WithImages("AdvancedFlightComputer", $$"""{ "icon": {{ImageViewModelTests.Icon(Url)}} }"""));
+        harness.Images.Respond = _ => ContentImageResult.Loaded([1, 2, 3]);
+        harness.ViewModel.IdleIcons = new IdleIconBytes(0);
+
+        var kept = await HeadlessApp.RunAsync(harness, async () =>
+        {
+            var viewModel = harness.ViewModel;
+            await viewModel.EnsureDiscoverLoadedAsync();
+            var row = viewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer");
+            await row.OpenCommand.ExecuteAsync(null);
+            ListingImage?[] icons = [viewModel.RecentItems.Single(item => item.ModId == "AdvancedFlightComputer").Icon, row.Icon, viewModel.SelectedContent?.Icon];
+            var views = icons.Select(icon => new ListingImageView { Image = icon, Width = 40, Height = 40, Child = new Border() }).ToList();
+            var panel = new StackPanel();
+            panel.Children.AddRange(views);
+            var window = new Window { Width = 40, Height = 120, Content = panel };
+            window.Show();
+            var icon = row.Icon!;
+            while (!icon.IsLoaded)
+                await Task.Delay(10);
+
+            panel.Children.Remove(views[0]);
+            panel.Children.Remove(views[2]);
+            var whileTheRowShowsIt = icon.IsLoaded;
+            panel.Children.Clear();
+            var whenNoViewShowsIt = icon.IsLoaded;
+            window.Close();
+            return (Images: icons.Distinct().Count(), WhileTheRowShowsIt: whileTheRowShowsIt, WhenNoViewShowsIt: whenNoViewShowsIt);
+        });
+
+        Assert.Equal((1, true, false), kept);
+        Assert.Single(harness.Images.Requests);
+    }
+
+    [Fact]
     public async Task Show_BeforeTheFirstLayout_WaitsAndDecodesAtTheSlotWidth()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -395,5 +493,6 @@ public sealed class ListingImageViewTests
         return Color.FromRgb(Marshal.ReadByte(buffer.Address, offset), Marshal.ReadByte(buffer.Address, offset + 1), Marshal.ReadByte(buffer.Address, offset + 2));
     }
 
-    private static IconImage Icon(int width, int height) => new(Url, Digest, width, height, 1000);
+    /// <summary>A digest of its own, because the bitmap shelf is shared by every test and finds a bitmap by its digest.</summary>
+    private static IconImage Icon(int width, int height) => new(Url, Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), width, height, 1000);
 }

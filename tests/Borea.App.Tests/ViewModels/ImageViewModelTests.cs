@@ -170,6 +170,49 @@ public sealed class ImageViewModelTests
     }
 
     [Fact]
+    public async Task IndexRefresh_ThatChangesAnIconRecord_LeavesOneEntryForIt()
+    {
+        var iconUrl = IconUrl;
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: json => WithImages("AdvancedFlightComputer", $$"""{ "icon": {{Icon(iconUrl)}} }""")(json));
+        harness.Images.Respond = _ => ContentImageResult.Loaded(IconBytes);
+        var viewModel = harness.ViewModel;
+        var old = await DiscoverIconAsync(harness);
+        await old.LoadAsync();
+        var entries = viewModel.IconCount;
+
+        iconUrl = "https://images.example/afc-icon-2.png";
+        await viewModel.RefreshContentIndexCommand.ExecuteAsync(null);
+
+        var icon = Assert.IsType<ListingImage>(viewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer").Icon);
+        Assert.Equal(iconUrl, icon.Record.Url);
+        Assert.Same(icon, viewModel.RecentItems.Single(item => item.ModId == "AdvancedFlightComputer").Icon);
+        Assert.Equal(entries, viewModel.IconCount);
+        Assert.False(old.IsLoaded);
+    }
+
+    [Fact]
+    public async Task IndexRefresh_ThatKeepsAnIconRecord_KeepsItsLoadedImage()
+    {
+        var abstractStart = string.Empty;
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: json => WithImages("AdvancedFlightComputer", $$"""{ "icon": {{Icon(IconUrl)}} }""")(json.Replace("\"abstract\": \"", "\"abstract\": \"" + abstractStart, StringComparison.Ordinal)));
+        harness.Images.Respond = _ => ContentImageResult.Loaded(IconBytes);
+        var viewModel = harness.ViewModel;
+        var icon = await DiscoverIconAsync(harness);
+        await icon.LoadAsync();
+        var entries = viewModel.IconCount;
+
+        abstractStart = "Now: ";
+        await viewModel.RefreshContentIndexCommand.ExecuteAsync(null);
+
+        Assert.StartsWith("Now: ", viewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer").Listing.Abstract, StringComparison.Ordinal);
+
+        Assert.Same(icon, viewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer").Icon);
+        Assert.Equal(entries, viewModel.IconCount);
+        Assert.True(icon.IsLoaded);
+        Assert.Single(harness.Images.Requests);
+    }
+
+    [Fact]
     public async Task OpenContent_TakesTheDescriptionImagesOfTheListingWithoutLoadingThem()
     {
         using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithImages("AdvancedFlightComputer", $$"""{ "description": [{{Description("settings-window")}}] }"""));
@@ -229,7 +272,7 @@ public sealed class ImageViewModelTests
         return Assert.IsType<ListingImage>(harness.ViewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer").Icon);
     }
 
-    private static string Icon(string url) =>
+    internal static string Icon(string url) =>
         $$"""{ "url": "{{url}}", "sha256": "{{Digest}}", "width": 512, "height": 512, "size": 4096 }""";
 
     private static string PackVersion(string version, bool retracted = false)
@@ -243,7 +286,7 @@ public sealed class ImageViewModelTests
     private static string Description(string id) =>
         $$"""{ "id": "{{id}}", "url": "https://images.example/{{id}}.png", "sha256": "{{Digest}}", "width": 1600, "height": 900, "size": 400000 }""";
 
-    private static Func<string, string> WithImages(string listingId, string images) => json =>
+    internal static Func<string, string> WithImages(string listingId, string images) => json =>
     {
         const string authored = "\"authored\": {";
         var listing = json.IndexOf($"\"id\": \"{listingId}\",", StringComparison.Ordinal);

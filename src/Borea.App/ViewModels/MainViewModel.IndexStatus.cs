@@ -155,10 +155,12 @@ public partial class MainViewModel
     /// <summary>Builds the Home grid, the Discover list, the open mod page and the update counts from the snapshot.</summary>
     private async Task ReloadFromIndexAsync()
     {
+        StartIconRebuild();
         await LoadRecentItemsAsync();
         _discoverLoad = null;
         await EnsureDiscoverLoadedAsync();
         await ReloadContentPageAsync();
+        EndIconRebuild();
         StartContentUpdateCheck();
     }
 

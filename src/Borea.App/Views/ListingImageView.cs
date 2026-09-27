@@ -48,8 +48,7 @@ public sealed class ListingImageView : Decorator
     private ListingImage? _observed;
     private Bitmap? _bitmap;
     private ListingImage? _bitmapImage;
-    private byte[]? _bitmapBytes;
-    private byte[]? _decoding;
+    private ListingImage? _decoding;
     private int _decodingWidth;
     private int _generation;
     private bool _nearViewport;
@@ -259,11 +258,17 @@ public sealed class ListingImageView : Decorator
     private void Observe(ListingImage? image)
     {
         if (_observed is not null)
+        {
             _observed.PropertyChanged -= OnImageChanged;
+            _observed.RemoveView();
+        }
 
         _observed = image;
         if (image is not null)
+        {
             image.PropertyChanged += OnImageChanged;
+            image.AddView();
+        }
     }
 
     private void OnImageChanged(object? sender, PropertyChangedEventArgs e)
@@ -284,33 +289,36 @@ public sealed class ListingImageView : Decorator
 
     private void Show()
     {
-        if (Image is not { Bytes: { } bytes } image || VisualRoot is null)
+        if (Image is not { } image || VisualRoot is null)
         {
             ReleaseBitmap();
             return;
         }
 
-        if (_bitmap is null && Shelf.Take(bytes) is { } shelved)
+        if (_bitmap is null && image.Record is IconImage icon && Shelf.Take(icon) is { } shelved)
         {
             _generation++;
-            _decoding = bytes;
+            _decoding = image;
             _decodingWidth = shelved.PixelSize.Width;
             _bitmap = shelved;
             _bitmapImage = image;
-            _bitmapBytes = bytes;
             UpdateState(fadeIn: false);
             InvalidateVisual();
         }
+
+        // an icon that gave its bytes back shows its shelved bitmap while the bytes load again
+        if (image.Bytes is not { } bytes)
+            return;
 
         // before the first layout the slot size is unknown, so the decode waits for it
         if (Bounds.Width <= 0 || Bounds.Height <= 0)
             return;
 
         var width = DecodeWidth(image.Record, Bounds.Size, TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
-        if (ReferenceEquals(bytes, _decoding) && (_decodeFailed || width <= _decodingWidth))
+        if (ReferenceEquals(image, _decoding) && (_decodeFailed || width <= _decodingWidth))
             return;
 
-        _decoding = bytes;
+        _decoding = image;
         _decodingWidth = width;
         _ = DecodeAsync(image, bytes, width, ++_generation);
     }
@@ -340,7 +348,6 @@ public sealed class ListingImageView : Decorator
         _bitmap?.Dispose();
         _bitmap = bitmap;
         _bitmapImage = bitmap is null ? null : image;
-        _bitmapBytes = bitmap is null ? null : bytes;
         _decodeFailed = bitmap is null;
         UpdateState();
         InvalidateVisual();
@@ -355,14 +362,13 @@ public sealed class ListingImageView : Decorator
         _decoding = null;
         _decodingWidth = 0;
         _decodeFailed = false;
-        // only an icon can come back, because its image is shared and keeps its bytes
-        if (_bitmapImage is { Record: IconImage, Bytes: { } bytes } && ReferenceEquals(bytes, _bitmapBytes))
-            Shelf.Put(bytes, _bitmap!);
+        // only an icon can come back, because a row, a tile and a page header share its image
+        if (_bitmapImage is { Record: IconImage icon })
+            Shelf.Put(icon, _bitmap!);
         else
             _bitmap?.Dispose();
         _bitmap = null;
         _bitmapImage = null;
-        _bitmapBytes = null;
         UpdateState();
         InvalidateVisual();
     }

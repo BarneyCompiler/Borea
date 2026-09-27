@@ -4,6 +4,7 @@ using Borea.Core.Instances;
 using Borea.Core.Launch;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
+using Borea.Storage.Files;
 using Borea.Storage.Launch;
 using Borea.Storage.Paths;
 using Borea.Storage.Tests.Mods;
@@ -752,6 +753,69 @@ public sealed class LoaderLauncherTests : IDisposable
 
         Assert.Equal("ModMenu", result.BlamedModId);
         Assert.Equal(LoaderCrashCause.ModAssembly, result.CrashCause);
+    }
+
+    [Theory]
+    [InlineData("System.IO.FileNotFoundException: Could not load file or assembly '/Users/me/mods/Foo/Foo.dll'. The system cannot find the file specified.")]
+    [InlineData(@"System.IO.FileNotFoundException: Could not load file or assembly 'C:\Games\KSA\mods\Foo\Foo.dll'. The system cannot find the file specified.")]
+    public async Task WatchStart_AssemblyNamedByItsPath_BlamesTheModThatHoldsIt(string line)
+    {
+        PlaceStarMap();
+        var instance = InstanceWith("MeasureTools", "foo-tools");
+        PlaceMod(instance, "MeasureTools", "name = \"MeasureTools\"", "MeasureTools");
+        PlaceMod(instance, "foo-tools", "name = \"Foo\"", "Foo");
+
+        var result = await CrashAsync(instance, -532462766, line);
+
+        Assert.Equal(LaunchOutcome.ExitedEarly, result.Outcome);
+        Assert.Equal("foo-tools", result.BlamedModId);
+        Assert.Equal(LoaderCrashCause.ModAssembly, result.CrashCause);
+        Assert.Contains("foo-tools 0.8.44 stopped StarMap from starting", result.Message);
+    }
+
+    [Theory]
+    [InlineData("Could not load file or assembly '*'.")]
+    [InlineData("Could not load file or assembly '/Users/me/mods/Foo/F?o.dll'.")]
+    [InlineData(@"Could not load file or assembly 'C:\Games\KSA\mods\Foo\F*.dll'.")]
+    public async Task WatchStart_AssemblyNameWithAWildcard_BlamesNoModAndReportsTheStop(string line)
+    {
+        PlaceStarMap();
+        var instance = InstanceWith("foo-tools");
+        PlaceMod(instance, "foo-tools", "name = \"Foo\"", "Foo");
+
+        var result = await CrashAsync(instance, 3, line);
+
+        Assert.Equal(LaunchOutcome.ExitedEarly, result.Outcome);
+        Assert.Equal(3, result.ExitCode);
+        Assert.Null(result.BlamedModId);
+        Assert.Contains("StarMap stopped right after starting (exit code 3).", result.Message);
+        Assert.Equal([line], result.Output);
+    }
+
+    [Fact]
+    public async Task WatchStart_ModFolderThatCannotBeSearched_IsSkipped()
+    {
+        PlaceStarMap();
+        var instance = InstanceWith("gone", "foo-tools");
+        var modsFolder = _paths.GetInstanceModsFolder(instance.InstanceId);
+        var removed = Directory.CreateDirectory(Path.Combine(_tempRoot, "Removed")).FullName;
+        var link = Path.Combine(modsFolder, "gone");
+        var linker = new DirectoryLinker();
+        Assert.True(linker.TryCreate(link, removed).Linked);
+        Directory.Delete(removed);
+        PlaceMod(instance, "foo-tools", "name = \"Foo\"", "Foo");
+
+        try
+        {
+            var result = await CrashAsync(instance, -532462766, "Could not load file or assembly 'Foo, Version=1.0.0.0'.");
+
+            Assert.Equal(LaunchOutcome.ExitedEarly, result.Outcome);
+            Assert.Equal("foo-tools", result.BlamedModId);
+        }
+        finally
+        {
+            linker.Remove(link);
+        }
     }
 
     [Fact]

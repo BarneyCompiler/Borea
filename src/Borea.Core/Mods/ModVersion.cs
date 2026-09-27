@@ -127,6 +127,17 @@ namespace Borea.Core.Mods
         public static bool TryParseAuthored(string? value, out ModVersion result)
         {
             result = default;
+            return TryNormalizeAuthored(value, out var normalized) && TryParse(normalized, out result);
+        }
+
+        /// <summary>
+        /// The text of a version as the index stores it, from what <see cref="TryParseAuthored"/> reads: without the leading "v"
+        /// and with the missing core components filled with 0. Unlike a <see cref="ModVersion"/>, it keeps the build metadata,
+        /// because a release file name keeps it.
+        /// </summary>
+        public static bool TryNormalizeAuthored(string? value, out string normalized)
+        {
+            normalized = string.Empty;
 
             if (value is null)
             {
@@ -146,7 +157,13 @@ namespace Borea.Core.Mods
                 value = core + string.Concat(Enumerable.Repeat(".0", missing)) + value[core.Length..];
             }
 
-            return TryParse(value, out result);
+            if (!TryParse(value, out _))
+            {
+                return false;
+            }
+
+            normalized = value;
+            return true;
         }
 
         /// <summary>

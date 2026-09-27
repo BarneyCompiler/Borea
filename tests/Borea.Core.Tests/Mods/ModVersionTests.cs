@@ -96,6 +96,26 @@ public sealed class ModVersionTests
         Assert.False(ModVersion.TryParseAuthored(input, out _));
     }
 
+    [Theory]
+    [InlineData("v1.2+build.7", "1.2.0+build.7")]
+    [InlineData("1-beta+exp.sha-5114f85", "1.0.0-beta+exp.sha-5114f85")]
+    [InlineData("0.8.2-nightly.20260925", "0.8.2-nightly.20260925")]
+    public void TryNormalizeAuthored_KeepsTheBuildMetadata(string input, string expected)
+    {
+        Assert.True(ModVersion.TryNormalizeAuthored(input, out var normalized));
+        Assert.Equal(expected, normalized);
+    }
+
+    [Theory]
+    [InlineData("latest")]
+    [InlineData(" 0.5")]
+    [InlineData("1.2+")]
+    public void TryNormalizeAuthored_NotAVersion_ReturnsFalse(string input)
+    {
+        Assert.False(ModVersion.TryNormalizeAuthored(input, out var normalized));
+        Assert.Empty(normalized);
+    }
+
     [Fact]
     public void ParseAuthored_InvalidInput_ThrowsFormatException()
     {

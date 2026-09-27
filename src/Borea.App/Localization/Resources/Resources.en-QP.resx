@@ -2256,6 +2256,15 @@
   <data name="LaunchStoppedTitleFormat" xml:space="preserve">
     <value>{0} keeled over</value>
   </data>
+  <data name="LaunchWindowsBuildWithoutWine" xml:space="preserve">
+    <value>The game treasure chest holds the Windows build o' KSA, which this ship can sail only through Wine, and The Borea found no Wine prefix 'round it. The Borea fires nothin'.</value>
+  </data>
+  <data name="LaunchWindowsBuildInPrefixFormat" xml:space="preserve">
+    <value>The game treasure chest holds the Windows build o' KSA in the Wine prefix '{0}'. The Borea can't fire a game through Wine yet, so it fires nothin'. Fire the game through Wine to set sail.</value>
+  </data>
+  <data name="LaunchWindowsBuildInWrapperFormat" xml:space="preserve">
+    <value>The game treasure chest holds the Windows build o' KSA in the Wine wrapper '{0}'. The Borea can't fire a game through a Wine wrapper yet, so it fires nothin'. Fire the wrapper to set sail.</value>
+  </data>
   <data name="LaunchDisableModFormat" xml:space="preserve">
     <value>Maroon {0}</value>
   </data>

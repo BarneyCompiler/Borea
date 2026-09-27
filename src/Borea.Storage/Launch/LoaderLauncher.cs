@@ -6,6 +6,7 @@ using Borea.Core.Launch;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
 using Borea.Core.Paths;
+using Borea.Storage.Game;
 using Borea.Storage.Instances;
 
 namespace Borea.Storage.Launch;
@@ -24,6 +25,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     private readonly OsPlatform? _platform;
     private readonly Func<string?> _findDotnet;
     private readonly Func<bool> _isGameRunning;
+    private readonly IWinePrefixProbe _wine;
     private readonly object _gate;
     private readonly Dictionary<Guid, IStartedProcess> _running;
     private readonly Dictionary<Guid, (DateTime? GameLogAtLaunch, DateTime? CrashLogAtLaunch, string LoaderName)> _starts;
@@ -67,13 +69,14 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     {
     }
 
-    internal LoaderLauncher(IGamePathProvider pathProvider, IProcessStarter starter, OsPlatform? platform, Func<string?> findDotnet, TimeSpan startupWindow, RunningLaunches? launches = null, Func<bool>? isGameRunning = null, TimeSpan? crashLogWait = null)
+    internal LoaderLauncher(IGamePathProvider pathProvider, IProcessStarter starter, OsPlatform? platform, Func<string?> findDotnet, TimeSpan startupWindow, RunningLaunches? launches = null, Func<bool>? isGameRunning = null, TimeSpan? crashLogWait = null, IWinePrefixProbe? wine = null)
     {
         _pathProvider = pathProvider ?? throw new ArgumentNullException(nameof(pathProvider));
         _starter = starter ?? throw new ArgumentNullException(nameof(starter));
         _platform = platform;
         _findDotnet = findDotnet ?? throw new ArgumentNullException(nameof(findDotnet));
         _isGameRunning = isGameRunning ?? RunningProcesses.IsGameRunning;
+        _wine = wine ?? new WinePrefixProbe(platform);
         if (startupWindow < TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(startupWindow), "The startup window cannot be negative.");
 
@@ -112,6 +115,9 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                     LaunchOutcome.AlreadyRunning,
                     $"Instance '{instance.Name}' is already running from a launch Borea started. Close the game first.");
             }
+
+            if (WindowsBuildOnHost.Refusal(_platform, _pathProvider.GetGameDirectoryPath(), _wine) is { } refusal)
+                return LaunchResult.Failed(LaunchOutcome.WindowsBuild, refusal.Message, wine: refusal.Wine);
 
             // An entry for this platform replaces [provides].launch, with no fallback (RFC 0067).
             var entry = _platform is { } platform ? loader.Provides?.Platforms.GetValueOrDefault(platform) : null;

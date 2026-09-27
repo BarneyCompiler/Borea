@@ -3879,6 +3879,15 @@
   <data name="LaunchTargetMissingFormat" xml:space="preserve">
     <value>'{0}' is not there. Reinstall {1} or correct its directory in the settings.</value>
   </data>
+  <data name="LaunchWindowsBuildWithoutWine" xml:space="preserve">
+    <value>The game folder holds the Windows build of KSA, which this system can run only through Wine, and Borea found no Wine prefix around it. Borea starts nothing.</value>
+  </data>
+  <data name="LaunchWindowsBuildInPrefixFormat" xml:space="preserve">
+    <value>The game folder holds the Windows build of KSA in the Wine prefix '{0}'. Borea cannot start a game through Wine yet, so it starts nothing. Start the game through Wine to play.</value>
+  </data>
+  <data name="LaunchWindowsBuildInWrapperFormat" xml:space="preserve">
+    <value>The game folder holds the Windows build of KSA in the Wine wrapper '{0}'. Borea cannot start a game through a Wine wrapper yet, so it starts nothing. Start the wrapper to play.</value>
+  </data>
   <data name="LaunchDisableModFormat" xml:space="preserve">
     <value>Disable {0}</value>
   </data>

@@ -7,6 +7,7 @@ using Borea.Core.Mods;
 using Borea.Storage.Files;
 using Borea.Storage.Launch;
 using Borea.Storage.Paths;
+using Borea.Storage.Tests.Game;
 using Borea.Storage.Tests.Mods;
 using Borea.Storage.Tests.Paths;
 
@@ -186,6 +187,85 @@ public sealed class LoaderLauncherTests : IDisposable
         Assert.Equal(new[] { assembly, "-InstancePath", instanceRoot, "-saved", "-given" }, plan.Arguments);
         Assert.Equal(instanceRoot, plan.EnvironmentVariables["STARMAP_INSTANCE_PATH"]);
         Assert.Equal(Path.GetFullPath(StarMapDirectory), plan.WorkingDirectory);
+    }
+
+    /// <summary>KSA.exe in the game folder, and the Linux app host too when asked.</summary>
+    private static void PlaceWindowsBuild(TestGamePathProvider paths, bool linuxAppHost = false)
+    {
+        var game = Directory.CreateDirectory(paths.GetGameDirectoryPath()!).FullName;
+        File.WriteAllBytes(Path.Combine(game, "KSA.exe"), Array.Empty<byte>());
+        if (linuxAppHost)
+            File.WriteAllBytes(Path.Combine(game, "KSA"), Array.Empty<byte>());
+    }
+
+    [Fact]
+    public void Launch_WindowsBuildInAWinePrefixOnMacOs_StartsNothing()
+    {
+        WineFixtures.Prefix(_tempRoot);
+        PlaceWindowsBuild(_paths);
+        PlaceStarMap();
+        PlaceStarMap("StarMap.dll");
+        var dotnet = PlaceDotnet();
+        var platforms = new Dictionary<OsPlatform, LoaderPlatformLaunch> { [OsPlatform.MacOs] = new("StarMap.dll", "dotnet") };
+        using var launcher = new LoaderLauncher(_paths, _starter, OsPlatform.MacOs, () => dotnet);
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides(platforms: platforms)));
+
+        Assert.Equal(LaunchOutcome.WindowsBuild, result.Outcome);
+        Assert.Contains("Wine prefix", result.Message);
+        Assert.Equal(Path.GetFileName(_tempRoot), Path.GetFileName(result.Wine?.PrefixRoot));
+        Assert.Null(result.Wine?.Wrapper);
+        Assert.Empty(_starter.Plans);
+        Assert.False(launcher.IsRunning(_instance.InstanceId));
+    }
+
+    [Fact]
+    public void Launch_WindowsBuildInAWrapperOnMacOs_NamesTheWrapper()
+    {
+        var prefix = WineFixtures.Prefix(WineFixtures.WrapperPrefix(Path.Combine(_tempRoot, "Applications")));
+        var bundle = WineFixtures.Wrapper(prefix);
+        var paths = new TestGamePathProvider(Path.Combine(prefix, "drive_c"));
+        PlaceWindowsBuild(paths);
+        using var launcher = new LoaderLauncher(paths, _starter, OsPlatform.MacOs, NoDotnetNeeded);
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.Equal(LaunchOutcome.WindowsBuild, result.Outcome);
+        Assert.Contains("Wine wrapper", result.Message);
+        Assert.Contains(Path.GetFileName(bundle), result.Message);
+        Assert.Equal(Path.GetFileName(bundle), Path.GetFileName(result.Wine?.Wrapper?.BundlePath));
+        Assert.Empty(_starter.Plans);
+    }
+
+    [Fact]
+    public void Launch_WindowsBuildWithoutAPrefixOnLinux_StartsNothing()
+    {
+        PlaceWindowsBuild(_paths);
+        PlaceStarMap();
+        using var launcher = new LoaderLauncher(_paths, _starter, OsPlatform.Linux, NoDotnetNeeded);
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.Equal(LaunchOutcome.WindowsBuild, result.Outcome);
+        Assert.Contains("found no Wine prefix", result.Message);
+        Assert.Null(result.Wine);
+        Assert.Empty(_starter.Plans);
+    }
+
+    [Theory]
+    [InlineData(OsPlatform.Linux, true)]
+    [InlineData(OsPlatform.Windows, false)]
+    public void Launch_GameTheHostCanRun_StartsTheLoader(OsPlatform platform, bool linuxAppHost)
+    {
+        WineFixtures.Prefix(_tempRoot);
+        PlaceWindowsBuild(_paths, linuxAppHost);
+        PlaceStarMap();
+        using var launcher = new LoaderLauncher(_paths, _starter, platform, NoDotnetNeeded);
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.True(result.Started);
+        Assert.Single(_starter.Plans);
     }
 
     [Fact]

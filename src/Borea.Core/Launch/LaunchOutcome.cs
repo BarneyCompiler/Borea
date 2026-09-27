@@ -40,4 +40,7 @@ public enum LaunchOutcome
 
     /// <summary>The loader's start entry for this platform has a key that Borea does not know.</summary>
     UnknownPlatformKey = 12,
+
+    /// <summary>The game folder holds the Windows build, which Borea cannot start on this system.</summary>
+    WindowsBuild = 13,
 }

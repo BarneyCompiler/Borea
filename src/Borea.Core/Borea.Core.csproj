@@ -5,10 +5,18 @@
     <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64</RuntimeIdentifiers>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- A hand test build opens its pull requests against a throwaway branch of content-index instead of main. -->
+    <ContentIndexBranch Condition="'$(ContentIndexBranch)' == ''">main</ContentIndexBranch>
   </PropertyGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Game\verified-builds.json" LogicalName="Borea.Core.Game.verified-builds.json" />
+    <AssemblyMetadata Include="Borea.ContentIndexBranch" Value="$(ContentIndexBranch)" />
+    <InternalsVisibleTo Include="Borea.Core.Tests" />
   </ItemGroup>
+
+  <Target Name="CheckContentIndexBranch" BeforeTargets="CoreCompile">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(ContentIndexBranch)', '^(?!.*\.\.)[A-Za-z0-9_][A-Za-z0-9._/-]*[A-Za-z0-9_]$|^[A-Za-z0-9_]$'))" Text="ContentIndexBranch '$(ContentIndexBranch)' is not a plain branch name of letters, digits, '.', '_', '/' and '-'." />
+  </Target>
 
 </Project>

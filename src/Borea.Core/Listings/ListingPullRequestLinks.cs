@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Borea.Core.Listings;
 
 /// <summary>
@@ -8,7 +10,19 @@ public static class ListingPullRequestLinks
 {
     public const string Repository = "KSAModding/content-index";
 
-    public const string Branch = "main";
+    public const string DefaultBranch = "main";
+
+    internal const string BranchMetadata = "Borea.ContentIndexBranch";
+
+    /// <summary>
+    /// The base branch of the pull requests: <see cref="DefaultBranch"/>, or the throwaway branch that a hand test build
+    /// names with <c>-p:ContentIndexBranch=&lt;branch&gt;</c>.
+    /// </summary>
+    public static string Branch { get; } = BranchOf(typeof(ListingPullRequestLinks).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>());
+
+    /// <summary>The branch that the build metadata names, or <see cref="DefaultBranch"/> when it names none.</summary>
+    internal static string BranchOf(IEnumerable<AssemblyMetadataAttribute> metadata) =>
+        metadata.FirstOrDefault(item => item.Key == BranchMetadata)?.Value is { Length: > 0 } branch ? branch : DefaultBranch;
 
     /// <summary>
     /// A longer URL is not opened with the document in it, because browsers and GitHub cut long URLs.

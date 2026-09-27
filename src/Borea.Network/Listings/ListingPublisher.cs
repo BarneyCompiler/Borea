@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Net;
-using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Borea.Core.GitHub;
@@ -19,7 +19,7 @@ namespace Borea.Network.Listings;
 /// </summary>
 public sealed class ListingPublisher : IListingPublisher
 {
-    internal const string Api = "https://api.github.com";
+    internal const string Api = GitHubApi.Root;
 
     internal const string Upstream = ListingPullRequestLinks.Repository;
 
@@ -31,15 +31,9 @@ public sealed class ListingPublisher : IListingPublisher
 
     internal const string MergingDescription = "validated, arming auto-merge";
 
-    internal static readonly TimeSpan SecondaryLimitWait = TimeSpan.FromMinutes(1);
-
     private const int SpaceDockGameId = 22409;
 
-    private const int MaxRedirects = 5;
-
     private const int MaxBranchNumber = 100;
-
-    private const int MaxPages = 10;
 
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 
@@ -48,16 +42,19 @@ public sealed class ListingPublisher : IListingPublisher
     private readonly IGitHubSession _session;
     private readonly HttpClient _http;
     private readonly IListingFormat _format;
-    private readonly TimeProvider _time;
+    private readonly GitHubApi _api;
+    private readonly string _base;
 
     /// <param name="http">Reads SpaceDock and the GitHub repositories that the token cannot reach.</param>
     /// <param name="format">Reads the marker file.</param>
-    public ListingPublisher(IGitHubSession session, HttpClient http, IListingFormat format, TimeProvider? time = null)
+    /// <param name="baseBranch">The branch of content-index that the pull requests go to. Null takes <see cref="ListingPullRequestLinks.Branch"/>.</param>
+    public ListingPublisher(IGitHubSession session, HttpClient http, IListingFormat format, TimeProvider? time = null, string? baseBranch = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _format = format ?? throw new ArgumentNullException(nameof(format));
-        _time = time ?? TimeProvider.System;
+        _base = baseBranch ?? ListingPullRequestLinks.Branch;
+        _api = new GitHubApi(session, http, time, _base);
     }
 
     public async Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, ContentIndexSnapshot? snapshot = null, CancellationToken cancellationToken = default)
@@ -108,7 +105,7 @@ public sealed class ListingPublisher : IListingPublisher
         // The branch starts at a commit the fork already has, because writing newer history of content-index into the fork
         // needs the Workflows permission whenever that history changes a workflow.
         var compare = await GetAsync<CompareDto>(
-            $"{Api}/repos/{Upstream}/compare/{ListingPullRequestLinks.Branch}...{fork.FullName.Replace('/', ':')}:{Uri.EscapeDataString(fork.DefaultBranch)}?per_page=1",
+            $"{Api}/repos/{Upstream}/compare/{_base}...{fork.FullName.Replace('/', ':')}:{Uri.EscapeDataString(fork.DefaultBranch)}?per_page=1",
             ListingPublishStep.Branch,
             cancellationToken).ConfigureAwait(false);
         var main = compare.BaseCommit?.Sha ?? throw Unexpected(ListingPublishStep.Branch);
@@ -150,7 +147,7 @@ public sealed class ListingPublisher : IListingPublisher
         {
             ["title"] = title,
             ["head"] = $"{fork.Owner}:{branch}",
-            ["base"] = ListingPullRequestLinks.Branch,
+            ["base"] = _base,
             ["body"] = text,
             ["maintainer_can_modify"] = true,
         };
@@ -226,7 +223,7 @@ public sealed class ListingPublisher : IListingPublisher
         if (!ModIds.IsValid(id))
             return ListingOwnership.Unknown;
 
-        var record = await ReadFileAsync(Upstream, ListingPackOwner.PathOf(id), ListingPullRequestLinks.Branch, ListingPublishStep.Ownership, cancellationToken).ConfigureAwait(false);
+        var record = await ReadFileAsync(Upstream, ListingPackOwner.PathOf(id), _base, ListingPublishStep.Ownership, cancellationToken).ConfigureAwait(false);
         if (record is not null)
         {
             return ListingPackOwner.Parse(record.Text) switch
@@ -253,7 +250,7 @@ public sealed class ListingPublisher : IListingPublisher
             return submission;
 
         var path = ListingPackOwner.PathOf(submission.Id);
-        if (await ReadFileAsync(Upstream, path, ListingPullRequestLinks.Branch, step, cancellationToken).ConfigureAwait(false) is not null)
+        if (await ReadFileAsync(Upstream, path, _base, step, cancellationToken).ConfigureAwait(false) is not null)
             return submission;
 
         var user = await GetAsync<UserDto>($"{Api}/user", step, cancellationToken).ConfigureAwait(false);
@@ -400,18 +397,15 @@ public sealed class ListingPublisher : IListingPublisher
     private async Task<OpenPullRequest?> FindOpenPullRequestAsync(string login, IReadOnlyList<string> paths, CancellationToken cancellationToken)
     {
         const ListingPublishStep step = ListingPublishStep.FindPullRequest;
-        for (var page = 1; page <= MaxPages; page++)
+        var pulls = Pages(step, _api.GetPagesAsync<PullDto>($"{Api}/repos/{Upstream}/pulls?state=open", cancellationToken), cancellationToken);
+        await foreach (var pull in pulls.ConfigureAwait(false))
         {
-            var pulls = await GetAsync<List<PullDto>>($"{Api}/repos/{Upstream}/pulls?state=open&per_page=100&page={page}", step, cancellationToken).ConfigureAwait(false);
-            foreach (var pull in pulls.Where(pull => string.Equals(pull.User?.Login, login, StringComparison.OrdinalIgnoreCase) && pull.Head?.Repo is not null))
-            {
-                var files = await FilesAsync(pull.Number, cancellationToken).ConfigureAwait(false);
-                if (files.Contains(paths[0], StringComparer.Ordinal))
-                    return new OpenPullRequest(pull, files.All(file => paths.Contains(file, StringComparer.Ordinal)));
-            }
+            if (!string.Equals(pull.User?.Login, login, StringComparison.OrdinalIgnoreCase) || pull.Head?.Repo is null)
+                continue;
 
-            if (pulls.Count < 100)
-                break;
+            var files = await FilesAsync(pull.Number, cancellationToken).ConfigureAwait(false);
+            if (files.Contains(paths[0], StringComparer.Ordinal))
+                return new OpenPullRequest(pull, files.All(file => paths.Contains(file, StringComparer.Ordinal)));
         }
 
         return null;
@@ -420,13 +414,9 @@ public sealed class ListingPublisher : IListingPublisher
     private async Task<List<string>> FilesAsync(int number, CancellationToken cancellationToken)
     {
         var names = new List<string>();
-        for (var page = 1; page <= MaxPages; page++)
-        {
-            var files = await GetAsync<List<PullFileDto>>($"{Api}/repos/{Upstream}/pulls/{number}/files?per_page=100&page={page}", ListingPublishStep.FindPullRequest, cancellationToken).ConfigureAwait(false);
-            names.AddRange(files.Select(file => file.Filename));
-            if (files.Count < 100)
-                break;
-        }
+        var files = Pages(ListingPublishStep.FindPullRequest, _api.GetPagesAsync<PullFileDto>($"{Api}/repos/{Upstream}/pulls/{number}/files", cancellationToken), cancellationToken);
+        await foreach (var file in files.ConfigureAwait(false))
+            names.Add(file.Filename);
 
         return names;
     }
@@ -459,18 +449,15 @@ public sealed class ListingPublisher : IListingPublisher
         const ListingPublishStep step = ListingPublishStep.Fork;
         if (await FindInstallationAsync(login, cancellationToken).ConfigureAwait(false) is { } installation)
         {
-            for (var page = 1; page <= MaxPages; page++)
+            var repositories = Pages(step, _api.GetPagesAsync<InstallationRepositoriesDto, RepositoryDto>($"{Api}/user/installations/{installation}/repositories", page => page.Repositories, cancellationToken), cancellationToken);
+            await foreach (var candidate in repositories.ConfigureAwait(false))
             {
-                var repositories = await GetAsync<InstallationRepositoriesDto>($"{Api}/user/installations/{installation}/repositories?per_page=100&page={page}", step, cancellationToken).ConfigureAwait(false);
-                foreach (var candidate in repositories.Repositories.Where(repository => repository.Fork))
-                {
-                    var repository = await GetAsync<RepositoryDto>($"{Api}/repos/{candidate.FullName}", step, cancellationToken).ConfigureAwait(false);
-                    if (IsForkOfUpstream(repository) && ForkOf(repository) is { } fork)
-                        return fork;
-                }
+                if (!candidate.Fork)
+                    continue;
 
-                if (repositories.Repositories.Count < 100)
-                    break;
+                var repository = await GetAsync<RepositoryDto>($"{Api}/repos/{candidate.FullName}", step, cancellationToken).ConfigureAwait(false);
+                if (IsForkOfUpstream(repository) && ForkOf(repository) is { } fork)
+                    return fork;
             }
         }
 
@@ -483,14 +470,11 @@ public sealed class ListingPublisher : IListingPublisher
 
     private async Task<long?> FindInstallationAsync(string login, CancellationToken cancellationToken)
     {
-        for (var page = 1; page <= MaxPages; page++)
+        var installations = Pages(ListingPublishStep.Fork, _api.GetPagesAsync<InstallationsDto, InstallationDto>($"{Api}/user/installations", page => page.Installations, cancellationToken), cancellationToken);
+        await foreach (var installation in installations.ConfigureAwait(false))
         {
-            var installations = await GetAsync<InstallationsDto>($"{Api}/user/installations?per_page=100&page={page}", ListingPublishStep.Fork, cancellationToken).ConfigureAwait(false);
-            if (installations.Installations.FirstOrDefault(installation => string.Equals(installation.Account?.Login, login, StringComparison.OrdinalIgnoreCase)) is { } own)
-                return own.Id;
-
-            if (installations.Installations.Count < 100)
-                break;
+            if (string.Equals(installation.Account?.Login, login, StringComparison.OrdinalIgnoreCase))
+                return installation.Id;
         }
 
         return null;
@@ -591,159 +575,76 @@ public sealed class ListingPublisher : IListingPublisher
         }
     }
 
-    private async Task<T> GetAsync<T>(string url, ListingPublishStep step, CancellationToken cancellationToken)
-    {
-        var reply = await SendAsync(HttpMethod.Get, url, null, step, cancellationToken).ConfigureAwait(false);
-        return Parse<T>(Ensure(reply, step), step);
-    }
+    private Task<T> GetAsync<T>(string url, ListingPublishStep step, CancellationToken cancellationToken) =>
+        At(step, _api.GetAsync<T>(url, cancellationToken));
 
-    /// <summary>The App has no Commit statuses permission, so GitHub may refuse the token on a public read. A refusal is read again without the token.</summary>
-    private async Task<T> GetPublicAsync<T>(string url, ListingPublishStep step, CancellationToken cancellationToken)
-    {
-        var reply = await SendAsync(HttpMethod.Get, url, null, step, cancellationToken).ConfigureAwait(false);
-        if (reply is { Status: HttpStatusCode.Forbidden, RetryAt: null })
-            reply = await SendAsync(HttpMethod.Get, url, null, step, cancellationToken, anonymous: true).ConfigureAwait(false);
+    private Task<T> GetPublicAsync<T>(string url, ListingPublishStep step, CancellationToken cancellationToken) =>
+        At(step, _api.GetPublicAsync<T>(url, cancellationToken));
 
-        return Parse<T>(Ensure(reply, step), step);
-    }
+    private Task<GitHubReply> SendAsync(HttpMethod method, string url, object? body, ListingPublishStep step, CancellationToken cancellationToken, bool anonymous = false) =>
+        At(step, _api.SendAsync(method, url, body, cancellationToken, anonymous));
 
-    /// <summary>
-    /// Sends through the session, or without the token when <paramref name="anonymous"/>,
-    /// and follows a redirect of GitHub, which the session's client does not follow.
-    /// </summary>
-    private async Task<Reply> SendAsync(HttpMethod method, string url, object? body, ListingPublishStep step, CancellationToken cancellationToken, bool anonymous = false)
+    private static string Ensure(GitHubReply reply, ListingPublishStep step) => At(step, () => GitHubApi.Ensure(reply));
+
+    private static T Parse<T>(string body, ListingPublishStep step) => At(step, () => GitHubApi.Parse<T>(body));
+
+    private static async Task<T> At<T>(ListingPublishStep step, Task<T> call)
     {
-        var json = body is null ? null : JsonSerializer.Serialize(body);
-        var target = new Uri(url);
-        for (var redirects = 0; ; redirects++)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            using var request = new HttpRequestMessage(method, target);
-            if (json is not null)
-                request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            if (anonymous)
-            {
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-                request.Headers.Add("X-GitHub-Api-Version", BoreaReleaseCheck.ApiVersion);
-            }
-
-            try
-            {
-                using var response = anonymous
-                    ? await _http.SendAsync(request, cancellationToken).ConfigureAwait(false)
-                    : await _session.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                if (response.StatusCode == HttpStatusCode.Unauthorized && !anonymous)
-                    throw new ListingPublishException(ListingPublishFailure.SignedOut, step);
-
-                if (IsRedirect(response.StatusCode) && response.Headers.Location is { } location && redirects < MaxRedirects)
-                {
-                    target = location.IsAbsoluteUri ? location : new Uri(target, location);
-                    if (!target.AbsoluteUri.StartsWith(Api + "/", StringComparison.OrdinalIgnoreCase))
-                        throw Unexpected(step);
-                    continue;
-                }
-
-                var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                return new Reply(response.StatusCode, text, MessageOf(text), RetryAtOf(response, text));
-            }
-            catch (InvalidOperationException exception) when (!anonymous)
-            {
-                throw new ListingPublishException(ListingPublishFailure.SignedOut, step, innerException: exception);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
-            {
-                throw new ListingPublishException(ListingPublishFailure.NetworkError, step, innerException: exception);
-            }
+            return await call.ConfigureAwait(false);
+        }
+        catch (GitHubApiException exception)
+        {
+            throw Failed(exception, step);
         }
     }
 
-    private static bool IsRedirect(HttpStatusCode status) =>
-        status is HttpStatusCode.MovedPermanently or HttpStatusCode.Found or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;
-
-    private static string Ensure(Reply reply, ListingPublishStep step)
+    private static T At<T>(ListingPublishStep step, Func<T> call)
     {
-        if ((int)reply.Status is >= 200 and < 300)
-            return reply.Body;
-
-        var failure = reply.Status switch
+        try
         {
-            _ when reply.RetryAt is not null => ListingPublishFailure.RateLimited,
-            HttpStatusCode.Forbidden => ListingPublishFailure.Forbidden,
-            HttpStatusCode.NotFound => ListingPublishFailure.NotFound,
-            HttpStatusCode.UnprocessableEntity or HttpStatusCode.Conflict => ListingPublishFailure.Refused,
+            return call();
+        }
+        catch (GitHubApiException exception)
+        {
+            throw Failed(exception, step);
+        }
+    }
+
+    private static async IAsyncEnumerable<T> Pages<T>(ListingPublishStep step, IAsyncEnumerable<T> items, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var enumerator = items.GetAsyncEnumerator(cancellationToken);
+        try
+        {
+            while (await At(step, enumerator.MoveNextAsync().AsTask()).ConfigureAwait(false))
+                yield return enumerator.Current;
+        }
+        finally
+        {
+            await enumerator.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private static ListingPublishException Failed(GitHubApiException exception, ListingPublishStep step)
+    {
+        var failure = exception.Failure switch
+        {
+            GitHubApiFailure.SignedOut => ListingPublishFailure.SignedOut,
+            GitHubApiFailure.RateLimited => ListingPublishFailure.RateLimited,
+            GitHubApiFailure.NotFound => ListingPublishFailure.NotFound,
+            GitHubApiFailure.Refused or GitHubApiFailure.ProtectedBranch => ListingPublishFailure.Refused,
+            GitHubApiFailure.Forbidden => ListingPublishFailure.Forbidden,
+            GitHubApiFailure.NetworkError => ListingPublishFailure.NetworkError,
             _ => ListingPublishFailure.UnexpectedResponse,
         };
-        var detail = failure == ListingPublishFailure.UnexpectedResponse ? $"HTTP {(int)reply.Status}" : reply.Message;
-        throw new ListingPublishException(failure, step, detail, reply.RetryAt);
-    }
-
-    private DateTimeOffset? RetryAtOf(HttpResponseMessage response, string body)
-    {
-        if (response.StatusCode is not (HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests))
-            return null;
-
-        var now = _time.GetUtcNow();
-        if (response.Headers.RetryAfter is { } retryAfter)
-            return retryAfter.Delta is { } delta ? now + delta : retryAfter.Date ?? now + SecondaryLimitWait;
-
-        if (Header(response, "x-ratelimit-remaining") == "0"
-            && long.TryParse(Header(response, "x-ratelimit-reset"), NumberStyles.None, CultureInfo.InvariantCulture, out var reset))
-        {
-            return DateTimeOffset.FromUnixTimeSeconds(reset);
-        }
-
-        return response.StatusCode == HttpStatusCode.TooManyRequests || body.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
-            ? now + SecondaryLimitWait
-            : null;
-    }
-
-    private static string? Header(HttpResponseMessage response, string name) =>
-        response.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() : null;
-
-    private static string? MessageOf(string body)
-    {
-        try
-        {
-            var error = JsonSerializer.Deserialize<ErrorDto>(body, Json);
-            var details = error?.Errors?.Select(item => item.ValueKind switch
-            {
-                JsonValueKind.String => item.GetString(),
-                JsonValueKind.Object when item.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String => message.GetString(),
-                _ => null,
-            }) ?? [];
-            var parts = new[] { error?.Message }.Concat(details).Where(part => !string.IsNullOrWhiteSpace(part));
-            var message = string.Join(". ", parts);
-            return message.Length > 0 ? message : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static T Parse<T>(string body, ListingPublishStep step)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<T>(body, Json) ?? throw Unexpected(step);
-        }
-        catch (JsonException exception)
-        {
-            throw new ListingPublishException(ListingPublishFailure.UnexpectedResponse, step, innerException: exception);
-        }
+        return new ListingPublishException(failure, step, exception.Detail, exception.RetryAt, exception.InnerException);
     }
 
     private static Uri PullRequestUrl(PullDto pull, ListingPublishStep step) =>
         Uri.TryCreate(pull.HtmlUrl, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps && pull.Number > 0 ? url : throw Unexpected(step);
 
     private static ListingPublishException Unexpected(ListingPublishStep step) => new(ListingPublishFailure.UnexpectedResponse, step);
-
-    private sealed record Reply(HttpStatusCode Status, string Body, string? Message, DateTimeOffset? RetryAt);
 
     private sealed record Fork(string FullName, string Owner, string DefaultBranch);
 
@@ -880,13 +781,6 @@ public sealed class ListingPublisher : IListingPublisher
         public string? Body { get; set; }
 
         public OwnerDto? User { get; set; }
-    }
-
-    private sealed class ErrorDto
-    {
-        public string? Message { get; set; }
-
-        public List<JsonElement>? Errors { get; set; }
     }
 
     private sealed class SpaceDockModDto

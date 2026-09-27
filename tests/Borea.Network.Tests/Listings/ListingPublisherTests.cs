@@ -92,6 +92,20 @@ public sealed class ListingPublisherTests
     }
 
     [Fact]
+    public async Task PublishAsync_OtherBaseBranch_BranchesFromItAndOpensThePullRequestAgainstIt()
+    {
+        OnInstalledFork();
+        OnCompare(MainSha, url: Upstream + "/compare/hand-test...octocat:content-index:main?per_page=1");
+        On("POST", Upstream + "/pulls", () => Json(PullJson, HttpStatusCode.Created));
+        var (publisher, _) = await SignedInAsync(baseBranch: "hand-test");
+
+        await publisher.PublishAsync(New());
+
+        Assert.DoesNotContain(_sent, sent => sent.Url == Compare);
+        Assert.Equal("""{"title":"List My Mod","head":"octocat:listing-mymod","base":"hand-test","body":"Lists My Mod.","maintainer_can_modify":true}""", Body("POST", Upstream + "/pulls"));
+    }
+
+    [Fact]
     public async Task PublishAsync_Change_CommitsOverTheListedFileWithItsSha()
     {
         OnInstalledFork();
@@ -1096,13 +1110,13 @@ public sealed class ListingPublisherTests
         Assert.Single(_sent);
     }
 
-    private async Task<(ListingPublisher Publisher, GitHubSession Session)> SignedInAsync()
+    private async Task<(ListingPublisher Publisher, GitHubSession Session)> SignedInAsync(string? baseBranch = null)
     {
         var http = new HttpClient(new FakeHttpMessageHandler(RespondAsync));
         var session = new GitHubSession(http, "Iv1.testclient", "borea-test", _time);
         Assert.True((await session.SignInAsync()).SignedIn);
         _sent.Clear();
-        return (new ListingPublisher(session, http, new LineFormat(), _time), session);
+        return (new ListingPublisher(session, http, new LineFormat(), _time, baseBranch), session);
     }
 
     private void On(string method, string url, params Func<HttpResponseMessage>[] answers) =>

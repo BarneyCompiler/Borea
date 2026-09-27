@@ -31,9 +31,16 @@ public static class RowButton
             button.AddHandler(InputElement.PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
     }
 
+    /// <summary>
+    /// Stops only the left press, because that is the only press that clicks a
+    /// button. A press with another button goes on, so a middle press on a
+    /// control that is off still starts a scroll of the page.
+    /// </summary>
     private static void OnPressed(object? sender, PointerPressedEventArgs args)
     {
-        if (sender is Button button && LandedOnSomethingOff(button, args.GetPosition(button)))
+        if (sender is Button button
+            && args.GetCurrentPoint(button).Properties.IsLeftButtonPressed
+            && LandedOnSomethingOff(button, args.GetPosition(button)))
             args.Handled = true;
     }
 

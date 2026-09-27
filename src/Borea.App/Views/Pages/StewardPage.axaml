@@ -532,7 +532,7 @@
                                                             </ItemsControl.ItemsPanel>
                                                             <ItemsControl.ItemTemplate>
                                                                 <DataTemplate x:DataType="vm:ContentLink">
-                                                                    <Button Classes="filter" Command="{Binding $parent[ItemsControl].((vm:StewardReviewDocument)DataContext).OpenLinkCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding Url}">
+                                                                    <Button Classes="filter" Command="{Binding $parent[ItemsControl].((vm:StewardReviewDocument)DataContext).OpenLinkCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding Url}" AutomationProperties.ControlTypeOverride="Hyperlink">
                                                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                                                             <Path Classes="icon size-16" Data="{Binding Key, Converter={x:Static views:LinkIcon.FromKey}}" />
                                                                             <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
@@ -568,7 +568,7 @@
                                                         </ItemsControl.ItemsPanel>
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:ContentLink">
-                                                                <Button Classes="filter" Command="{Binding $parent[ItemsControl].((vm:StewardReviewDocument)DataContext).OpenLinkCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding Url}">
+                                                                <Button Classes="filter" Command="{Binding $parent[ItemsControl].((vm:StewardReviewDocument)DataContext).OpenLinkCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding Url}" AutomationProperties.ControlTypeOverride="Hyperlink">
                                                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                                                         <Path Classes="icon size-16" Data="{Binding Key, Converter={x:Static views:LinkIcon.FromKey}}" />
                                                                         <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />

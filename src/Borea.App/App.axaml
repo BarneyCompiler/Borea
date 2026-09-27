@@ -155,6 +155,9 @@
         <Style Selector="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
         </Style>
+        <Style Selector="ScrollViewer">
+            <Setter Property="views:MiddleClickScroll.IsEnabled" Value="True" />
+        </Style>
 
         <!-- Type scale from the Figma file: label-* are IBM Plex Mono, heading-*/action-* IBM Plex Sans SemiBold -->
         <Style Selector="TextBlock.label-sm">

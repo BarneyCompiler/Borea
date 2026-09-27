@@ -161,8 +161,8 @@ public sealed partial class ListingEditor
 
     public string? OwnershipFixUrl => Ownership switch
     {
-        { SpaceDockMod: { } mod } ownership when IsSpaceDockLinkProblem(ownership) => "https://spacedock.info/mod/" + mod,
-        { Problem: ListingOwnershipProblem.NoProof, Repository: { } repository } => "https://github.com/" + repository,
+        { SpaceDockModUrl: { } url } ownership when IsSpaceDockLinkProblem(ownership) => url.AbsoluteUri,
+        { Problem: ListingOwnershipProblem.NoProof, RepositoryUrl: { } url } => url.AbsoluteUri,
         { Problem: ListingOwnershipProblem.PullRequestHasOtherFiles, PullRequest: { } number } =>
             $"https://github.com/{ListingPullRequestLinks.Repository}/pull/{number.ToString(CultureInfo.InvariantCulture)}",
         _ => null,

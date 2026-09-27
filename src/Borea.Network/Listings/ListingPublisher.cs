@@ -2,20 +2,18 @@ using System.Globalization;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 using Borea.Core.GitHub;
 using Borea.Core.Index;
 using Borea.Core.Listings;
 using Borea.Core.Mods;
 using Borea.Network.GitHub;
-using Borea.Network.SpaceDock;
 
 namespace Borea.Network.Listings;
 
 /// <summary>
 /// IListingPublisher on the signed-in GitHub session: the author's fork of content-index where the Borea App is installed,
-/// one branch per listing or pack version, and the pull request from the author's own account. The ownership pre-check
-/// follows tools/ownership.py and tools/pack_ownership.py of content-index.
+/// one branch per listing or pack version, and the pull request from the author's own account. The ownership pre-check of a listing
+/// is <see cref="ListingOwnershipCheck"/>, and the one of a pack follows tools/pack_ownership.py of content-index.
 /// </summary>
 public sealed class ListingPublisher : IListingPublisher
 {
@@ -31,18 +29,11 @@ public sealed class ListingPublisher : IListingPublisher
 
     internal const string MergingDescription = "validated, arming auto-merge";
 
-    private const int SpaceDockGameId = 22409;
-
     private const int MaxBranchNumber = 100;
 
-    private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
-
-    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-
     private readonly IGitHubSession _session;
-    private readonly HttpClient _http;
-    private readonly IListingFormat _format;
     private readonly GitHubApi _api;
+    private readonly ListingOwnershipCheck _ownership;
     private readonly string _base;
 
     /// <param name="http">Reads SpaceDock and the GitHub repositories that the token cannot reach.</param>
@@ -51,10 +42,9 @@ public sealed class ListingPublisher : IListingPublisher
     public ListingPublisher(IGitHubSession session, HttpClient http, IListingFormat format, TimeProvider? time = null, string? baseBranch = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
-        _http = http ?? throw new ArgumentNullException(nameof(http));
-        _format = format ?? throw new ArgumentNullException(nameof(format));
         _base = baseBranch ?? ListingPullRequestLinks.Branch;
         _api = new GitHubApi(session, http, time, _base);
+        _ownership = new ListingOwnershipCheck(_api, http, format);
     }
 
     public async Task<ListingOwnership> CheckOwnershipAsync(ListingDraft submitted, ListingDraft? listed, ContentIndexSnapshot? snapshot = null, CancellationToken cancellationToken = default)
@@ -66,7 +56,7 @@ public sealed class ListingPublisher : IListingPublisher
             var user = await GetAsync<UserDto>($"{Api}/user", ListingPublishStep.Ownership, cancellationToken).ConfigureAwait(false);
             var ownership = submitted.IsPack
                 ? await VerifyPackAsync(submitted.Id, new ListingPackOwner(user.Login.Length > 0 ? user.Login : login, user.Id), snapshot, cancellationToken).ConfigureAwait(false)
-                : await VerifyChangeAsync(submitted, listed, login, user.Id, cancellationToken).ConfigureAwait(false);
+                : await _ownership.CheckAsync(new GitHubAccount(login, user.Id), submitted, listed, cancellationToken).ConfigureAwait(false);
             if (ownership.State is not (ListingOwnershipState.Verified or ListingOwnershipState.FirstClaim))
                 return ownership;
 
@@ -110,7 +100,7 @@ public sealed class ListingPublisher : IListingPublisher
             cancellationToken).ConfigureAwait(false);
         var main = compare.BaseCommit?.Sha ?? throw Unexpected(ListingPublishStep.Branch);
         var start = compare.MergeBaseCommit?.Sha ?? throw Unexpected(ListingPublishStep.Branch);
-        var listed = new List<RepositoryFile?>();
+        var listed = new List<GitHubFile?>();
         foreach (var file in submission.Files)
             listed.Add(await ReadFileAsync(Upstream, file.Path, main, ListingPublishStep.Branch, cancellationToken).ConfigureAwait(false));
         if (submission.Files.Select((file, index) => listed[index]?.Text == file.Text).All(same => same))
@@ -192,27 +182,6 @@ public sealed class ListingPublisher : IListingPublisher
             ? login
             : throw new ListingPublishException(ListingPublishFailure.SignedOut, step);
 
-    /// <summary>RFC 0048: an edit proves control of the listed host, and of the new one when it moves.</summary>
-    private async Task<ListingOwnership> VerifyChangeAsync(ListingDraft submitted, ListingDraft? listed, string login, long authorId, CancellationToken cancellationToken)
-    {
-        if (listed is null)
-            return await VerifyAsync(submitted, login, authorId, cancellationToken).ConfigureAwait(false);
-
-        var current = await VerifyAsync(listed, login, authorId, cancellationToken).ConfigureAwait(false);
-        var listedHost = ListingAuthority.Of(listed);
-        var submittedHost = ListingAuthority.Of(submitted);
-        if (listedHost is null ? submittedHost is null : listedHost.IsSameHost(submittedHost))
-            return current;
-
-        if (current.State != ListingOwnershipState.Verified
-            && !await IsRenamedIntoAsync(listedHost, submittedHost, cancellationToken).ConfigureAwait(false))
-        {
-            return current;
-        }
-
-        return await VerifyAsync(submitted, login, authorId, cancellationToken).ConfigureAwait(false);
-    }
-
     /// <summary>
     /// A pack has no release host, so its owner record on main decides (RFC 0033). The paths of content-index are case-sensitive,
     /// so a missing record makes the id free only while no listing or pack of the snapshot holds it in another letter case.
@@ -259,136 +228,6 @@ public sealed class ListingPublisher : IListingPublisher
 
         return submission with { Files = [.. submission.Files.Where(file => file.Path != path), new ListingFile(path, new ListingPackOwner(user.Login, user.Id).ToJson())] };
     }
-
-    private async Task<ListingOwnership> VerifyAsync(ListingDraft draft, string login, long authorId, CancellationToken cancellationToken)
-    {
-        return ListingAuthority.Of(draft) switch
-        {
-            { Kind: ListingAuthority.GitHub } github => await VerifyRepositoryAsync(github.Target, draft.Id, login, authorId, cancellationToken).ConfigureAwait(false),
-            { Kind: ListingAuthority.SpaceDock } spaceDock => await VerifySpaceDockAsync(spaceDock.Target, draft.Id, login, authorId, cancellationToken).ConfigureAwait(false),
-            _ => new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.NoHost),
-        };
-    }
-
-    private async Task<ListingOwnership> VerifyRepositoryAsync(string target, string id, string login, long authorId, CancellationToken cancellationToken)
-    {
-        const ListingPublishStep step = ListingPublishStep.Ownership;
-        var reply = await SendAsync(HttpMethod.Get, $"{Api}/repos/{target}", null, step, cancellationToken, anonymous: true).ConfigureAwait(false);
-        if (reply.Status == HttpStatusCode.NotFound)
-            return NotVerified(ListingOwnershipProblem.RepositoryMissing, target);
-
-        var repository = Parse<RepositoryDto>(Ensure(reply, step), step);
-        if (!string.Equals(repository.FullName, target, StringComparison.OrdinalIgnoreCase))
-            return NotVerified(ListingOwnershipProblem.RepositoryRenamed, target) with { RenamedTo = repository.FullName };
-        if (repository.Fork)
-            return NotVerified(ListingOwnershipProblem.RepositoryFork, target);
-        if (repository.Owner?.Id == authorId)
-            return new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.Owner, Repository: target);
-
-        var topics = await SendAsync(HttpMethod.Get, $"{Api}/repos/{target}/topics", null, step, cancellationToken, anonymous: true).ConfigureAwait(false);
-        var names = topics.Status == HttpStatusCode.NotFound ? [] : Parse<TopicsDto>(Ensure(topics, step), step).Names;
-        if (names.Contains(ListingOwnership.TopicFor(login), StringComparer.Ordinal))
-            return new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.Topic, Repository: target);
-
-        var marker = await ReadFileAsync(target, ListingOwnership.MarkerPath, null, step, cancellationToken, anonymous: true).ConfigureAwait(false);
-        if (marker?.Text is { } text && MarkerNames(text, id, login))
-            return new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.MarkerFile, Repository: target);
-
-        return NotVerified(ListingOwnershipProblem.NoProof, target);
-    }
-
-    /// <summary>A SpaceDock mod binds to the GitHub repository of its source code link, which only its authors can set.</summary>
-    private async Task<ListingOwnership> VerifySpaceDockAsync(string modId, string id, string login, long authorId, CancellationToken cancellationToken)
-    {
-        var unusable = new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.SpaceDockModUnusable, SpaceDockMod: modId);
-        if (modId.Length == 0 || !modId.All(char.IsAsciiDigit))
-            return unusable;
-
-        SpaceDockModDto? mod;
-        try
-        {
-            using var response = await _http.GetAsync($"{SpaceDockModRepository.BaseUrl}/api/mod/{modId}", cancellationToken).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.NotFound)
-                return unusable;
-
-            var refused = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
-            if (!response.IsSuccessStatusCode && !refused)
-                return ListingOwnership.Unknown;
-
-            mod = JsonSerializer.Deserialize<SpaceDockModDto>(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false), Json);
-            if (mod is null || (refused && !mod.Error))
-                return ListingOwnership.Unknown;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JsonException)
-        {
-            return ListingOwnership.Unknown;
-        }
-
-        if (mod.Error)
-            return unusable;
-        if (mod.Id?.ToString() != modId)
-            return ListingOwnership.Unknown;
-        if (mod.GameId != SpaceDockGameId)
-            return unusable;
-        if (ListingAuthority.GitHubRepositoryOf(mod.SourceCode) is not { } repository)
-            return unusable with { Problem = ListingOwnershipProblem.SpaceDockNoSourceLink };
-
-        var result = await VerifyRepositoryAsync(repository, id, login, authorId, cancellationToken).ConfigureAwait(false);
-        return result with { SpaceDockMod = modId };
-    }
-
-    /// <summary>GitHub answers the old name of a renamed or transferred repository with the new one.</summary>
-    private async Task<bool> IsRenamedIntoAsync(ListingAuthority? listed, ListingAuthority? submitted, CancellationToken cancellationToken)
-    {
-        if (listed?.Kind != ListingAuthority.GitHub || submitted?.Kind != ListingAuthority.GitHub)
-            return false;
-
-        var reply = await SendAsync(HttpMethod.Get, $"{Api}/repos/{listed.Target}", null, ListingPublishStep.Ownership, cancellationToken, anonymous: true).ConfigureAwait(false);
-        if (reply.Status == HttpStatusCode.NotFound)
-            return false;
-
-        var repository = Parse<RepositoryDto>(Ensure(reply, ListingPublishStep.Ownership), ListingPublishStep.Ownership);
-        return !repository.Fork && string.Equals(repository.FullName, submitted.Target, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>A marker that names only the login covers every listing of the repository.</summary>
-    private bool MarkerNames(string text, string id, string login)
-    {
-        AuthoredTable marker;
-        try
-        {
-            marker = _format.Read(text);
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-
-        var claimed = IsSet(marker["login"]) ? marker["login"] : marker["account"];
-        var identifier = IsSet(marker["id"]) ? marker["id"] : marker["listing"];
-        return claimed is string account
-            && string.Equals(account, login, StringComparison.OrdinalIgnoreCase)
-            && (identifier is not string named || string.Equals(named, id, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static bool IsSet(object? value) => value switch
-    {
-        null => false,
-        string text => text.Length > 0,
-        long number => number != 0,
-        double number => number != 0,
-        bool flag => flag,
-        AuthoredTable table => table.Count > 0,
-        IReadOnlyList<object> list => list.Count > 0,
-        _ => true,
-    };
-
-    private static ListingOwnership NotVerified(ListingOwnershipProblem problem, string repository) =>
-        new(ListingOwnershipState.NotVerified, Problem: problem, Repository: repository);
 
     /// <summary>
     /// The author's open pull request that changes the document, the first of <paramref name="paths"/>. A pull request
@@ -553,27 +392,8 @@ public sealed class ListingPublisher : IListingPublisher
         Ensure(await SendAsync(HttpMethod.Put, $"{Api}/repos/{repository}/contents/{file.Path}", body, ListingPublishStep.Commit, cancellationToken).ConfigureAwait(false), ListingPublishStep.Commit);
     }
 
-    /// <summary>The file and its blob sha at <paramref name="reference"/>, or null when it is not there.</summary>
-    private async Task<RepositoryFile?> ReadFileAsync(string repository, string path, string? reference, ListingPublishStep step, CancellationToken cancellationToken, bool anonymous = false)
-    {
-        var url = $"{Api}/repos/{repository}/contents/{path}" + (reference is null ? string.Empty : "?ref=" + Uri.EscapeDataString(reference));
-        var reply = await SendAsync(HttpMethod.Get, url, null, step, cancellationToken, anonymous).ConfigureAwait(false);
-        if (reply.Status == HttpStatusCode.NotFound)
-            return null;
-
-        var file = Parse<ContentDto>(Ensure(reply, step), step);
-        if (file.Encoding != "base64" || file.Sha.Length == 0)
-            throw Unexpected(step);
-
-        try
-        {
-            return new RepositoryFile(file.Sha, StrictUtf8.GetString(Convert.FromBase64String(file.Content)));
-        }
-        catch (Exception exception) when (exception is FormatException or ArgumentException)
-        {
-            return new RepositoryFile(file.Sha, null);
-        }
-    }
+    private Task<GitHubFile?> ReadFileAsync(string repository, string path, string reference, ListingPublishStep step, CancellationToken cancellationToken) =>
+        At(step, _api.ReadFileAsync(repository, path, reference, cancellationToken));
 
     private Task<T> GetAsync<T>(string url, ListingPublishStep step, CancellationToken cancellationToken) =>
         At(step, _api.GetAsync<T>(url, cancellationToken));
@@ -648,8 +468,6 @@ public sealed class ListingPublisher : IListingPublisher
 
     private sealed record Fork(string FullName, string Owner, string DefaultBranch);
 
-    private sealed record RepositoryFile(string Sha, string? Text);
-
     private sealed record OpenPullRequest(PullDto Pull, bool OnlyTheseFiles);
 
     private sealed class UserDto
@@ -712,20 +530,6 @@ public sealed class ListingPublisher : IListingPublisher
         public string? Sha { get; set; }
     }
 
-    private sealed class ContentDto
-    {
-        public string Sha { get; set; } = string.Empty;
-
-        public string Content { get; set; } = string.Empty;
-
-        public string Encoding { get; set; } = string.Empty;
-    }
-
-    private sealed class TopicsDto
-    {
-        public List<string> Names { get; set; } = [];
-    }
-
     private sealed class PullDto
     {
         public int Number { get; set; }
@@ -781,16 +585,5 @@ public sealed class ListingPublisher : IListingPublisher
         public string? Body { get; set; }
 
         public OwnerDto? User { get; set; }
-    }
-
-    private sealed class SpaceDockModDto
-    {
-        public JsonElement? Id { get; set; }
-
-        public long? GameId { get; set; }
-
-        public string? SourceCode { get; set; }
-
-        public bool Error { get; set; }
     }
 }

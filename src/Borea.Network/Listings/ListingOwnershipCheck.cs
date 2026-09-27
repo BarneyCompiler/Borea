@@ -1,0 +1,291 @@
+using System.Net;
+using System.Text.Json;
+using Borea.Core.GitHub;
+using Borea.Core.Listings;
+using Borea.Network.GitHub;
+using Borea.Network.SpaceDock;
+
+namespace Borea.Network.Listings;
+
+/// <summary>
+/// IListingOwnershipCheck after tools/ownership.py of content-index. The release hosts are read without the token, as the checks read them,
+/// and the documents of content-index through the signed-in session.
+/// </summary>
+public sealed class ListingOwnershipCheck : IListingOwnershipCheck
+{
+    private const string Api = GitHubApi.Root;
+
+    private const int SpaceDockGameId = 22409;
+
+    private readonly HttpClient _http;
+    private readonly IListingFormat _format;
+    private readonly GitHubApi _api;
+
+    /// <param name="http">Reads SpaceDock and the release repositories without the token.</param>
+    /// <param name="format">Reads the marker file and the listing documents.</param>
+    public ListingOwnershipCheck(IGitHubSession session, HttpClient http, IListingFormat format, TimeProvider? time = null)
+        : this(new GitHubApi(session, http, time), http, format)
+    {
+    }
+
+    internal ListingOwnershipCheck(GitHubApi api, HttpClient http, IListingFormat format)
+    {
+        _api = api ?? throw new ArgumentNullException(nameof(api));
+        _http = http ?? throw new ArgumentNullException(nameof(http));
+        _format = format ?? throw new ArgumentNullException(nameof(format));
+    }
+
+    public async Task<ListingOwnership> CheckAsync(GitHubAccount author, ListingDraft submitted, ListingDraft? listed, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(author);
+        ArgumentNullException.ThrowIfNull(submitted);
+        ListingOwnership ownership;
+        try
+        {
+            ownership = await VerifyChangeAsync(submitted, listed, author, cancellationToken).ConfigureAwait(false);
+        }
+        catch (GitHubApiException)
+        {
+            ownership = ListingOwnership.Unknown;
+        }
+
+        // An edit never shows the thread its author submits, so a steward does not contact the author in place of the owner.
+        return ownership with { ForumsThread = ForumsThreadOf(listed ?? submitted) };
+    }
+
+    public async Task<ListingOwnership> CheckPullRequestAsync(GitHubAccount author, string path, string baseBranch, string headCommit, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(author);
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseBranch);
+        ArgumentException.ThrowIfNullOrWhiteSpace(headCommit);
+        if (!IsListingPath(path))
+            throw new ArgumentException($"{path} is no listing document.", nameof(path));
+
+        try
+        {
+            if (await ReadListingAsync(path, headCommit, cancellationToken).ConfigureAwait(false) is not { } submitted)
+                return ListingOwnership.Unknown;
+
+            // The tip of the base branch and not the commit the pull request was cut from, so a stale pull request never verifies against a previous owner.
+            var listed = await ReadListingAsync(path, baseBranch, cancellationToken).ConfigureAwait(false);
+            return await CheckAsync(author, submitted, listed, cancellationToken).ConfigureAwait(false);
+        }
+        catch (GitHubApiException exception) when (exception.Failure == GitHubApiFailure.SignedOut)
+        {
+            throw new ListingPublishException(ListingPublishFailure.SignedOut, ListingPublishStep.Ownership, innerException: exception);
+        }
+        catch (GitHubApiException)
+        {
+            return ListingOwnership.Unknown;
+        }
+    }
+
+    private static bool IsListingPath(string? path)
+    {
+        var folder = ListingDraft.ListingsFolder + "/";
+        var name = path is not null && path.StartsWith(folder, StringComparison.Ordinal) ? path[folder.Length..] : null;
+        return name is { Length: > 5 } && name.EndsWith(".toml", StringComparison.Ordinal) && !name.Contains('/', StringComparison.Ordinal);
+    }
+
+    /// <summary>The listing at <paramref name="reference"/> of content-index, or null when it is not there.</summary>
+    /// <exception cref="GitHubApiException">It could not be read, or it does not parse.</exception>
+    private async Task<ListingDraft?> ReadListingAsync(string path, string reference, CancellationToken cancellationToken)
+    {
+        if (await _api.ReadFileAsync(ListingPullRequestLinks.Repository, path, reference, cancellationToken).ConfigureAwait(false) is not { } file)
+            return null;
+        if (file.Text is null)
+            throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse, $"{path} is no UTF-8 text");
+
+        try
+        {
+            return ListingDraft.FromDocument(_format.Read(file.Text));
+        }
+        catch (FormatException exception)
+        {
+            throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse, exception.Message, innerException: exception);
+        }
+    }
+
+    private static Uri? ForumsThreadOf(ListingDraft? draft) =>
+        draft?.LinkOf("forums") is { } link && ForumsThreadLink.ThreadOf(link) is not null ? new Uri(link) : null;
+
+    /// <summary>RFC 0048: an edit proves control of the listed host, and of the new one when it moves.</summary>
+    private async Task<ListingOwnership> VerifyChangeAsync(ListingDraft submitted, ListingDraft? listed, GitHubAccount author, CancellationToken cancellationToken)
+    {
+        if (listed is null)
+            return await VerifyAsync(submitted, author, cancellationToken).ConfigureAwait(false);
+
+        var current = await VerifyAsync(listed, author, cancellationToken).ConfigureAwait(false);
+        var listedHost = ListingAuthority.Of(listed);
+        var submittedHost = ListingAuthority.Of(submitted);
+        if (listedHost is null ? submittedHost is null : listedHost.IsSameHost(submittedHost))
+            return current;
+
+        if (current.State != ListingOwnershipState.Verified
+            && !await IsRenamedIntoAsync(listedHost, submittedHost, cancellationToken).ConfigureAwait(false))
+        {
+            return current;
+        }
+
+        return await VerifyAsync(submitted, author, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ListingOwnership> VerifyAsync(ListingDraft draft, GitHubAccount author, CancellationToken cancellationToken)
+    {
+        return ListingAuthority.Of(draft) switch
+        {
+            { Kind: ListingAuthority.GitHub } github => await VerifyRepositoryAsync(github.Target, draft.Id, author, cancellationToken).ConfigureAwait(false),
+            { Kind: ListingAuthority.SpaceDock } spaceDock => await VerifySpaceDockAsync(spaceDock.Target, draft.Id, author, cancellationToken).ConfigureAwait(false),
+            _ => new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.NoHost),
+        };
+    }
+
+    private async Task<ListingOwnership> VerifyRepositoryAsync(string target, string id, GitHubAccount author, CancellationToken cancellationToken)
+    {
+        var reply = await _api.SendAsync(HttpMethod.Get, $"{Api}/repos/{target}", null, cancellationToken, anonymous: true).ConfigureAwait(false);
+        if (reply.Status == HttpStatusCode.NotFound)
+            return NotVerified(ListingOwnershipProblem.RepositoryMissing, target);
+
+        var repository = GitHubApi.Parse<RepositoryDto>(GitHubApi.Ensure(reply));
+        if (!string.Equals(repository.FullName, target, StringComparison.OrdinalIgnoreCase))
+            return NotVerified(ListingOwnershipProblem.RepositoryRenamed, target) with { RenamedTo = repository.FullName };
+        if (repository.Fork)
+            return NotVerified(ListingOwnershipProblem.RepositoryFork, target);
+        if (repository.Owner?.Id == author.Id)
+            return new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.Owner, Repository: target);
+
+        var topics = await _api.SendAsync(HttpMethod.Get, $"{Api}/repos/{target}/topics", null, cancellationToken, anonymous: true).ConfigureAwait(false);
+        var names = topics.Status == HttpStatusCode.NotFound ? [] : GitHubApi.Parse<TopicsDto>(GitHubApi.Ensure(topics)).Names;
+        if (names.Contains(ListingOwnership.TopicFor(author.Login), StringComparer.Ordinal))
+            return new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.Topic, Repository: target);
+
+        var marker = await _api.ReadFileAsync(target, ListingOwnership.MarkerPath, null, cancellationToken, anonymous: true).ConfigureAwait(false);
+        if (marker?.Text is { } text && MarkerNames(text, id, author.Login))
+            return new ListingOwnership(ListingOwnershipState.Verified, ListingOwnershipProof.MarkerFile, Repository: target);
+
+        return NotVerified(ListingOwnershipProblem.NoProof, target);
+    }
+
+    /// <summary>A SpaceDock mod binds to the GitHub repository of its source code link, which only its authors can set.</summary>
+    private async Task<ListingOwnership> VerifySpaceDockAsync(string modId, string id, GitHubAccount author, CancellationToken cancellationToken)
+    {
+        var unusable = new ListingOwnership(ListingOwnershipState.NotVerified, Problem: ListingOwnershipProblem.SpaceDockModUnusable, SpaceDockMod: modId);
+        if (modId.Length == 0 || !modId.All(char.IsAsciiDigit))
+            return unusable;
+
+        SpaceDockModDto? mod;
+        try
+        {
+            using var response = await _http.GetAsync($"{SpaceDockModRepository.BaseUrl}/api/mod/{modId}", cancellationToken).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return unusable;
+
+            var refused = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
+            if (!response.IsSuccessStatusCode && !refused)
+                return ListingOwnership.Unknown;
+
+            mod = JsonSerializer.Deserialize<SpaceDockModDto>(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false), GitHubApi.Json);
+            if (mod is null || (refused && !mod.Error))
+                return ListingOwnership.Unknown;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JsonException)
+        {
+            return ListingOwnership.Unknown;
+        }
+
+        if (mod.Error)
+            return unusable;
+        if (mod.Id?.ToString() != modId)
+            return ListingOwnership.Unknown;
+        if (mod.GameId != SpaceDockGameId)
+            return unusable;
+        if (ListingAuthority.GitHubRepositoryOf(mod.SourceCode) is not { } repository)
+            return unusable with { Problem = ListingOwnershipProblem.SpaceDockNoSourceLink };
+
+        var result = await VerifyRepositoryAsync(repository, id, author, cancellationToken).ConfigureAwait(false);
+        return result with { SpaceDockMod = modId };
+    }
+
+    /// <summary>GitHub answers the old name of a renamed or transferred repository with the new one.</summary>
+    private async Task<bool> IsRenamedIntoAsync(ListingAuthority? listed, ListingAuthority? submitted, CancellationToken cancellationToken)
+    {
+        if (listed?.Kind != ListingAuthority.GitHub || submitted?.Kind != ListingAuthority.GitHub)
+            return false;
+
+        var reply = await _api.SendAsync(HttpMethod.Get, $"{Api}/repos/{listed.Target}", null, cancellationToken, anonymous: true).ConfigureAwait(false);
+        if (reply.Status == HttpStatusCode.NotFound)
+            return false;
+
+        var repository = GitHubApi.Parse<RepositoryDto>(GitHubApi.Ensure(reply));
+        return !repository.Fork && string.Equals(repository.FullName, submitted.Target, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A marker that names only the login covers every listing of the repository.</summary>
+    private bool MarkerNames(string text, string id, string login)
+    {
+        AuthoredTable marker;
+        try
+        {
+            marker = _format.Read(text);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        var claimed = IsSet(marker["login"]) ? marker["login"] : marker["account"];
+        var identifier = IsSet(marker["id"]) ? marker["id"] : marker["listing"];
+        return claimed is string account
+            && string.Equals(account, login, StringComparison.OrdinalIgnoreCase)
+            && (identifier is not string named || string.Equals(named, id, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsSet(object? value) => value switch
+    {
+        null => false,
+        string text => text.Length > 0,
+        long number => number != 0,
+        double number => number != 0,
+        bool flag => flag,
+        AuthoredTable table => table.Count > 0,
+        IReadOnlyList<object> list => list.Count > 0,
+        _ => true,
+    };
+
+    private static ListingOwnership NotVerified(ListingOwnershipProblem problem, string repository) =>
+        new(ListingOwnershipState.NotVerified, Problem: problem, Repository: repository);
+
+    private sealed class OwnerDto
+    {
+        public long Id { get; set; }
+    }
+
+    private sealed class RepositoryDto
+    {
+        public string FullName { get; set; } = string.Empty;
+
+        public bool Fork { get; set; }
+
+        public OwnerDto? Owner { get; set; }
+    }
+
+    private sealed class TopicsDto
+    {
+        public List<string> Names { get; set; } = [];
+    }
+
+    private sealed class SpaceDockModDto
+    {
+        public JsonElement? Id { get; set; }
+
+        public long? GameId { get; set; }
+
+        public string? SourceCode { get; set; }
+
+        public bool Error { get; set; }
+    }
+}

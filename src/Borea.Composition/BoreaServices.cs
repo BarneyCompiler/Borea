@@ -241,6 +241,9 @@ public sealed class BoreaServices : IDisposable
     /// <summary>Opens and follows the listing pull request from the signed-in account.</summary>
     public required IListingPublisher ListingPublisher { get; init; }
 
+    /// <summary>Checks the ownership proof of any account, such as the author of a pull request that a steward reviews.</summary>
+    public required IListingOwnershipCheck ListingOwnership { get; init; }
+
     /// <summary>The games this process started, which every graph built by a public overload shares.</summary>
     private static readonly RunningLaunches ProcessLaunches = new();
 
@@ -486,6 +489,7 @@ public sealed class BoreaServices : IDisposable
             ListingFormat = listingFormat,
             ListingValidator = new ListingValidator(new ListingSchemaStore(listedDocuments, paths)),
             ListingPublisher = new LoggingListingPublisher(listingPublisher ?? new ListingPublisher(gitHubSession, http, listingFormat), log),
+            ListingOwnership = new ListingOwnershipCheck(gitHubSession, http, listingFormat),
         };
     }
 

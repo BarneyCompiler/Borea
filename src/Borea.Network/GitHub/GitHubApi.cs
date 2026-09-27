@@ -31,6 +31,8 @@ internal sealed class GitHubApi
 
     private static readonly string[] CommitBranchPrefixes = ["steward/", "listing-"];
 
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     private readonly IGitHubSession _session;
     private readonly HttpClient _http;
     private readonly TimeProvider _time;
@@ -125,6 +127,32 @@ internal sealed class GitHubApi
             reply = await SendAsync(HttpMethod.Get, url, null, cancellationToken, anonymous: true).ConfigureAwait(false);
 
         return Parse<T>(Ensure(reply));
+    }
+
+    /// <summary>The file and its blob sha at <paramref name="reference"/>, or null when it is not there. The text is null when the file is no UTF-8 text.</summary>
+    /// <param name="reference">A branch or commit, or null for the default branch.</param>
+    /// <exception cref="GitHubApiException">The request failed, or GitHub did not answer with the file.</exception>
+    public async Task<GitHubFile?> ReadFileAsync(string repository, string path, string? reference, CancellationToken cancellationToken, bool anonymous = false)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        var url = $"{Root}/repos/{repository}/contents/{string.Join('/', path.Split('/').Select(Uri.EscapeDataString))}"
+            + (reference is null ? string.Empty : "?ref=" + Uri.EscapeDataString(reference));
+        var reply = await SendAsync(HttpMethod.Get, url, null, cancellationToken, anonymous).ConfigureAwait(false);
+        if (reply.Status == HttpStatusCode.NotFound)
+            return null;
+
+        var file = Parse<ContentDto>(Ensure(reply));
+        if (file.Encoding != "base64" || file.Sha.Length == 0)
+            throw new GitHubApiException(GitHubApiFailure.UnexpectedResponse);
+
+        try
+        {
+            return new GitHubFile(file.Sha, StrictUtf8.GetString(Convert.FromBase64String(file.Content)));
+        }
+        catch (Exception exception) when (exception is FormatException or ArgumentException)
+        {
+            return new GitHubFile(file.Sha, null);
+        }
     }
 
     /// <summary>The items of a list endpoint that answers with a JSON array, page by page, up to the first page with fewer than <see cref="PageSize"/> items.</summary>
@@ -321,7 +349,19 @@ internal sealed class GitHubApi
 
         public List<JsonElement>? Errors { get; set; }
     }
+
+    private sealed class ContentDto
+    {
+        public string Sha { get; set; } = string.Empty;
+
+        public string Content { get; set; } = string.Empty;
+
+        public string Encoding { get; set; } = string.Empty;
+    }
 }
+
+/// <param name="Text">The file as UTF-8 text, or null when it is not.</param>
+internal sealed record GitHubFile(string Sha, string? Text);
 
 /// <param name="Message">GitHub's error message with its details, or null.</param>
 /// <param name="RetryAt">When GitHub accepts requests again after a rate limit, or null.</param>

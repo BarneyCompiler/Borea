@@ -102,6 +102,7 @@ public sealed class BoreaServicesTests : IDisposable
         Assert.Same(firstSession, Assert.IsType<LoggingGitHubSession>(second.GitHub).Inner);
         Assert.Equal(BoreaGitHubApp.ClientId.Length > 0 && BoreaGitHubApp.Slug.Length > 0, first.GitHub.IsAvailable);
         Assert.IsType<ListingPublisher>(Assert.IsType<LoggingListingPublisher>(first.ListingPublisher).Inner);
+        Assert.IsType<ListingOwnershipCheck>(first.ListingOwnership);
     }
 
     [Fact]

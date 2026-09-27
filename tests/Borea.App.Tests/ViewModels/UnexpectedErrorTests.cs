@@ -146,7 +146,7 @@ public sealed class UnexpectedErrorTests
         }
     }
 
-    private sealed class FakeWindowServices : IWindowServices
+    internal sealed class FakeWindowServices : IWindowServices
     {
         public string? CopiedText { get; private set; }
 

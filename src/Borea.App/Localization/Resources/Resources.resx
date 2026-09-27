@@ -201,6 +201,84 @@
   <data name="StewardHeading" xml:space="preserve">
     <value>Steward tools</value>
   </data>
+  <data name="StewardTabQueue" xml:space="preserve">
+    <value>Queue</value>
+  </data>
+  <data name="StewardTabQueueCountFormat" xml:space="preserve">
+    <value>Queue ({0})</value>
+  </data>
+  <data name="StewardQueueHint" xml:space="preserve">
+    <value>Open pull requests of KSAModding/content-index and KSAModding/content-index-releases that wait for a steward, the oldest first. A steward reviews and merges them on GitHub.</value>
+  </data>
+  <data name="StewardQueueAllOpen" xml:space="preserve">
+    <value>Show all open pull requests</value>
+  </data>
+  <data name="StewardQueueScope" xml:space="preserve">
+    <value>Show</value>
+  </data>
+  <data name="StewardQueueScopeContent" xml:space="preserve">
+    <value>Content changes</value>
+  </data>
+  <data name="StewardQueueScopeOther" xml:space="preserve">
+    <value>Code and other changes</value>
+  </data>
+  <data name="StewardQueueScopeAll" xml:space="preserve">
+    <value>Everything</value>
+  </data>
+  <data name="StewardQueueLoading" xml:space="preserve">
+    <value>Reading the pull requests from GitHub...</value>
+  </data>
+  <data name="StewardQueueEmpty" xml:space="preserve">
+    <value>No pull request waits for a steward.</value>
+  </data>
+  <data name="StewardQueueEmptyAllOpen" xml:space="preserve">
+    <value>No pull request is open.</value>
+  </data>
+  <data name="StewardQueueByFormat" xml:space="preserve">
+    <value>by {0}, opened {1}</value>
+  </data>
+  <data name="StewardQueueWaiting" xml:space="preserve">
+    <value>Waits for a steward</value>
+  </data>
+  <data name="StewardQueueDraft" xml:space="preserve">
+    <value>Draft, cannot merge</value>
+  </data>
+  <data name="StewardQueueKindListing" xml:space="preserve">
+    <value>Listing</value>
+  </data>
+  <data name="StewardQueueKindPack" xml:space="preserve">
+    <value>Pack</value>
+  </data>
+  <data name="StewardQueueKindRelease" xml:space="preserve">
+    <value>Release</value>
+  </data>
+  <data name="StewardQueueKindAmendment" xml:space="preserve">
+    <value>Amendment</value>
+  </data>
+  <data name="StewardQueueKindOwnerRecord" xml:space="preserve">
+    <value>Owner record</value>
+  </data>
+  <data name="StewardQueueKindIndexStatus" xml:space="preserve">
+    <value>Index status</value>
+  </data>
+  <data name="StewardQueueKindTagVocabulary" xml:space="preserve">
+    <value>Tag vocabulary</value>
+  </data>
+  <data name="StewardQueueOtherFiles" xml:space="preserve">
+    <value>Changes other files, review it on GitHub</value>
+  </data>
+  <data name="StewardQueueNoVerdict" xml:space="preserve">
+    <value>The checks have no verdict yet.</value>
+  </data>
+  <data name="StewardQueueFailedFormat" xml:space="preserve">
+    <value>Cannot read the pull requests of {0}. {1}</value>
+  </data>
+  <data name="StewardQueueForbidden" xml:space="preserve">
+    <value>GitHub refused access, maybe because the Borea App is not installed on this repository.</value>
+  </data>
+  <data name="StewardQueueNotFound" xml:space="preserve">
+    <value>GitHub did not find the repository.</value>
+  </data>
   <data name="StewardTabStatus" xml:space="preserve">
     <value>Status</value>
   </data>

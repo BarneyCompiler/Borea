@@ -201,6 +201,84 @@
   <data name="StewardHeading" xml:space="preserve">
     <value>Steward-Werkzeuge</value>
   </data>
+  <data name="StewardTabQueue" xml:space="preserve">
+    <value>Warteschlange</value>
+  </data>
+  <data name="StewardTabQueueCountFormat" xml:space="preserve">
+    <value>Warteschlange ({0})</value>
+  </data>
+  <data name="StewardQueueHint" xml:space="preserve">
+    <value>Offene Pull Requests von KSAModding/content-index und KSAModding/content-index-releases, die auf einen Steward warten, die ältesten zuerst. Ein Steward prüft und mergt sie auf GitHub.</value>
+  </data>
+  <data name="StewardQueueAllOpen" xml:space="preserve">
+    <value>Alle offenen Pull Requests zeigen</value>
+  </data>
+  <data name="StewardQueueScope" xml:space="preserve">
+    <value>Zeigen</value>
+  </data>
+  <data name="StewardQueueScopeContent" xml:space="preserve">
+    <value>Inhaltsänderungen</value>
+  </data>
+  <data name="StewardQueueScopeOther" xml:space="preserve">
+    <value>Code und andere Änderungen</value>
+  </data>
+  <data name="StewardQueueScopeAll" xml:space="preserve">
+    <value>Alles</value>
+  </data>
+  <data name="StewardQueueLoading" xml:space="preserve">
+    <value>Lese die Pull Requests von GitHub...</value>
+  </data>
+  <data name="StewardQueueEmpty" xml:space="preserve">
+    <value>Kein Pull Request wartet auf einen Steward.</value>
+  </data>
+  <data name="StewardQueueEmptyAllOpen" xml:space="preserve">
+    <value>Kein Pull Request ist offen.</value>
+  </data>
+  <data name="StewardQueueByFormat" xml:space="preserve">
+    <value>von {0}, geöffnet {1}</value>
+  </data>
+  <data name="StewardQueueWaiting" xml:space="preserve">
+    <value>Wartet auf einen Steward</value>
+  </data>
+  <data name="StewardQueueDraft" xml:space="preserve">
+    <value>Entwurf, kann nicht gemergt werden</value>
+  </data>
+  <data name="StewardQueueKindListing" xml:space="preserve">
+    <value>Eintrag</value>
+  </data>
+  <data name="StewardQueueKindPack" xml:space="preserve">
+    <value>Modpack</value>
+  </data>
+  <data name="StewardQueueKindRelease" xml:space="preserve">
+    <value>Release</value>
+  </data>
+  <data name="StewardQueueKindAmendment" xml:space="preserve">
+    <value>Nachtrag</value>
+  </data>
+  <data name="StewardQueueKindOwnerRecord" xml:space="preserve">
+    <value>Besitzer-Eintrag</value>
+  </data>
+  <data name="StewardQueueKindIndexStatus" xml:space="preserve">
+    <value>Index-Status</value>
+  </data>
+  <data name="StewardQueueKindTagVocabulary" xml:space="preserve">
+    <value>Tag-Vokabular</value>
+  </data>
+  <data name="StewardQueueOtherFiles" xml:space="preserve">
+    <value>Ändert andere Dateien, prüfe ihn auf GitHub</value>
+  </data>
+  <data name="StewardQueueNoVerdict" xml:space="preserve">
+    <value>Die Prüfungen haben noch kein Urteil.</value>
+  </data>
+  <data name="StewardQueueFailedFormat" xml:space="preserve">
+    <value>Die Pull Requests von {0} sind nicht lesbar. {1}</value>
+  </data>
+  <data name="StewardQueueForbidden" xml:space="preserve">
+    <value>GitHub hat den Zugriff verweigert, vielleicht weil die Borea-App auf diesem Repository nicht installiert ist.</value>
+  </data>
+  <data name="StewardQueueNotFound" xml:space="preserve">
+    <value>GitHub hat das Repository nicht gefunden.</value>
+  </data>
   <data name="StewardTabStatus" xml:space="preserve">
     <value>Status</value>
   </data>

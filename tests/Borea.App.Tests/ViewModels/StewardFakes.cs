@@ -67,6 +67,34 @@ internal sealed class FakeIndexStatusEditor : IIndexStatusEditor
     }
 }
 
+/// <summary>Answers the queue from its lists and records each filter it was asked for.</summary>
+internal sealed class FakeStewardQueue : IStewardQueue
+{
+    public List<StewardQueueItem> Items { get; } = [];
+
+    public List<StewardQueueFailure> Failures { get; } = [];
+
+    public List<StewardQueueFilter> Filters { get; } = [];
+
+    public StewardException? Failure { get; set; }
+
+    public TaskCompletionSource? Hold { get; set; }
+
+    public static StewardQueueItem Item(int number, bool needsSteward = true, string repository = "KSAModding/content-index", string? verdict = null) =>
+        new(repository, number, new Uri($"https://github.com/{repository}/pull/{number}"), $"Pull {number}", "alice", DateTimeOffset.UtcNow.AddDays(-3), IsDraft: false, needsSteward, [StewardQueueKind.Listing], HasOtherFiles: false, verdict);
+
+    public async Task<StewardQueue> ListAsync(StewardQueueFilter filter = StewardQueueFilter.NeedsSteward, CancellationToken cancellationToken = default)
+    {
+        Filters.Add(filter);
+        if (Hold is { } hold)
+            await hold.Task;
+        if (Failure is { } failure)
+            throw failure;
+
+        return new StewardQueue([.. Items.Where(item => filter == StewardQueueFilter.AllOpen || item.NeedsSteward)], [.. Failures]);
+    }
+}
+
 /// <summary>A signed-in session that answers the main ruleset of each index repository with its bypass.</summary>
 internal sealed class StewardSession : IGitHubSession
 {

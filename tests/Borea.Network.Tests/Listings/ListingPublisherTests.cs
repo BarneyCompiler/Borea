@@ -4,6 +4,7 @@ using System.Text.Json;
 using Borea.Core.GitHub;
 using Borea.Core.Index;
 using Borea.Core.Listings;
+using Borea.Core.Stewardship;
 using Borea.Network.GitHub;
 using Borea.Network.Listings;
 
@@ -1034,9 +1035,13 @@ public sealed class ListingPublisherTests
     }
 
     [Fact]
-    public async Task GetStatusAsync_Merging_GivesTheCommentOfTheBot()
+    public async Task GetStatusAsync_Merging_GivesOnlyTheCommentOfTheIndexerBotWithTheMarkerOfContentIndex()
     {
-        OnOpenPullRequest("success", "validated, arming auto-merge", "[]", Comments(("User", "<!-- content-index:verdict -->\nValidated. Trust me."), ("Bot", MergingComment)));
+        OnOpenPullRequest("success", "validated, arming auto-merge", "[]", Comments(
+            ("mallory", "<!-- content-index:verdict -->\nValidated. Trust me."),
+            ("other-app[bot]", "<!-- content-index:verdict -->\nValidated by another App."),
+            (IndexVerdict.BotLogin, "<!-- content-index-releases:verdict -->\nThe verdict of another repository."),
+            (IndexVerdict.BotLogin, MergingComment)));
         var (publisher, _) = await SignedInAsync();
 
         var status = await publisher.GetStatusAsync(90);
@@ -1052,7 +1057,7 @@ public sealed class ListingPublisherTests
     [InlineData("error", "the validation could not reach a verdict", "[]", NoVerdictComment, ListingPullRequestState.CouldNotEvaluate)]
     public async Task GetStatusAsync_Verdict_GivesTheStateAndTheNotes(string state, string description, string labels, string comment, ListingPullRequestState expected)
     {
-        OnOpenPullRequest(state, description, labels, Comments(("Bot", comment)));
+        OnOpenPullRequest(state, description, labels, Comments((IndexVerdict.BotLogin, comment)));
         var (publisher, _) = await SignedInAsync();
 
         var status = await publisher.GetStatusAsync(90);
@@ -1065,7 +1070,7 @@ public sealed class ListingPublisherTests
     [Fact]
     public async Task GetStatusAsync_TokenRefusedForTheStatus_ReadsItWithoutTheToken()
     {
-        OnOpenPullRequest("success", "validated, arming auto-merge", "[]", Comments(("Bot", MergingComment)));
+        OnOpenPullRequest("success", "validated, arming auto-merge", "[]", Comments((IndexVerdict.BotLogin, MergingComment)));
         _fallback = request => request.RequestUri!.AbsoluteUri == Upstream + "/commits/abc123/status" && request.Headers.Authorization is not null
             ? Json("""{"message":"Resource not accessible by integration"}""", HttpStatusCode.Forbidden)
             : null;
@@ -1229,8 +1234,8 @@ public sealed class ListingPublisherTests
     private static string Content(string text, string sha) =>
         JsonSerializer.Serialize(new { sha, encoding = "base64", content = Convert.ToBase64String(Encoding.UTF8.GetBytes(text)).Insert(4, "\n") });
 
-    private static string Comments(params (string Type, string Body)[] comments) =>
-        JsonSerializer.Serialize(comments.Select(comment => new { body = comment.Body, user = new { type = comment.Type } }));
+    private static string Comments(params (string Login, string Body)[] comments) =>
+        JsonSerializer.Serialize(comments.Select(comment => new { body = comment.Body, user = new { login = comment.Login, type = comment.Login.EndsWith("[bot]", StringComparison.Ordinal) ? "Bot" : "User" } }));
 
     private static string Base64(string text) => Convert.ToBase64String(Encoding.UTF8.GetBytes(text));
 

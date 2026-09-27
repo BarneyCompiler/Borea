@@ -383,6 +383,61 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string StewardHeading => Resources.StewardHeading;
 
+    public string StewardTabQueue => Resources.StewardTabQueue;
+
+    public string FormatStewardTabQueueCount(string count)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardTabQueueCountFormat, count);
+
+    public string StewardQueueHint => Resources.StewardQueueHint;
+
+    public string StewardQueueAllOpen => Resources.StewardQueueAllOpen;
+
+    public string StewardQueueScope => Resources.StewardQueueScope;
+
+    public string StewardQueueScopeContent => Resources.StewardQueueScopeContent;
+
+    public string StewardQueueScopeOther => Resources.StewardQueueScopeOther;
+
+    public string StewardQueueScopeAll => Resources.StewardQueueScopeAll;
+
+    public string StewardQueueLoading => Resources.StewardQueueLoading;
+
+    public string StewardQueueEmpty => Resources.StewardQueueEmpty;
+
+    public string StewardQueueEmptyAllOpen => Resources.StewardQueueEmptyAllOpen;
+
+    public string FormatStewardQueueBy(string author, string age)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardQueueByFormat, author, age);
+
+    public string StewardQueueWaiting => Resources.StewardQueueWaiting;
+
+    public string StewardQueueDraft => Resources.StewardQueueDraft;
+
+    public string StewardQueueKindListing => Resources.StewardQueueKindListing;
+
+    public string StewardQueueKindPack => Resources.StewardQueueKindPack;
+
+    public string StewardQueueKindRelease => Resources.StewardQueueKindRelease;
+
+    public string StewardQueueKindAmendment => Resources.StewardQueueKindAmendment;
+
+    public string StewardQueueKindOwnerRecord => Resources.StewardQueueKindOwnerRecord;
+
+    public string StewardQueueKindIndexStatus => Resources.StewardQueueKindIndexStatus;
+
+    public string StewardQueueKindTagVocabulary => Resources.StewardQueueKindTagVocabulary;
+
+    public string StewardQueueOtherFiles => Resources.StewardQueueOtherFiles;
+
+    public string StewardQueueNoVerdict => Resources.StewardQueueNoVerdict;
+
+    public string FormatStewardQueueFailed(string repository, string reason)
+        => string.Format(CultureInfo.CurrentCulture, Resources.StewardQueueFailedFormat, repository, reason);
+
+    public string StewardQueueForbidden => Resources.StewardQueueForbidden;
+
+    public string StewardQueueNotFound => Resources.StewardQueueNotFound;
+
     public string StewardTabStatus => Resources.StewardTabStatus;
 
     public string StewardStatusHint => Resources.StewardStatusHint;

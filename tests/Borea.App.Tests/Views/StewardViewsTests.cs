@@ -15,6 +15,7 @@ public sealed class StewardViewsTests
 {
     private readonly StewardSession _session = new();
     private readonly FakeIndexStatusEditor _editor = new();
+    private readonly FakeStewardQueue _queue = new();
 
     [Fact]
     public async Task StewardPage_ShowsEachStateWithLiftAndTheOpenPullRequests()
@@ -24,7 +25,7 @@ public sealed class StewardViewsTests
         using var harness = await CreateAsync();
         var viewModel = harness.ViewModel;
         viewModel.OpenStewardPageCommand.Execute(null);
-        await viewModel.StewardPage.WhenLoadedAsync();
+        await viewModel.StewardPage.ShowStatusCommand.ExecuteAsync(null);
 
         var (texts, buttons) = await HeadlessApp.RunAsync(harness, () =>
         {
@@ -50,6 +51,53 @@ public sealed class StewardViewsTests
         Assert.Contains("#3 Dispute Other, by alice", texts);
         Assert.Contains(harness.Localization.StewardStatusConflict, texts);
         Assert.Contains(harness.Localization.StewardLift, buttons);
+        Assert.DoesNotContain(harness.Localization.StewardQueueHint, texts);
+    }
+
+    [Fact]
+    public async Task StewardPage_OpensOnTheQueue_AndShowsEachPullRequestWithItsKindsAndVerdict()
+    {
+        _queue.Items.Add(FakeStewardQueue.Item(26) with { IsDraft = true, HasOtherFiles = true, Kinds = [StewardQueueKind.Listing, StewardQueueKind.IndexStatus] });
+        _queue.Items.Add(FakeStewardQueue.Item(27, verdict: "Validated, and ownership is not verified, so a steward decides."));
+        _queue.Failures.Add(new StewardQueueFailure("KSAModding/content-index-releases", new StewardException(StewardFailure.Forbidden)));
+        using var harness = await CreateAsync();
+        var viewModel = harness.ViewModel;
+        viewModel.OpenStewardPageCommand.Execute(null);
+        await viewModel.StewardPage.Queue.WhenLoadedAsync();
+        viewModel.StewardPage.Queue.SelectScopeCommand.Execute(StewardQueueScope.All);
+
+        var (texts, buttons) = await HeadlessApp.RunAsync(harness, () =>
+        {
+            var window = new Window { Width = 1280, Height = 832, Content = new StewardPageView(), DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                var shown = window.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text).ToList();
+                var visible = window.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible).Select(button => button.Content as string).ToList();
+                return Task.FromResult((shown, visible));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Contains("Queue (2)", buttons);
+        Assert.Contains(harness.Localization.StewardTabStatus, buttons);
+        Assert.Contains(harness.Localization.StewardQueueScopeAll, texts);
+        Assert.Contains(harness.Localization.StewardQueueAllOpen, texts);
+        Assert.Contains("content-index #26", texts);
+        Assert.Contains("Pull 26", texts);
+        Assert.Contains(harness.Localization.StewardQueueDraft, texts);
+        Assert.Contains(harness.Localization.StewardQueueOtherFiles, texts);
+        Assert.Contains("Index status", texts);
+        Assert.Equal(2, texts.Count(text => text == "Listing"));
+        Assert.Contains(harness.Localization.StewardQueueNoVerdict, texts);
+        Assert.Contains("Validated, and ownership is not verified, so a steward decides.", texts);
+        Assert.Contains(viewModel.StewardQueueFailureText(_queue.Failures[0]), texts);
+        Assert.DoesNotContain(harness.Localization.StewardQueueWaiting, texts);
+        Assert.DoesNotContain(harness.Localization.StewardStatusHint, texts);
     }
 
     [Fact]
@@ -102,7 +150,7 @@ public sealed class StewardViewsTests
     private async Task<ViewModelHarness> CreateAsync()
     {
         _session.SignInDirectly();
-        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor);
+        var harness = await ViewModelHarness.CreateAsync(gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue);
         await harness.ViewModel.WhenStewardRoleCheckedAsync();
         return harness;
     }

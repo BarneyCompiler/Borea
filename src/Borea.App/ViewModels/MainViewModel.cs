@@ -925,6 +925,7 @@ public partial class MainViewModel : ViewModelBase
         RefreshLoaderText();
         RefreshGitHubAccount();
         RefreshIndexStatusText();
+        _stewardPage?.RefreshText();
         OnPropertyChanged(nameof(GameSetupBannerText));
         OnPropertyChanged(nameof(HomeSetupText));
         OnPropertyChanged(nameof(FoundGameText));

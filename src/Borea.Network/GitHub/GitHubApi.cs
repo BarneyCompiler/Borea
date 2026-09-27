@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Borea.Core.GitHub;
 using Borea.Core.Listings;
+using Borea.Core.Stewardship;
 
 namespace Borea.Network.GitHub;
 
@@ -424,4 +425,19 @@ internal sealed class GitHubApiException(GitHubApiFailure failure, string? detai
 
     /// <summary>The status of GitHub's answer, when there was one.</summary>
     public HttpStatusCode? Status { get; } = status;
+
+    public StewardException ToStewardException()
+    {
+        var failure = Failure switch
+        {
+            GitHubApiFailure.SignedOut => StewardFailure.SignedOut,
+            GitHubApiFailure.RateLimited => StewardFailure.RateLimited,
+            GitHubApiFailure.NotFound => StewardFailure.NotFound,
+            GitHubApiFailure.Refused or GitHubApiFailure.ProtectedBranch => StewardFailure.Refused,
+            GitHubApiFailure.Forbidden => StewardFailure.Forbidden,
+            GitHubApiFailure.NetworkError => StewardFailure.NetworkError,
+            _ => StewardFailure.UnexpectedResponse,
+        };
+        return new StewardException(failure, Detail, RetryAt, this);
+    }
 }

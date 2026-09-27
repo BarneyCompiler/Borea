@@ -10,6 +10,7 @@ public sealed class StewardViewModelTests
 
     private readonly StewardSession _session = new();
     private readonly FakeIndexStatusEditor _editor = new();
+    private readonly FakeStewardQueue _queue = new();
 
     [Fact]
     public async Task Settings_OpensTheStewardPage_AndItsStatusTabListsTheEntriesOnMain()
@@ -22,7 +23,7 @@ public sealed class StewardViewModelTests
         viewModel.SetMainWindowSettings();
 
         viewModel.OpenStewardPageCommand.Execute(null);
-        await viewModel.StewardPage.WhenLoadedAsync();
+        await viewModel.StewardPage.ShowStatusCommand.ExecuteAsync(null);
 
         Assert.True(viewModel.CurrentWindowSteward);
         Assert.False(viewModel.IsSettingsOpen);
@@ -307,7 +308,7 @@ public sealed class StewardViewModelTests
         using var harness = await CreateAsync();
         var viewModel = harness.ViewModel;
         viewModel.OpenStewardPageCommand.Execute(null);
-        await viewModel.StewardPage.WhenLoadedAsync();
+        await viewModel.StewardPage.ShowStatusCommand.ExecuteAsync(null);
 
         viewModel.StewardPage.StatusEntries.Single().LiftCommand.Execute(null);
         var dialog = viewModel.StewardChange!;
@@ -348,7 +349,7 @@ public sealed class StewardViewModelTests
         _editor.Merge(1);
         second.CloseCommand.Execute(null);
         viewModel.OpenStewardPageCommand.Execute(null);
-        await viewModel.StewardPage.WhenLoadedAsync();
+        await viewModel.StewardPage.ShowStatusCommand.ExecuteAsync(null);
 
         var pull = Assert.Single(viewModel.StewardPage.StatusPullRequests);
         Assert.Equal(("#2 Dispute MeasureTools, by octocat", true), (pull.Text, pull.Conflicts));
@@ -400,7 +401,7 @@ public sealed class StewardViewModelTests
         var viewModel = harness.ViewModel;
 
         viewModel.OpenStewardPageCommand.Execute(null);
-        await viewModel.StewardPage.WhenLoadedAsync();
+        await viewModel.StewardPage.ShowStatusCommand.ExecuteAsync(null);
 
         Assert.Equal(text, viewModel.StewardPage.Error);
         Assert.False(viewModel.StewardPage.IsStatusEmpty);
@@ -409,7 +410,7 @@ public sealed class StewardViewModelTests
     private async Task<ViewModelHarness> CreateAsync(Func<string, string>? editSnapshot = null)
     {
         _session.SignInDirectly();
-        var harness = await ViewModelHarness.CreateAsync(editSnapshot: editSnapshot, gitHub: _session, indexStatusEditor: _editor);
+        var harness = await ViewModelHarness.CreateAsync(editSnapshot: editSnapshot, gitHub: _session, indexStatusEditor: _editor, stewardQueue: _queue);
         await harness.ViewModel.WhenStewardRoleCheckedAsync();
         return harness;
     }

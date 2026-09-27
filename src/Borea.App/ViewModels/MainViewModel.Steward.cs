@@ -55,7 +55,7 @@ public partial class MainViewModel
         CurrentWindowContent = false;
         CurrentWindowPack = false;
         CurrentWindowSteward = true;
-        _ = StewardPage.RefreshAsync();
+        _ = StewardPage.RefreshTabAsync();
     }
 
     [RelayCommand]
@@ -114,7 +114,7 @@ public partial class MainViewModel
     /// <summary>The Status tab shows the new pull request, and its list conflicts once one of them merges.</summary>
     internal void OnIndexStatusPullRequestOpened()
     {
-        if (StewardPage.IsLoaded || CurrentWindowSteward)
+        if (StewardPage.IsLoaded || (CurrentWindowSteward && StewardPage.IsStatusTab))
             _ = StewardPage.RefreshAsync();
     }
 
@@ -138,6 +138,27 @@ public partial class MainViewModel
         IndexStatusRefusal.UnknownVersion => Localization.FormatStewardRefusedUnknownVersion(id, version ?? string.Empty),
         _ => Localization.StewardRefusedNotInFile,
     };
+
+    internal string StewardQueueKindText(StewardQueueKind kind) => kind switch
+    {
+        StewardQueueKind.Listing => Localization.StewardQueueKindListing,
+        StewardQueueKind.Pack => Localization.StewardQueueKindPack,
+        StewardQueueKind.Release => Localization.StewardQueueKindRelease,
+        StewardQueueKind.Amendment => Localization.StewardQueueKindAmendment,
+        StewardQueueKind.OwnerRecord => Localization.StewardQueueKindOwnerRecord,
+        StewardQueueKind.IndexStatus => Localization.StewardQueueKindIndexStatus,
+        _ => Localization.StewardQueueKindTagVocabulary,
+    };
+
+    /// <summary>Why one repository of the queue could not be read. The errors of the status edits name content-index, so these name the repository.</summary>
+    internal string StewardQueueFailureText(StewardQueueFailure failure) => Localization.FormatStewardQueueFailed(
+        failure.Repository,
+        failure.Error.Failure switch
+        {
+            StewardFailure.Forbidden => Localization.StewardQueueForbidden,
+            StewardFailure.NotFound => Localization.StewardQueueNotFound,
+            _ => StewardErrorText(failure.Error),
+        });
 
     internal string StewardErrorText(StewardException exception) => exception.Failure switch
     {

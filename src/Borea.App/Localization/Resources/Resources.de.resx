@@ -762,11 +762,29 @@
   <data name="SettingsGitHubManageAccess" xml:space="preserve">
     <value>Zugriff auf GitHub verwalten</value>
   </data>
+  <data name="SettingsGitHubStaySignedIn" xml:space="preserve">
+    <value>Auf diesem Computer angemeldet bleiben</value>
+  </data>
+  <data name="SettingsGitHubStaySignedInHint" xml:space="preserve">
+    <value>Borea bewahrt die Anmeldung im sicheren Speicher deines Systems auf und meldet dich beim nächsten Start wieder an. Aus beendet die Anmeldung, wenn Borea schließt.</value>
+  </data>
+  <data name="SettingsGitHubResuming" xml:space="preserve">
+    <value>Borea meldet dich wieder bei GitHub an...</value>
+  </data>
+  <data name="SettingsGitHubKeepUnsupported" xml:space="preserve">
+    <value>Borea hat für dieses System keinen sicheren Speicher, daher endet die Anmeldung, wenn Borea schließt.</value>
+  </data>
+  <data name="SettingsGitHubKeepMissing" xml:space="preserve">
+    <value>Es wurde kein sicherer Speicher gefunden, etwa ein Schlüsselbund mit dem Secret Service unter Linux, daher endet die Anmeldung, wenn Borea schließt.</value>
+  </data>
+  <data name="SettingsGitHubKeepRefused" xml:space="preserve">
+    <value>Der sichere Speicher deines Systems hat die Anmeldung abgelehnt, zum Beispiel weil er gesperrt ist, daher endet die Anmeldung, wenn Borea schließt.</value>
+  </data>
   <data name="GitHubSignInTitle" xml:space="preserve">
     <value>Bei GitHub anmelden</value>
   </data>
   <data name="GitHubSignInHint" xml:space="preserve">
-    <value>Gib diesen Code auf GitHub ein. Borea kann dann in deinen Fork des Inhaltsindex schreiben und Pull Requests an den Inhaltsindex öffnen. Für einen Steward kann Borea außerdem Pull Requests des Inhaltsindex prüfen, zusammenführen und schließen und in seine Steward-Branches schreiben. Sonst nichts. Der Zugriff läuft nach 8 Stunden ab.</value>
+    <value>Gib diesen Code auf GitHub ein. Borea kann dann in deinen Fork des Inhaltsindex schreiben und Pull Requests an den Inhaltsindex öffnen. Für einen Steward kann Borea außerdem Pull Requests des Inhaltsindex prüfen, zusammenführen und schließen und in seine Steward-Branches schreiben. Sonst nichts. Der Zugriff läuft nach 8 Stunden ab. Wenn du dich in den Einstellungen anmeldest, während der Schalter „Auf diesem Computer angemeldet bleiben“ an ist, erneuert Borea den Zugriff bei jedem Start, bis du dich abmeldest oder ihn auf GitHub widerrufst.</value>
   </data>
   <data name="GitHubSignInCodeWarning" xml:space="preserve">
     <value>Borea fragt nur in diesem Fenster nach diesem Code, nirgendwo sonst.</value>

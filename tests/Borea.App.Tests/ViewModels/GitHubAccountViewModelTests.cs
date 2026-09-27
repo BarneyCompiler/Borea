@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using Borea.App.ViewModels;
 using Borea.Core.GitHub;
+using Borea.Core.Preferences;
 using Borea.Core.Secrets;
 using Borea.Network.GitHub;
 
@@ -11,6 +12,8 @@ namespace Borea.App.Tests.ViewModels;
 public sealed class GitHubAccountViewModelTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+
+    private const string KeptName = "github-refresh-token";
 
     private readonly FakeGitHubSession _session = new();
 
@@ -344,6 +347,149 @@ public sealed class GitHubAccountViewModelTests
         Assert.Null(before.StewardRole.Current);
     }
 
+    [Fact]
+    public async Task Start_WithAKeptSignIn_SignsInWithoutTheCodeAndChecksTheStewardRole()
+    {
+        var resume = _session.Resume = new TaskCompletionSource<GitHubResumeOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+        await WaitUntilAsync(() => viewModel.IsGitHubResuming);
+        Assert.False(viewModel.CanStartGitHubSignIn);
+        Assert.Equal("Signing you in to GitHub again...", harness.Localization.SettingsGitHubResuming);
+
+        resume.SetResult(GitHubResumeOutcome.SignedIn);
+        await viewModel.WhenGitHubResumedAsync();
+        await WaitUntilAsync(() => viewModel.IsGitHubSignedIn);
+        await viewModel.WhenStewardRoleCheckedAsync();
+
+        Assert.Equal(1, _session.Resumes);
+        Assert.Equal(0, _session.SignIns);
+        Assert.False(viewModel.IsGitHubResuming);
+        Assert.Equal("octocat", viewModel.GitHubLogin);
+        Assert.True(viewModel.IsGitHubSteward);
+        Assert.Contains("https://api.github.com/repos/KSAModding/content-index/rulesets/1", _session.Sent);
+    }
+
+    [Theory]
+    [InlineData(GitHubResumeOutcome.SignedIn, false)]
+    [InlineData(GitHubResumeOutcome.Refused, true)]
+    [InlineData(GitHubResumeOutcome.Unreachable, true)]
+    public async Task SignIn_WhileResuming_WaitsAndAsksForTheCodeOnlyWhenTheResumeFailed(GitHubResumeOutcome outcome, bool asksForTheCode)
+    {
+        var resume = _session.Resume = new TaskCompletionSource<GitHubResumeOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+        await WaitUntilAsync(() => viewModel.IsGitHubResuming);
+
+        var signIn = viewModel.SignInToGitHubAsync();
+        Assert.False(viewModel.IsGitHubSignInOpen);
+        resume.SetResult(outcome);
+        await viewModel.WhenGitHubResumedAsync();
+        await WaitUntilAsync(() => signIn.IsCompleted || _session.SignIns > 0);
+
+        Assert.Equal(asksForTheCode, viewModel.IsGitHubSignInOpen);
+        Assert.Equal(asksForTheCode ? 1 : 0, _session.SignIns);
+        viewModel.CancelGitHubSignInCommand.Execute(null);
+        Assert.Equal(!asksForTheCode, await signIn.WaitAsync(Timeout));
+    }
+
+    [Fact]
+    public async Task StaySignedIn_IsOnByDefaultAndReachesTheSession()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+
+        Assert.True(harness.ViewModel.StaySignedInToGitHub);
+        Assert.True(_session.KeepSignedIn);
+        Assert.Equal(1, _session.Resumes);
+        Assert.Equal("Stay signed in on this computer", harness.Localization.SettingsGitHubStaySignedIn);
+    }
+
+    [Fact]
+    public async Task StaySignedIn_TurnedOff_StopsKeepingAndIsSaved()
+    {
+        _session.SignInDirectly();
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+
+        viewModel.StaySignedInToGitHub = false;
+        await viewModel.WhenPreferencesSavedAsync();
+
+        Assert.False(_session.KeepSignedIn);
+        Assert.True(viewModel.IsGitHubSignedIn);
+        var saved = await harness.Services.AppPreferences.GetAsync(MainViewModel.BundledThemeNames);
+        Assert.False(saved.Preferences.StaySignedInToGitHub);
+    }
+
+    [Fact]
+    public async Task StaySignedInOff_AtStart_DoesNotKeepTheSignIn()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(
+            seed: services => services.AppPreferences.SaveAsync(AppPreferences.Empty.WithStaySignedInToGitHub(false), MainViewModel.BundledThemeNames),
+            gitHub: _session);
+
+        Assert.False(harness.ViewModel.StaySignedInToGitHub);
+        Assert.False(_session.KeepSignedIn);
+    }
+
+    [Theory]
+    [InlineData(SecretStoreProblem.Unsupported, "Borea has no secret store for this system, so the sign-in ends when Borea closes.")]
+    [InlineData(SecretStoreProblem.Missing, "No secret store was found, such as a keyring with the Secret Service on Linux, so the sign-in ends when Borea closes.")]
+    [InlineData(SecretStoreProblem.Refused, "The secret store of your system refused the sign-in, for example because it is locked, so the sign-in ends when Borea closes.")]
+    public async Task WithoutASecretStore_SettingsSaysWhy(SecretStoreProblem problem, string text)
+    {
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: _session);
+        var viewModel = harness.ViewModel;
+        Assert.Null(viewModel.GitHubKeepSignedInProblemText);
+        var shown = new List<string?>();
+        ((INotifyPropertyChanged)viewModel).PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.GitHubKeepSignedInProblemText))
+            {
+                lock (shown)
+                    shown.Add(viewModel.GitHubKeepSignedInProblemText);
+            }
+        };
+
+        _session.ReportProblem(problem);
+
+        await WaitUntilAsync(() =>
+        {
+            lock (shown)
+                return shown.Contains(text);
+        });
+    }
+
+    [Fact]
+    public async Task Restart_WithTheRealSession_IsSignedInWithoutTheCode()
+    {
+        var secrets = new MemorySecretStore();
+        var sent = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        GitHubSession Session() => new(new HttpClient(new AnswerHandler(request =>
+        {
+            sent.Enqueue(request.RequestUri!.AbsoluteUri);
+            return request.RequestUri.AbsoluteUri switch
+            {
+                "https://github.com/login/oauth/access_token" => """{"access_token":"ghu_refreshed","expires_in":28800,"refresh_token":"ghr_refreshed","refresh_token_expires_in":15897600,"token_type":"bearer"}""",
+                "https://api.github.com/user" => """{"login":"octocat","id":1}""",
+                _ => """{"message":"Not Found"}""",
+            };
+        })), "Iv23.testclient", "borea-test", secrets: secrets);
+        secrets.Write(KeptName, "ghr_kept");
+        var session = Session();
+
+        using var harness = await ViewModelHarness.CreateAsync(gitHub: session);
+        await harness.ViewModel.WhenGitHubResumedAsync();
+        await WaitUntilAsync(() => secrets.Read(KeptName) == "ghr_refreshed");
+
+        Assert.True(harness.ViewModel.IsGitHubSignedIn);
+        Assert.Equal("ghr_refreshed", secrets.Read(KeptName));
+        Assert.DoesNotContain("https://github.com/login/device/code", sent);
+
+        harness.ViewModel.SignOutOfGitHubCommand.Execute(null);
+
+        await WaitUntilAsync(() => secrets.Read(KeptName) is null);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var timeout = new CancellationTokenSource(Timeout);
@@ -366,6 +512,23 @@ public sealed class GitHubAccountViewModelTests
             Copied.Add(text);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class MemorySecretStore : ISecretStore
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _secrets = new();
+
+        public string? Read(string name) => _secrets.GetValueOrDefault(name);
+
+        public void Write(string name, string secret) => _secrets[name] = secret;
+
+        public void Delete(string name) => _secrets.TryRemove(name, out _);
+    }
+
+    private sealed class AnswerHandler(Func<HttpRequestMessage, string> answer) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(answer(request), Encoding.UTF8, "application/json") });
     }
 
     /// <summary>

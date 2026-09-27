@@ -104,7 +104,8 @@
                 <TextBlock Classes="heading-md" Text="{Binding Localization.SettingsGitHubLabel}" />
                 <StackPanel Spacing="6" IsVisible="{Binding !IsGitHubSignedIn}">
                     <TextBlock Classes="body-sm secondary" Text="{Binding Localization.SettingsGitHubHint}" TextWrapping="Wrap" Width="340" HorizontalAlignment="Left" />
-                    <Button Classes="text" Content="{Binding Localization.SettingsGitHubSignIn}" Command="{Binding SignInToGitHubCommand}" IsEnabled="{Binding !IsGitHubSignInRunning}" />
+                    <TextBlock Classes="body-md secondary" Text="{Binding Localization.SettingsGitHubResuming}" TextWrapping="Wrap" IsVisible="{Binding IsGitHubResuming}" />
+                    <Button Classes="text" Content="{Binding Localization.SettingsGitHubSignIn}" Command="{Binding SignInToGitHubCommand}" IsEnabled="{Binding CanStartGitHubSignIn}" />
                 </StackPanel>
                 <StackPanel Spacing="6" IsVisible="{Binding IsGitHubSignedIn}">
                     <TextBlock Classes="body-md" Text="{Binding GitHubSignedInText}" TextWrapping="Wrap" />
@@ -118,6 +119,12 @@
                         </Button>
                     </WrapPanel>
                 </StackPanel>
+                <Grid ColumnDefinitions="*,16,Auto" Width="340" HorizontalAlignment="Left" Margin="0,6,0,0">
+                    <TextBlock Classes="body-md" Text="{Binding Localization.SettingsGitHubStaySignedIn}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <ToggleSwitch Grid.Column="2" Classes="switch" IsChecked="{Binding StaySignedInToGitHub}" AutomationProperties.Name="{Binding Localization.SettingsGitHubStaySignedIn}" />
+                </Grid>
+                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.SettingsGitHubStaySignedInHint}" TextWrapping="Wrap" Width="340" HorizontalAlignment="Left" />
+                <TextBlock Classes="body-sm secondary" Text="{Binding GitHubKeepSignedInProblemText}" TextWrapping="Wrap" Width="340" HorizontalAlignment="Left" IsVisible="{Binding GitHubKeepSignedInProblemText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                 <TextBlock Classes="body-md danger" Text="{Binding GitHubAccountError}" TextWrapping="Wrap" IsVisible="{Binding GitHubAccountError, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
         </StackPanel>

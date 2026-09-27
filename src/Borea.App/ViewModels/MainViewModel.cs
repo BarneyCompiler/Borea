@@ -355,6 +355,7 @@ public partial class MainViewModel : ViewModelBase
     {
         _ = Tasks.LoadAsync();
         StartLinkRegistration();
+        StartGitHubResume();
         StartUpdateCheck();
         StartBackupCleanup();
         RecordFirstStart();
@@ -852,6 +853,7 @@ public partial class MainViewModel : ViewModelBase
             && left.OpenBoreaLinks == right.OpenBoreaLinks
             && left.BackupRetentionDays == right.BackupRetentionDays
             && left.DismissedUntestedGameRevision == right.DismissedUntestedGameRevision
+            && left.StaySignedInToGitHub == right.StaySignedInToGitHub
             && left.DismissedAnnouncements.SequenceEqual(right.DismissedAnnouncements, StringComparer.Ordinal);
 
     private void OnRegionalFormatChanged(object? sender, PropertyChangedEventArgs e)

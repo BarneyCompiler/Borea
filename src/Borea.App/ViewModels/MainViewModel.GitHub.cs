@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Borea.Composition;
 using Borea.Core.GitHub;
+using Borea.Core.Secrets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -10,7 +11,7 @@ namespace Borea.App.ViewModels;
 
 /// <summary>
 /// The GitHub account in Settings and the sign-in modal with the device code.
-/// The steward role is checked after every sign-in, and the listing page signs out only a session that it started itself.
+/// The steward role is checked after every sign-in, also one resumed at start, and the listing page signs out only a session that it started itself.
 /// </summary>
 public partial class MainViewModel
 {
@@ -22,11 +23,44 @@ public partial class MainViewModel
     private bool _gitHubSignInForListing;
     private bool _isGitHubSessionFromListing;
     private Task? _stewardRoleCheck;
+    private Task? _gitHubResume;
+    private bool? _staySignedInToGitHub;
 
     /// <summary>False hides the GitHub account, because this build has no GitHub App to sign in with.</summary>
     public bool IsGitHubAccountAvailable => _services?.GitHub.IsAvailable == true;
 
     public bool IsGitHubSignedIn => _services?.GitHub.State.Status == GitHubSessionStatus.SignedIn;
+
+    /// <summary>True while the sign-in kept from an earlier start signs in again.</summary>
+    public bool IsGitHubResuming => _services?.GitHub.State.Status == GitHubSessionStatus.Resuming;
+
+    public bool CanStartGitHubSignIn => !IsGitHubSignInRunning && !IsGitHubResuming;
+
+    /// <summary>The switch in the GitHub account. Off deletes the kept sign-in, and the session then lasts until Borea closes.</summary>
+    public bool StaySignedInToGitHub
+    {
+        get => _staySignedInToGitHub ?? _appPreferences.StaySignedInToGitHub;
+        set
+        {
+            if (value == StaySignedInToGitHub)
+                return;
+
+            _staySignedInToGitHub = value;
+            OnPropertyChanged();
+            QueuePreferenceSave(preferences => preferences.WithStaySignedInToGitHub(value));
+            if (_services is { } services)
+                services.GitHub.KeepSignedIn = value;
+        }
+    }
+
+    /// <summary>Why the sign-in cannot outlive Borea on this computer, or null.</summary>
+    public string? GitHubKeepSignedInProblemText => _services?.GitHub.KeepSignedInProblem switch
+    {
+        SecretStoreProblem.Unsupported => Localization.SettingsGitHubKeepUnsupported,
+        SecretStoreProblem.Missing => Localization.SettingsGitHubKeepMissing,
+        SecretStoreProblem.Refused => Localization.SettingsGitHubKeepRefused,
+        _ => null,
+    };
 
     public string? GitHubLogin => _services?.GitHub.State.Login;
 
@@ -43,6 +77,7 @@ public partial class MainViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsGettingGitHubCode))]
     [NotifyPropertyChangedFor(nameof(CanRetryGitHubSignIn))]
+    [NotifyPropertyChangedFor(nameof(CanStartGitHubSignIn))]
     private bool _isGitHubSignInRunning;
 
     [ObservableProperty]
@@ -67,6 +102,8 @@ public partial class MainViewModel
 
     internal Task WhenStewardRoleCheckedAsync() => _stewardRoleCheck ?? Task.CompletedTask;
 
+    internal Task WhenGitHubResumedAsync() => _gitHubResume ?? Task.CompletedTask;
+
     /// <summary>Follows the session of <paramref name="services"/> instead of the one of <paramref name="previous"/>.</summary>
     private void AttachGitHubSession(BoreaServices? previous, BoreaServices? services)
     {
@@ -74,12 +111,15 @@ public partial class MainViewModel
         if (previous is not null)
         {
             previous.GitHub.StateChanged -= OnGitHubStateChanged;
+            previous.GitHub.KeepSignedInProblemChanged -= OnGitHubStateChanged;
             previous.StewardRole.Changed -= OnStewardRoleChanged;
         }
 
         if (services is not null)
         {
+            services.GitHub.KeepSignedIn = StaySignedInToGitHub;
             services.GitHub.StateChanged += OnGitHubStateChanged;
+            services.GitHub.KeepSignedInProblemChanged += OnGitHubStateChanged;
             services.StewardRole.Changed += OnStewardRoleChanged;
         }
 
@@ -103,6 +143,9 @@ public partial class MainViewModel
     {
         OnPropertyChanged(nameof(IsGitHubAccountAvailable));
         OnPropertyChanged(nameof(IsGitHubSignedIn));
+        OnPropertyChanged(nameof(IsGitHubResuming));
+        OnPropertyChanged(nameof(CanStartGitHubSignIn));
+        OnPropertyChanged(nameof(GitHubKeepSignedInProblemText));
         OnPropertyChanged(nameof(GitHubLogin));
         OnPropertyChanged(nameof(GitHubSignedInText));
         OnPropertyChanged(nameof(GitHubManageAccessUrl));
@@ -121,6 +164,24 @@ public partial class MainViewModel
             _stewardRoleCheck = services.StewardRole.CheckAsync();
     }
 
+    /// <summary>Signs in once per start with the sign-in kept from an earlier start, on the thread pool, because the secret store can wait for the user.</summary>
+    private void StartGitHubResume() => _gitHubResume ??= ResumeGitHubAsync();
+
+    private async Task ResumeGitHubAsync()
+    {
+        if (_services is not { } services || !services.GitHub.IsAvailable)
+            return;
+
+        try
+        {
+            await Task.Run(() => services.GitHub.ResumeAsync());
+        }
+        catch (OperationCanceledException)
+        {
+            // signed out meanwhile
+        }
+    }
+
     [RelayCommand]
     private void SignInToGitHub() => _ = SignInToGitHubAsync();
 
@@ -136,6 +197,9 @@ public partial class MainViewModel
 
         if (IsGitHubSignedIn)
             return Task.FromResult(true);
+
+        if (_gitHubResume is { IsCompleted: false })
+            return SignInToGitHubAfterResumeAsync(forListing);
 
         if (IsGitHubSignInRunning && !IsGitHubSignInOpen)
             return SignInToGitHubAfterCancelAsync(forListing);
@@ -153,6 +217,13 @@ public partial class MainViewModel
         }
 
         return closed.Task;
+    }
+
+    // a kept sign-in may sign in without the code
+    private async Task<bool> SignInToGitHubAfterResumeAsync(bool forListing)
+    {
+        await WhenGitHubResumedAsync();
+        return await SignInToGitHubAsync(forListing);
     }
 
     // a cancelled run holds the session until it ends

@@ -762,11 +762,29 @@
   <data name="SettingsGitHubManageAccess" xml:space="preserve">
     <value>Manage access on GitHub</value>
   </data>
+  <data name="SettingsGitHubStaySignedIn" xml:space="preserve">
+    <value>Stay signed in on this computer</value>
+  </data>
+  <data name="SettingsGitHubStaySignedInHint" xml:space="preserve">
+    <value>Borea keeps the sign-in in the secret store of your system and signs you in again at the next start. Off ends the sign-in when Borea closes.</value>
+  </data>
+  <data name="SettingsGitHubResuming" xml:space="preserve">
+    <value>Signing you in to GitHub again...</value>
+  </data>
+  <data name="SettingsGitHubKeepUnsupported" xml:space="preserve">
+    <value>Borea has no secret store for this system, so the sign-in ends when Borea closes.</value>
+  </data>
+  <data name="SettingsGitHubKeepMissing" xml:space="preserve">
+    <value>No secret store was found, such as a keyring with the Secret Service on Linux, so the sign-in ends when Borea closes.</value>
+  </data>
+  <data name="SettingsGitHubKeepRefused" xml:space="preserve">
+    <value>The secret store of your system refused the sign-in, for example because it is locked, so the sign-in ends when Borea closes.</value>
+  </data>
   <data name="GitHubSignInTitle" xml:space="preserve">
     <value>Sign in to GitHub</value>
   </data>
   <data name="GitHubSignInHint" xml:space="preserve">
-    <value>Enter this code on GitHub. Borea can then write to your fork of the content index and open pull requests to the content index. For a steward, Borea can also review, merge and close pull requests of the content index and write to its steward branches. Nothing else. The access expires after 8 hours.</value>
+    <value>Enter this code on GitHub. Borea can then write to your fork of the content index and open pull requests to the content index. For a steward, Borea can also review, merge and close pull requests of the content index and write to its steward branches. Nothing else. The access expires after 8 hours. When you sign in from Settings while the switch Stay signed in on this computer is on, Borea renews the access at each start until you sign out or revoke it on GitHub.</value>
   </data>
   <data name="GitHubSignInCodeWarning" xml:space="preserve">
     <value>Borea asks for this code only in this window, never anywhere else.</value>

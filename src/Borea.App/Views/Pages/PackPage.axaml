@@ -94,7 +94,7 @@
                                 </StackPanel>
                             </Grid>
                             <WrapPanel Grid.Row="2" ItemSpacing="24" LineSpacing="8" Margin="0,16,0,0">
-                                <ItemsControl ItemsSource="{Binding SelectedPack.Tags}" VerticalAlignment="Center" IsVisible="{Binding HasPackTags}">
+                                <ItemsControl ItemsSource="{Binding SelectedPack.AllTags}" VerticalAlignment="Center" IsVisible="{Binding HasPackTags}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel ItemSpacing="4" LineSpacing="4" />

@@ -47,7 +47,7 @@ public sealed class PackViewModelTests
         Assert.Equal("1.1.0", starter.Version);
         Assert.Equal(2, starter.ModCount);
         Assert.Equal(harness.Localization.FormatPackModCount(2), starter.ModCountText);
-        Assert.Equal(["Starter"], starter.Tags);
+        Assert.Equal(["Starter"], starter.AllTags);
         Assert.Equal(GameCompatibility.Unknown, starter.Compatibility);
         Assert.False(string.IsNullOrWhiteSpace(starter.ReleasedText));
         Assert.StartsWith("Released on ", starter.ReleasedDateText);

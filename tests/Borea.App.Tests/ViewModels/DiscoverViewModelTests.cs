@@ -224,7 +224,6 @@ public sealed class DiscoverViewModelTests
         var armory = viewModel.DiscoverItems.Single(item => item.ModId == "KSArmory");
 
         Assert.Equal(["Parts", "Weapons", "Space Station", "X2 Engine"], armory.AllTags);
-        Assert.Equal(["Parts", "Weapons", "Space Station"], armory.Tags);
 
         harness.Localization.TrySetCulture("de");
 

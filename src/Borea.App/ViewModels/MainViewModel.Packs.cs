@@ -57,7 +57,7 @@ public partial class MainViewModel
 
     public bool HasPackLinks => PackLinks.Count > 0;
 
-    public bool HasPackTags => SelectedPack is { Tags.Count: > 0 };
+    public bool HasPackTags => SelectedPack is { AllTags.Count: > 0 };
 
     /// <summary>The share page of the pack on the landing site, or null when it has none.</summary>
     public string? PackShareUrl => SelectedPack is { } pack ? ShareLinks.For(pack.Metadata) : null;
@@ -671,8 +671,6 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
 
     public IReadOnlyDictionary<string, string> Links => Metadata.Links;
 
-    public IReadOnlyList<string> Tags { get; private set; }
-
     public IReadOnlyList<string> AllTags { get; private set; }
 
     public int ModCount => Metadata.Mods.Count;
@@ -839,7 +837,6 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
         Images = MainViewModel.ImagesOf(indexEntry, metadata);
         Icon = owner.IconFor(Images?.Icon);
         AllTags = DiscoverItem.DisplayTags(owner, ContentType.ModPack, metadata.Tags);
-        Tags = AllTags.Take(3).ToList();
         PublishedAt = indexEntry?.PublishedAt;
         _isFavorite = owner.IsFavoritePack(metadata.ModPackId);
     }
@@ -885,9 +882,7 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
     internal void RefreshText()
     {
         AllTags = DiscoverItem.DisplayTags(_owner, ContentType.ModPack, Metadata.Tags);
-        Tags = AllTags.Take(3).ToList();
         OnPropertyChanged(nameof(AllTags));
-        OnPropertyChanged(nameof(Tags));
         OnPropertyChanged(nameof(AuthorsText));
         OnPropertyChanged(nameof(TypeText));
         OnPropertyChanged(nameof(CompatibilityText));

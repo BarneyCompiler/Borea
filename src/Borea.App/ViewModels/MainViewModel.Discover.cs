@@ -662,8 +662,6 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
 
     public ContentType Type => _listing.Type;
 
-    public IReadOnlyList<string> Tags { get; private set; }
-
     /// <summary>The curated tags in the words and order of the vocabulary, then the free-form tags.</summary>
     public IReadOnlyList<string> AllTags { get; private set; }
 
@@ -888,7 +886,6 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
         _owner = owner;
         _listing = listing;
         AllTags = DisplayTags(owner, listing.Type, listing.Tags);
-        Tags = AllTags.Take(3).ToList();
         Images = indexEntry?.Images;
         Icon = owner.IconFor(Images?.Icon);
         Downloads = indexEntry?.Downloads?.Total;
@@ -925,7 +922,6 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
     {
         _listing = full;
         AllTags = DisplayTags(_owner, full.Type, full.Tags);
-        Tags = AllTags.Take(3).ToList();
         OnPropertyChanged(string.Empty);
     }
 
@@ -945,9 +941,7 @@ public sealed partial class DiscoverItem : ObservableObject, IInstallRow
     internal void RefreshText()
     {
         AllTags = DisplayTags(_owner, _listing.Type, _listing.Tags);
-        Tags = AllTags.Take(3).ToList();
         OnPropertyChanged(nameof(AllTags));
-        OnPropertyChanged(nameof(Tags));
         OnPropertyChanged(nameof(AuthorsText));
         OnPropertyChanged(nameof(TypeText));
         OnPropertyChanged(nameof(CompatibilityText));

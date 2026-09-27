@@ -45,7 +45,6 @@ public sealed class ContentViewModelTests
 
         Assert.True(viewModel.HasContentTags);
         Assert.Equal(["Parts", "Physics", "Weapons"], armory.AllTags);
-        Assert.Equal(armory.AllTags, armory.Tags);
     }
 
     [Fact]

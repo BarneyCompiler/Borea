@@ -113,7 +113,7 @@ public partial class MainViewModel
     /// <summary>The share page of the listing on the landing site, or null when it has none.</summary>
     public string? ContentShareUrl => SelectedContent is { } item ? ShareLinks.For(item.Listing) : null;
 
-    public bool HasContentTags => SelectedContent is { Tags.Count: > 0 };
+    public bool HasContentTags => SelectedContent is { AllTags.Count: > 0 };
 
     /// <summary>
     /// Which tab of the inner nav bar is selected. Versions load on first visit.

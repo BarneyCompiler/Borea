@@ -188,7 +188,7 @@
                                     </Border.IsVisible>
                                     <TextBlock Text="{Binding Localization.DiscoverInstalled}" />
                                 </Border>
-                                <ItemsControl ItemsSource="{Binding SelectedContent.Tags}" VerticalAlignment="Center" IsVisible="{Binding HasContentTags}">
+                                <ItemsControl ItemsSource="{Binding SelectedContent.AllTags}" VerticalAlignment="Center" IsVisible="{Binding HasContentTags}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel ItemSpacing="4" LineSpacing="4" />

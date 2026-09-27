@@ -18,6 +18,28 @@ public sealed class LoaderCrashReportTests
         Assert.Equal(["KSArmory", "MeasureTools"], LoaderCrashReport.AssemblyNames(output));
     }
 
+    [Theory]
+    [InlineData("System.IO.FileNotFoundException: Could not load file or assembly '/Users/me/mods/Foo/Foo.dll'. The system cannot find the file specified.")]
+    [InlineData(@"System.IO.FileNotFoundException: Could not load file or assembly 'C:\Games\KSA\mods\Foo\Foo.dll'. The system cannot find the file specified.")]
+    [InlineData("Could not load file or assembly 'file:///C:/Games/KSA/mods/Foo/Foo.DLL'.")]
+    public void AssemblyNames_NameGivenAsAPath_IsItsFileNameWithoutTheExtension(string line)
+    {
+        Assert.Equal(["Foo"], LoaderCrashReport.AssemblyNames([line]));
+        Assert.Equal(["Foo"], LoaderCrashReport.AssemblyNames([line, "Method 'Draw' in type 'Foo.Tool' from assembly 'Foo, Version=1.0.0.0' does not have an implementation."]));
+    }
+
+    [Theory]
+    [InlineData("Could not load file or assembly '*'.")]
+    [InlineData("Could not load file or assembly '/Users/me/mods/Foo/F?o.dll'.")]
+    [InlineData(@"Could not load file or assembly 'C:\Games\KSA\mods\*.dll'.")]
+    [InlineData("Could not load file or assembly 'C:Foo.dll'.")]
+    [InlineData("Could not load file or assembly '/Users/me/mods/Foo/'.")]
+    [InlineData("Could not load file or assembly '..'.")]
+    public void AssemblyNames_NameThatIsNoPlainFileName_IsLeftOut(string line)
+    {
+        Assert.Equal(["KSArmory"], LoaderCrashReport.AssemblyNames([line, "Could not load file or assembly 'KSArmory, Version=0.8.44.0'."]));
+    }
+
     [Fact]
     public void AssemblyNames_OutputWithoutAssemblies_IsEmpty()
     {

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 using Borea.Core.Mods;
 
@@ -12,10 +13,17 @@ public static partial class LoaderCrashReport
 {
     private const string InstancePathReport = "StarMap - Using Instance Path:";
 
+    // what Windows does not allow in a file name, with the wildcards of a file search
+    private static readonly SearchValues<char> NotInAFileName = SearchValues.Create(
+        "\"*:<>?|" + string.Concat(Enumerable.Range(0, 32).Select(code => (char)code)));
+
     /// <summary>
     /// The assembly names in the output, in the order they first appear, from
     /// messages such as "from assembly 'KSArmory, Version=0.8.44.0'" and
-    /// "Could not load file or assembly 'KSArmory, Version=...'".
+    /// "Could not load file or assembly 'KSArmory, Version=...'". A name given
+    /// as a path, which .NET uses for an assembly it loads from a file, counts
+    /// by its file name without ".dll". A name that is not a plain file name
+    /// after that is left out, because callers search mod folders for it.
     /// </summary>
     public static IReadOnlyList<string> AssemblyNames(IEnumerable<string> output)
     {
@@ -26,13 +34,24 @@ public static partial class LoaderCrashReport
         {
             foreach (Match match in AssemblyPattern().Matches(line ?? string.Empty))
             {
-                var name = match.Groups["name"].Value.Trim();
-                if (name.Length > 0 && !names.Contains(name, StringComparer.OrdinalIgnoreCase))
+                var name = AssemblyFileName(match.Groups["name"].Value);
+                if (name is not null && !names.Contains(name, StringComparer.OrdinalIgnoreCase))
                     names.Add(name);
             }
         }
 
         return names;
+    }
+
+    // Unlike Path.GetFileName, both separators count on every system, so a
+    // Windows path and a POSIX path give the same name wherever Borea runs.
+    private static string? AssemblyFileName(string name)
+    {
+        name = name[(name.LastIndexOfAny(['/', '\\']) + 1)..].Trim();
+        if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            name = name[..^".dll".Length].TrimEnd();
+
+        return name.Trim('.').Length == 0 || name.AsSpan().ContainsAny(NotInAFileName) ? null : name;
     }
 
     /// <summary>

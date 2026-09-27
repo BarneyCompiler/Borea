@@ -306,8 +306,15 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
             foreach (var mod in instance.Mods)
             {
                 var folder = Path.Combine(modsFolder, mod.ModId);
-                if (Directory.Exists(folder) && Directory.EnumerateFiles(folder, assembly + ".dll", new EnumerationOptions { RecurseSubdirectories = true, MatchCasing = MatchCasing.CaseInsensitive, IgnoreInaccessible = true }).Any())
-                    return mod;
+                try
+                {
+                    if (Directory.Exists(folder) && Directory.EnumerateFiles(folder, assembly + ".dll", new EnumerationOptions { RecurseSubdirectories = true, MatchCasing = MatchCasing.CaseInsensitive, IgnoreInaccessible = true }).Any())
+                        return mod;
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                    // a folder that cannot be searched, such as a link to a removed folder, blames nothing
+                }
             }
         }
 

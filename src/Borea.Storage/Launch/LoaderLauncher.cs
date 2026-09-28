@@ -26,10 +26,12 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     private readonly Func<string?> _findDotnet;
     private readonly Func<bool> _isGameRunning;
     private readonly IWinePrefixProbe _wine;
+    private readonly RunningLaunches _launches;
     private readonly object _gate;
     private readonly Dictionary<Guid, IStartedProcess> _running;
     private readonly Dictionary<Guid, (DateTime? GameLogAtLaunch, DateTime? CrashLogAtLaunch, string LoaderName)> _starts;
     private readonly Dictionary<Guid, (IStartedProcess Process, DateTime? CrashLogAtLaunch)> _ended;
+    private readonly Dictionary<Guid, WineInstall> _wrappers;
     private readonly bool _ownsLaunches;
     private readonly TimeSpan _startupWindow;
     private readonly TimeSpan _crashLogWait;
@@ -83,11 +85,12 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
         _startupWindow = startupWindow;
         _crashLogWait = crashLogWait ?? DefaultCrashLogWait;
         _ownsLaunches = launches is null;
-        launches ??= new RunningLaunches();
-        _gate = launches.Gate;
-        _running = launches.Processes;
-        _starts = launches.Starts;
-        _ended = launches.Ended;
+        _launches = launches ?? new RunningLaunches();
+        _gate = _launches.Gate;
+        _running = _launches.Processes;
+        _starts = _launches.Starts;
+        _ended = _launches.Ended;
+        _wrappers = _launches.Wrappers;
     }
 
     public LaunchResult Launch(Instance instance, ModMetadata? loader, IReadOnlyList<string>? arguments = null)
@@ -107,7 +110,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
 
         lock (_gate)
         {
-            Forget(ended: true);
+            _launches.Forget(ended: true, HasEnded);
 
             if (_running.ContainsKey(instance.InstanceId))
             {
@@ -116,11 +119,24 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                     $"Instance '{instance.Name}' is already running from a launch Borea started. Close the game first.");
             }
 
-            if (WindowsBuildOnHost.Refusal(_platform, _pathProvider.GetGameDirectoryPath(), _wine) is { } refusal)
-                return LaunchResult.Failed(LaunchOutcome.WindowsBuild, refusal.Message, wine: refusal.Wine);
+            var gameDirectory = _pathProvider.GetGameDirectoryPath();
+            var hostStart = WindowsBuildOnHost.Check(_platform, gameDirectory, _wine);
+            if (hostStart.Refusal is { } refusal)
+                return LaunchResult.Failed(LaunchOutcome.WindowsBuild, refusal, wine: hostStart.Wine);
 
-            // An entry for this platform replaces [provides].launch, with no fallback (RFC 0067).
-            var entry = _platform is { } platform ? loader.Provides?.Platforms.GetValueOrDefault(platform) : null;
+            // a second start of a running wrapper goes to the first one without its environment
+            var wrapped = hostStart.Wrapped;
+            var bundle = wrapped?.Wrapper!.BundlePath;
+            if (bundle is not null && _launches.RunsThrough(bundle))
+            {
+                return LaunchResult.Failed(
+                    LaunchOutcome.WrapperBusy,
+                    $"A game that Borea started through the Wine wrapper '{bundle}' is still running. The wrapper runs one game at a time, so close that game first.",
+                    wine: wrapped);
+            }
+
+            // An entry for the platform of the game build replaces [provides].launch, with no fallback (RFC 0067).
+            var entry = GamePlatform.Of(_platform, gameDirectory) is { } platform ? loader.Provides?.Platforms.GetValueOrDefault(platform) : null;
             if (entry?.UnknownKeys is [var unknownKey, ..])
             {
                 return LaunchResult.Failed(
@@ -157,7 +173,23 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                     $"The listing of {loader.Name} does not say how it takes an instance, so Borea cannot start one with it. The loader author can add a [provides.instance] table to the listing.");
             }
 
+            if (wrapped is not null && handover.Variable is null)
+            {
+                return LaunchResult.Failed(
+                    LaunchOutcome.WrapperNeedsVariable,
+                    $"{loader.Name} takes the instance folder only after '{handover.Flag}', and the Wine wrapper '{bundle}' passes no arguments to it. Borea starts nothing. The loader author can add a variable to the [provides.instance] table of the listing.",
+                    wine: wrapped);
+            }
+
             var launchArguments = instance.LaunchArguments.Concat(arguments ?? Array.Empty<string>()).ToList();
+            if (wrapped is not null && launchArguments.Count > 0)
+            {
+                return LaunchResult.Failed(
+                    LaunchOutcome.WrapperArguments,
+                    $"The Wine wrapper '{bundle}' passes no launch arguments to {loader.Name}, so Borea starts nothing. Remove the launch arguments of instance '{instance.Name}' to start it through the wrapper.",
+                    wine: wrapped);
+            }
+
             if (handover.FlagIn(launchArguments) is { } flag)
             {
                 return LaunchResult.Failed(
@@ -188,6 +220,15 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                     plan);
             }
 
+            if (entry?.Runtime == LoaderRuntime.Dotnet && wrapped is not null)
+            {
+                return LaunchResult.Failed(
+                    LaunchOutcome.WrapperRuntime,
+                    $"The start entry for Windows in the listing of {loader.Name} runs through '{entry.RuntimeName}', and the Wine wrapper '{bundle}' starts only the file itself. Borea starts nothing.",
+                    plan,
+                    wine: wrapped);
+            }
+
             if (entry?.Runtime == LoaderRuntime.Dotnet)
             {
                 var host = _findDotnet();
@@ -199,6 +240,18 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                 }
 
                 plan = plan.ThroughHost(host, plan.Executable);
+            }
+
+            if (wrapped is not null)
+            {
+                // the loader runs in the prefix, so it reads the instance root in the form of the prefix
+                var instanceRoot = plan.EnvironmentVariables[handover.Variable!];
+                var windowsRoot = _wine.ToWindowsPath(wrapped, instanceRoot);
+                var unmapped = _wine.ToWindowsPath(wrapped, plan.Executable) is null ? plan.Executable : windowsRoot is null ? instanceRoot : null;
+                if (unmapped is not null)
+                    return LaunchResult.Failed(LaunchOutcome.PathOutsidePrefix, WindowsBuildOnHost.OutsidePrefix(wrapped, unmapped), plan, wine: wrapped, unmappedPath: unmapped);
+
+                plan = plan.ThroughWrapper(wrapped.Wrapper!.LauncherPath, new Dictionary<string, string> { [handover.Variable!] = windowsRoot! });
             }
 
             IStartedProcess process;
@@ -218,6 +271,8 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
             _running[instance.InstanceId] = process;
             _starts[instance.InstanceId] = (LastWrite(gameLog), LastCrashLogWrite(gameLog), loader.Name);
             _ended.Remove(instance.InstanceId);
+            if (wrapped is not null)
+                _wrappers[instance.InstanceId] = wrapped;
 
             return LaunchResult.Success(
                 plan,
@@ -235,10 +290,13 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
 
         IStartedProcess? process;
         (DateTime? GameLogAtLaunch, DateTime? CrashLogAtLaunch, string LoaderName) start;
+        WineInstall? wrapped;
         lock (_gate)
         {
             if (!_running.TryGetValue(instance.InstanceId, out process) || process.Id != started.ProcessId || !_starts.TryGetValue(instance.InstanceId, out start))
                 return started;
+
+            wrapped = _wrappers.GetValueOrDefault(instance.InstanceId);
         }
 
         var gameLog = _pathProvider.GetInstanceGameLogPath(instance.InstanceId);
@@ -264,8 +322,8 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                 }
 
                 // a loader that exits with 0 may have restarted itself, so the log decides;
-                // an error exit needs no more waiting
-                if (ended && process.ExitCode is not 0)
+                // an error exit needs no more waiting, unless the launcher of a wrapper made it
+                if (ended && process.ExitCode is not 0 && wrapped is null)
                     break;
             }
 
@@ -287,6 +345,20 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
         var restarted = exitCode == 0 && !ended && _isGameRunning();
         var output = process.RecentOutput;
         WriteLaunchLog(_pathProvider.GetInstanceLaunchLogPath(instance.InstanceId), started.Plan, output, exitCode, restarted, _platform == OsPlatform.Windows);
+
+        // the exit code of the launcher of a wrapper says nothing about the game, so only the game log decides
+        if (wrapped is not null)
+        {
+            return exitCode is null || gameStarted
+                ? started.WithOutput(output)
+                : LaunchResult.ExitedEarly(
+                    started.Plan,
+                    exitCode.Value,
+                    output,
+                    blamedModId: null,
+                    $"The Wine wrapper '{wrapped.Wrapper!.BundlePath}' stopped before {start.LoaderName} started the game. The details show what it wrote.",
+                    wine: wrapped);
+        }
 
         if (exitCode is null || (exitCode == 0 && (gameStarted || restarted)))
             return started.WithOutput(output);
@@ -438,20 +510,8 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     {
         lock (_gate)
         {
-            Forget(ended: true);
+            _launches.Forget(ended: true, HasEnded);
             return _running.ContainsKey(instanceId);
-        }
-    }
-
-    /// <summary>Releases the handles, unless the launches are shared. The processes keep running.</summary>
-    public void Dispose()
-    {
-        if (!_ownsLaunches)
-            return;
-
-        lock (_gate)
-        {
-            Forget(ended: false);
         }
     }
 
@@ -463,22 +523,15 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     /// </summary>
     private bool HasEnded(IStartedProcess process) => process.HasEnded || (process.HasExited && !_isGameRunning());
 
-    /// <summary>Drops the launches that ended, or every launch, and releases their handles.</summary>
-    private void Forget(bool ended)
+    /// <summary>Releases the handles, unless the launches are shared. The processes keep running.</summary>
+    public void Dispose()
     {
-        if (!ended)
-            _ended.Clear();
+        if (!_ownsLaunches)
+            return;
 
-        foreach (var (instanceId, process) in _running.ToArray())
+        lock (_gate)
         {
-            if (ended && !HasEnded(process))
-                continue;
-
-            if (ended)
-                _ended[instanceId] = (process, _starts.GetValueOrDefault(instanceId).CrashLogAtLaunch);
-            _running.Remove(instanceId);
-            _starts.Remove(instanceId);
-            process.Dispose();
+            _launches.Forget(ended: false);
         }
     }
 }

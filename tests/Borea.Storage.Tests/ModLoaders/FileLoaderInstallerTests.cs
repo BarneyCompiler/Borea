@@ -917,6 +917,13 @@ public sealed class FileLoaderInstallerTests : IDisposable
             CancellationToken cancellationToken = default) =>
             throw new IOException("The configuration file cannot be written.");
 
+        public Task<string?> RefreshForWineAsync(
+            ModMetadata loader,
+            string loaderDirectory,
+            string gameDirectory,
+            CancellationToken cancellationToken = default) =>
+            throw new IOException("The configuration file cannot be written.");
+
         public string GamePathValue(string gameDirectory) => gameDirectory;
     }
 }

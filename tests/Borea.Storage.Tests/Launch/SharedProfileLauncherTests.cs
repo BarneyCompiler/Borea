@@ -112,6 +112,58 @@ public sealed class SharedProfileLauncherTests : IDisposable
         Assert.Empty(_starter.Plans);
     }
 
+    private string BundlePath => Path.Combine(Path.GetFullPath(_tempRoot), "Kitten Space Agency.app");
+
+    /// <summary>A launcher on macOS whose probe finds a wrapper app around the temp root, with the drives it is given.</summary>
+    private SharedProfileLauncher WrapperLauncher(Dictionary<char, string> drives)
+    {
+        var wrapper = new WineWrapper(BundlePath, Path.Combine(BundlePath, "Contents", "MacOS", "launcher"));
+        var install = new WineInstall(Path.GetFullPath(_tempRoot), WineFixtures.Drives(drives), wrapper);
+        return new SharedProfileLauncher(_paths, _starter, OsPlatform.MacOs, new FakeWineProbe(install));
+    }
+
+    private Dictionary<char, string> HostRootAsDriveZ() => new() { ['z'] = Path.GetPathRoot(Path.GetFullPath(_tempRoot))! };
+
+    [Fact]
+    public void Launch_WindowsBuildInAWrapperOnMacOs_StartsKsaExeThroughTheWrapper()
+    {
+        PlaceGame();
+
+        var result = WrapperLauncher(HostRootAsDriveZ()).Launch();
+
+        Assert.True(result.Started);
+        var plan = Assert.Single(_starter.Plans);
+        Assert.Equal(Path.Combine(BundlePath, "Contents", "MacOS", "launcher"), plan.Executable);
+        Assert.Equal([ExpectedExecutable], plan.Arguments);
+        Assert.Equal(Path.GetFullPath(GameDirectory), plan.WorkingDirectory);
+        Assert.Empty(plan.EnvironmentVariables);
+    }
+
+    [Fact]
+    public void Launch_WrapperWithArguments_StartsNothing()
+    {
+        PlaceGame();
+
+        var result = WrapperLauncher(HostRootAsDriveZ()).Launch(["-windowed"]);
+
+        Assert.Equal(SharedProfileLaunchOutcome.WrapperArguments, result.Outcome);
+        Assert.Contains("Kitten Space Agency.app", result.Message);
+        Assert.Empty(_starter.Plans);
+    }
+
+    [Fact]
+    public void Launch_WrapperAndTheGameOnNoDrive_StartsNothingAndNamesTheExecutable()
+    {
+        PlaceGame();
+
+        var result = WrapperLauncher(new Dictionary<char, string> { ['c'] = Directory.CreateDirectory(Path.Combine(_tempRoot, "drive_c")).FullName }).Launch();
+
+        Assert.Equal(SharedProfileLaunchOutcome.PathOutsidePrefix, result.Outcome);
+        Assert.Equal(ExpectedExecutable, result.UnmappedPath);
+        Assert.Contains($"'{ExpectedExecutable}'", result.Message);
+        Assert.Empty(_starter.Plans);
+    }
+
     [Fact]
     public void Launch_WindowsBuildWithoutAPrefixOnLinux_StartsNothing()
     {

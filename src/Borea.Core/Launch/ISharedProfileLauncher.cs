@@ -11,8 +11,11 @@ public interface ISharedProfileLauncher
 {
     /// <summary>
     /// Starts the game's executable from the game directory with
-    /// <paramref name="arguments"/>. Borea writes nothing to the shared profile
-    /// and keeps no record of the process.
+    /// <paramref name="arguments"/>. Borea writes nothing to the shared profile.
+    /// For a Windows build in a Wine wrapper on macOS, it starts the launcher
+    /// of the wrapper with the executable and refuses arguments, because the
+    /// wrapper passes none. It keeps a record of that process until it exits,
+    /// because the wrapper runs one game at a time, and of no other process.
     /// </summary>
     SharedProfileLaunchResult Launch(IReadOnlyList<string>? arguments = null);
 }

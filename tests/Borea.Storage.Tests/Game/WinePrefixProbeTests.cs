@@ -104,10 +104,12 @@ public sealed class WinePrefixProbeTests : IDisposable
         Assert.Null(new WinePrefixProbe(platform).Find(Game(prefix)));
     }
 
-    [Fact]
-    public void Find_WrapperWithAnXmlInfoPlistAndItsLauncher_RecognizesTheWrapper()
+    [Theory]
+    [InlineData("")]
+    [InlineData("Sikarugir")]
+    public void Find_WrapperWithAnXmlInfoPlistAndItsLauncher_RecognizesTheWrapper(string toolFolder)
     {
-        var prefix = WineFixtures.Prefix(WineFixtures.WrapperPrefix(Applications));
+        var prefix = WineFixtures.Prefix(WineFixtures.WrapperPrefix(Path.Combine(Applications, toolFolder)));
         var bundle = WineFixtures.Wrapper(prefix);
 
         var wrapper = _probe.Find(Game(prefix))?.Wrapper;

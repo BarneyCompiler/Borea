@@ -21,15 +21,19 @@ public sealed class WrapperInstallCandidateSourceTests : IDisposable
     private string GameDirectory => Path.Combine(DriveC, "Program Files", "Kitten Space Agency");
 
     /// <summary>A wrapper whose prefix holds the fixture system.reg.</summary>
-    private void PlaceWrapper()
+    private void PlaceWrapper(string? prefix = null)
     {
-        WineFixtures.Prefix(Prefix);
-        File.Copy(WineRegistryFileTests.Fixture, Path.Combine(Prefix, "system.reg"), overwrite: true);
+        prefix ??= Prefix;
+        WineFixtures.Prefix(prefix);
+        File.Copy(WineRegistryFileTests.Fixture, Path.Combine(prefix, "system.reg"), overwrite: true);
     }
+
+    private static FakeWineProbe Probe(string prefix) =>
+        new(new WineInstall(prefix, WineFixtures.Drives(new Dictionary<char, string> { ['c'] = Path.Combine(prefix, "drive_c") }), Wrapper: null));
 
     private WrapperInstallCandidateSource Source(IWinePrefixProbe? probe = null) => new(
         [Applications, Path.Combine(_tempRoot, "missing")],
-        probe ?? new FakeWineProbe(new WineInstall(Prefix, WineFixtures.Drives(new Dictionary<char, string> { ['c'] = DriveC }), Wrapper: null)));
+        probe ?? Probe(Prefix));
 
     [Fact]
     public void GetGameDirectories_ReadsTheGameUninstallEntryOfTheWrapperAsAHostPath()
@@ -94,6 +98,29 @@ public sealed class WrapperInstallCandidateSourceTests : IDisposable
         Assert.Empty(source.GetLoaderDirectories());
     }
 
+    [Theory]
+    [InlineData("Sikarugir")]
+    [InlineData("Kegworks")]
+    [InlineData("Wineskin")]
+    public void GetGameDirectories_WrapperInTheFolderOfAWrapperTool_ReadsItsGame(string tool)
+    {
+        var prefix = WineFixtures.WrapperPrefix(Path.Combine(Applications, tool), "KSA");
+        PlaceWrapper(prefix);
+
+        Assert.Equal([Path.Combine(prefix, "drive_c", "Program Files", "Kitten Space Agency")], Source(Probe(prefix)).GetGameDirectories());
+    }
+
+    [Fact]
+    public void Candidates_WrapperTwoFoldersDeepOrInsideAnApp_AreNotProbed()
+    {
+        PlaceWrapper(WineFixtures.WrapperPrefix(Path.Combine(Applications, "Games", "Wine"), "KSA"));
+        PlaceWrapper(WineFixtures.WrapperPrefix(Path.Combine(Applications, "Other.app"), "KSA"));
+        var probe = Probe(Prefix);
+
+        Assert.Empty(Source(probe).GetGameDirectories());
+        Assert.Empty(probe.Probed);
+    }
+
     [Fact]
     public async Task InstallDetector_FindsTheGameInTheWrapper()
     {
@@ -121,6 +148,23 @@ public sealed class WrapperInstallCandidateSourceTests : IDisposable
 
         var game = Assert.Single(detection.Games);
         Assert.EndsWith(Path.Combine("SharedSupport", "prefix", "drive_c", "Program Files", "Kitten Space Agency"), game.Directory);
+    }
+
+    [UnixFact("Windows cannot name a file 'c:', so the drive links exist only on Linux and macOS.")]
+    public async Task InstallDetector_FindsTheGameAndTheWrapperInAWrapperToolFolder()
+    {
+        var prefix = WineFixtures.WrapperPrefix(Path.Combine(Applications, "Sikarugir"), "KSA");
+        PlaceWrapper(prefix);
+        WineFixtures.Wrapper(prefix);
+        _links.Add(WineFixtures.LinkDrive(prefix, 'c', "../drive_c"));
+        _links.Add(WineFixtures.LinkDrive(prefix, 'z', "/"));
+        PlaceGame(Path.Combine(prefix, "drive_c", "Program Files", "Kitten Space Agency"));
+        var probe = new WinePrefixProbe(OperatingSystem.IsLinux() ? OsPlatform.Linux : OsPlatform.MacOs);
+
+        var detection = await Detector(Source(probe), probe).DetectAsync([]);
+
+        var game = Assert.Single(detection.Games);
+        Assert.EndsWith(Path.Combine("Sikarugir", "KSA.app"), probe.Find(game.Directory)?.Wrapper?.BundlePath);
     }
 
     private InstallDetector Detector(IInstallCandidateSource source, IWinePrefixProbe probe)

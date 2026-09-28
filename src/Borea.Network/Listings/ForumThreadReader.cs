@@ -21,7 +21,7 @@ public sealed partial class ForumThreadReader : IForumThreadReader
         _http = http ?? throw new ArgumentNullException(nameof(http));
     }
 
-    public async Task<IReadOnlyList<string>> GetPrefixesAsync(string threadUrl, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ForumPrefix>> GetPrefixesAsync(string threadUrl, CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(threadUrl, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps
             || !string.Equals(url.Host, ForumsHost, StringComparison.OrdinalIgnoreCase))
@@ -55,7 +55,7 @@ public sealed partial class ForumThreadReader : IForumThreadReader
     }
 
     /// <summary>The labels in front of the thread title of a thread page. Empty when the page has no title or no prefix.</summary>
-    public static IReadOnlyList<string> ParsePrefixes(string html)
+    public static IReadOnlyList<ForumPrefix> ParsePrefixes(string html)
     {
         ArgumentNullException.ThrowIfNull(html);
 
@@ -65,6 +65,7 @@ public sealed partial class ForumThreadReader : IForumThreadReader
         return Label().Matches(title.Groups[1].Value)
             .Select(label => WebUtility.HtmlDecode(Tags().Replace(label.Groups[1].Value, string.Empty)).Trim())
             .Where(prefix => prefix.Length > 0)
+            .Select(prefix => new ForumPrefix(prefix))
             .ToList();
     }
 

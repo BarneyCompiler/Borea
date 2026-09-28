@@ -109,7 +109,7 @@ public sealed class ListingSourceTests
     }
 
     [Fact]
-    public void TagsFor_MapsForumPrefixesToCuratedTags()
+    public void TagsFor_VocabularyWithoutIds_MatchesByTheText()
     {
         var vocabulary = new CuratedTagVocabulary(1,
         [
@@ -118,9 +118,24 @@ public sealed class ListingSourceTests
             new CuratedTag("library", "Library", "Code."),
         ]);
 
-        Assert.Equal(["user-interface"], ListingPrefill.TagsFor(["User Interface"], vocabulary));
-        Assert.Empty(ListingPrefill.TagsFor(["Unknown"], vocabulary));
+        Assert.Equal(["user-interface"], ListingPrefill.TagsFor([new ForumPrefix("User Interface")], vocabulary));
+        Assert.Equal(["user-interface"], ListingPrefill.TagsFor([new ForumPrefix("User Interface", 8)], vocabulary));
+        Assert.Empty(ListingPrefill.TagsFor([new ForumPrefix("Unknown")], vocabulary));
         Assert.Empty(ListingPrefill.TagsFor([], vocabulary));
+    }
+
+    [Fact]
+    public void TagsFor_RenamedPrefix_MatchesByTheId()
+    {
+        var vocabulary = new CuratedTagVocabulary(1,
+        [
+            new CuratedTag("gameplay", "Gameplay", "Mechanics.", "Gameplay", 9),
+            new CuratedTag("user-interface", "User Interface", "Windows.", "User Interface", 8),
+        ]);
+
+        Assert.Equal(["gameplay"], ListingPrefill.TagsFor([new ForumPrefix("Mechanics", 9)], vocabulary));
+        Assert.Empty(ListingPrefill.TagsFor([new ForumPrefix("Gameplay", 12)], vocabulary));
+        Assert.Equal(["gameplay"], ListingPrefill.TagsFor([new ForumPrefix("Gameplay")], vocabulary));
     }
 
     [Fact]

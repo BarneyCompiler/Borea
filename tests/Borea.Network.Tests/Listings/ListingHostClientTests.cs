@@ -188,7 +188,7 @@ public sealed class ListingHostClientTests
     {
         var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Listings", "Fixtures", "forum-thread.html"));
 
-        Assert.Equal(["Gameplay"], ForumThreadReader.ParsePrefixes(html));
+        Assert.Equal([new ForumPrefix("Gameplay")], ForumThreadReader.ParsePrefixes(html));
     }
 
     [Theory]
@@ -203,7 +203,7 @@ public sealed class ListingHostClientTests
         var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Listings", "Fixtures", "forum-thread.html"));
         var reader = new ForumThreadReader(FakeHttpMessageHandler.BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(html) }, out _));
 
-        Assert.Equal(["Gameplay"], await reader.GetPrefixesAsync("https://forums.ahwoo.com/threads/advanced-flight-computer.783/"));
+        Assert.Equal([new ForumPrefix("Gameplay")], await reader.GetPrefixesAsync("https://forums.ahwoo.com/threads/advanced-flight-computer.783/"));
     }
 
     [Theory]

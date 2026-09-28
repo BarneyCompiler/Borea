@@ -64,6 +64,10 @@ class Element {
     value.split(" ").filter(Boolean).forEach((name) => this.classList.add(name));
   }
 
+  set textContent(value) {
+    this.children = [{ data: String(value) }];
+  }
+
   getAttribute(name) {
     return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null;
   }
@@ -270,7 +274,9 @@ function changed(bytes) {
   return copy;
 }
 
+const GITHUB = image("https://raw.githubusercontent.com/author/mod/0123abc/images/shot.png", 5);
 const OTHER = image("https://example.org/shot.png", 3);
+const REDIRECT = "https://raw.githubusercontent.com/author/mod/main/images/moved.png";
 
 test("with the switch off an image on another host gets no request", async () => {
   const page = open({ records: [OTHER], hosts: { [OTHER.record.url]: OTHER.bytes } });
@@ -310,4 +316,133 @@ test("an image on another host whose bytes do not match its record shows its cap
   await settle();
 
   assert.ok(caption(page.figures[0]));
+});
+
+test("with the switch off an image on GitHub shows and an image on another host gets no request", async () => {
+  const page = open({
+    records: [GITHUB, OTHER],
+    hosts: { [GITHUB.record.url]: GITHUB.bytes, [OTHER.record.url]: OTHER.bytes }
+  });
+  await settle();
+
+  assert.ok(shown(page.figures[0]));
+  assert.ok(page.figures[0].classList.contains("github"));
+  assert.equal(page.figures[1].querySelector(".frame").children.length, 0);
+  assert.ok(!page.figures[1].classList.contains("github"));
+  assert.ok(!page.root.classList.contains("author-images"));
+  assert.deepEqual(page.sent.map((request) => request.url), [GITHUB.record.url]);
+  const options = page.sent[0].options;
+  assert.equal(options.redirect, "error");
+  assert.equal(options.mode, "cors");
+  assert.equal(options.credentials, "omit");
+  assert.equal(options.referrerPolicy, "no-referrer");
+  assert.ok(page.section.querySelector(".image-switch"));
+});
+
+test("with the switch off a GitHub address that redirects shows its caption and asks no other host", async () => {
+  const moved = { url: REDIRECT, sha256: OTHER.record.sha256, width: 3, height: 2, size: OTHER.record.size };
+  const page = open({
+    records: [{ record: moved }],
+    hosts: { [REDIRECT]: { redirect: OTHER.record.url }, [OTHER.record.url]: OTHER.bytes }
+  });
+  await settle();
+
+  assert.ok(caption(page.figures[0]));
+  assert.deepEqual(page.sent.map((request) => request.url), [REDIRECT]);
+});
+
+test("with the switch on a GitHub address that redirects loads as before", async () => {
+  const moved = { url: REDIRECT, sha256: OTHER.record.sha256, width: 3, height: 2, size: OTHER.record.size };
+  const page = open({
+    records: [{ record: moved }, OTHER], setting: "on",
+    hosts: { [REDIRECT]: { redirect: OTHER.record.url }, [OTHER.record.url]: OTHER.bytes }
+  });
+  await settle();
+
+  assert.ok(shown(page.figures[0]));
+  assert.equal(page.sent[0].options.redirect, "follow");
+});
+
+test("turning the switch on asks again for a GitHub image that failed and follows its redirect", async () => {
+  const target = image("https://example.net/moved.png", 4);
+  const moved = Object.assign({}, target.record, { url: REDIRECT });
+  const page = open({
+    records: [{ record: moved }, OTHER],
+    hosts: {
+      [REDIRECT]: { redirect: target.record.url }, [target.record.url]: target.bytes,
+      [OTHER.record.url]: OTHER.bytes
+    }
+  });
+  await settle();
+  assert.ok(caption(page.figures[0]));
+
+  const box = page.section.querySelector("input");
+  box.checked = true;
+  box.dispatch("change");
+  await settle();
+
+  assert.ok(shown(page.figures[0]));
+  assert.ok(shown(page.figures[1]));
+  const again = page.sent.filter((request) => request.url === REDIRECT);
+  assert.deepEqual(again.map((request) => request.options.redirect), ["error", "follow"]);
+  assert.ok(page.sent.some((request) => request.url === target.record.url));
+});
+
+test("a page that has only GitHub images shows no switch", async () => {
+  const page = open({ records: [GITHUB], hosts: { [GITHUB.record.url]: GITHUB.bytes } });
+  await settle();
+
+  assert.equal(page.section.querySelector(".image-switch"), null);
+  assert.ok(shown(page.figures[0]));
+});
+
+test("an image on GitHub whose bytes do not match its record shows its caption", async () => {
+  const page = open({ records: [GITHUB], hosts: { [GITHUB.record.url]: changed(GITHUB.bytes) } });
+  await settle();
+
+  assert.ok(caption(page.figures[0]));
+});
+
+test("only the exact GitHub host names count, compared on the parsed address", async () => {
+  const hosts = {};
+  const records = [
+    "https://raw.githubusercontent.com.evil.example/shot.png",
+    "https://images.raw.githubusercontent.com/shot.png",
+    "https://evilraw.githubusercontent.com/shot.png",
+    "https://RAW.GitHubUserContent.com/author/mod/0123abc/images/shot.png"
+  ].map(function (url) {
+    hosts[url] = GITHUB.bytes;
+    return { record: Object.assign({}, GITHUB.record, { url: url }) };
+  });
+  const page = open({ records: records, hosts: hosts });
+  await settle();
+
+  assert.deepEqual(page.figures.map((node) => node.classList.contains("github")), [false, false, false, true]);
+  assert.deepEqual(page.sent.map((request) => request.url), [records[3].record.url]);
+  assert.ok(shown(page.figures[3]));
+});
+
+test("turning the switch off hides the images of other hosts and keeps the ones on GitHub", async () => {
+  const page = open({
+    records: [GITHUB, OTHER], setting: "on",
+    hosts: { [GITHUB.record.url]: GITHUB.bytes, [OTHER.record.url]: OTHER.bytes }
+  });
+  await settle();
+  const box = page.section.querySelector("input");
+  box.checked = false;
+  box.dispatch("change");
+
+  assert.equal(page.stored[SETTING], "off");
+  assert.ok(!page.root.classList.contains("author-images"));
+  assert.ok(page.figures[0].classList.contains("github"));
+  assert.ok(!page.figures[1].classList.contains("github"));
+});
+
+test("a page written without the switch gets one that names the other hosts", () => {
+  const page = open({ records: [OTHER], withSwitch: false });
+  const line = page.section.querySelector(".image-switch");
+
+  assert.equal(line.querySelector("label").text, " Show images from other hosts");
+  assert.equal(line.querySelector(".meta").text, "Images on GitHub show at once. An image on another host comes " +
+    "from the server of its author, which then sees your IP address, as every website does.");
 });

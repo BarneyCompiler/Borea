@@ -21,6 +21,12 @@
   // instead of leaving an empty frame on the page.
   var DEADLINE = 15000;
   var SETTING = "borea.author-images";
+  // GitHub serves the share pages and so already sees the address of every reader, which is why an image on
+  // one of its hosts loads without the switch. The names are exact, because a name that only ends in one of
+  // them belongs to someone else, and each one answers the CORS request of the page without a redirect.
+  var GITHUB_HOSTS = ["raw.githubusercontent.com"];
+  // The class that opens the room of an image on GitHub, which the style sheet reads.
+  var GITHUB = "github";
   // The class that opens the room of every image on the page, which the style sheet reads.
   var SHOWING = "author-images";
   // The class that shows the switch, because a page that this script cannot drive must not offer one.
@@ -74,14 +80,19 @@
     if (width > PIXELS || height > PIXELS || size > CAP) {
       return null;
     }
+    var address;
     try {
-      if (new URL(url, location.href).protocol !== "https:") {
-        return null;
-      }
+      address = new URL(url, location.href);
     } catch (error) {
       return null;
     }
-    return { url: url, sha256: digest, width: width, height: height, size: size };
+    if (address.protocol !== "https:") {
+      return null;
+    }
+    return {
+      url: url, sha256: digest, width: width, height: height, size: size,
+      github: GITHUB_HOSTS.indexOf(address.hostname) >= 0
+    };
   }
 
   function hex(buffer) {
@@ -182,6 +193,9 @@
       credentials: "omit",
       referrerPolicy: "no-referrer",
       mode: "cors",
+      // An image on GitHub loads without the switch, so it follows no redirect then, and no request can
+      // reach a host the reader did not agree to.
+      redirect: entry.github && !allowed() ? "error" : "follow",
       signal: stop.signal
     }).then(function (response) {
       if (!response.ok) {
@@ -309,18 +323,20 @@
       var box = document.createElement("input");
       box.type = "checkbox";
       label.appendChild(box);
-      label.appendChild(document.createTextNode(" Show images from author hosts"));
+      label.appendChild(document.createTextNode(" Show images from other hosts"));
       line.appendChild(label);
       var note = document.createElement("span");
       note.className = "meta";
-      note.textContent = "Every image comes from the host of its author, which then learns your address.";
+      note.textContent = "Images on GitHub show at once. An image on another host comes from the server of its " +
+        "author, which then sees your IP address, as every website does.";
       line.appendChild(note);
       section.insertBefore(line, section.querySelector(".prose"));
     }
     return line.querySelector("input[type=checkbox]");
   }
 
-  function control(section, shots) {
+  // The switch drives the images of other hosts, and `github` holds the images on GitHub, which load without it.
+  function control(section, shots, github) {
     var box = switchBox(section);
     if (!box) {
       return;
@@ -340,6 +356,11 @@
         // whose bytes did not match its record answers from the answer the page kept, with no new request.
         shots.forEach(function (shot) { shot.failed = false; });
         observer = watch(shots);
+        // An image on GitHub that failed is asked for again too, now with the redirects the reader agreed to.
+        // Its own watch stays when the switch goes off again, as the images on GitHub always do.
+        var again = github.filter(function (shot) { return shot.failed; });
+        again.forEach(function (shot) { shot.failed = false; });
+        watch(again);
       }
     });
     if (box.checked) {
@@ -358,15 +379,20 @@
     Array.prototype.forEach.call(section.querySelectorAll("figure[data-image]"), function (figure) {
       var entry = record(figure);
       var frame = figure.querySelector(".frame");
+      // The page marks an image on GitHub already, and this script has the last word on which one is.
+      figure.classList[entry && frame && entry.github ? "add" : "remove"](GITHUB);
       if (entry && frame) {
         shots.push({ figure: figure, frame: frame, record: entry, shown: false, failed: false, loading: false });
       }
     });
-    if (shots.length) {
-      control(section, shots);
+    var github = shots.filter(function (shot) { return shot.record.github; });
+    watch(github);
+    var others = shots.filter(function (shot) { return !shot.record.github; });
+    if (others.length) {
+      control(section, others, github);
       return;
     }
-    // A page with no image to fetch offers no switch, whatever it was written with.
+    // A page with no image to fetch from another host offers no switch, whatever it was written with.
     var idle = section.querySelector(".image-switch");
     if (idle && idle.parentNode) {
       idle.parentNode.removeChild(idle);

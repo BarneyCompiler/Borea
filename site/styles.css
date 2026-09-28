@@ -520,7 +520,8 @@ button.button {
 
 .prose > pre,
 .prose > table,
-.author-images .prose > figure[data-image]:not(.no-image) {
+.author-images .prose > figure[data-image]:not(.no-image),
+.author-images-ready .prose > figure.github[data-image]:not(.no-image) {
   max-width: none;
 }
 
@@ -618,35 +619,42 @@ button.button {
 }
 
 /* The page keeps the room of an image from the first paint, because the script reads the switch of the reader
-   before the body is parsed, so nothing moves when the bytes arrive. A figure gives the room back when its
-   bytes do not arrive or do not match their record, which is the class the script writes on it. */
-.author-images .prose figure[data-image]:not(.no-image) {
+   before the body is parsed and the page marks an image on GitHub, which loads without the switch, so nothing
+   moves when the bytes arrive. A figure gives the room back when its bytes do not arrive or do not match their
+   record, which is the class the script writes on it. */
+.author-images .prose figure[data-image]:not(.no-image),
+.author-images-ready .prose figure.github[data-image]:not(.no-image) {
   margin-top: 24px;
 }
 
-.author-images .prose figure[data-image]:not(.no-image) .frame {
+.author-images .prose figure[data-image]:not(.no-image) .frame,
+.author-images-ready .prose figure.github[data-image]:not(.no-image) .frame {
   display: block;
 }
 
-.author-images .prose figure[data-image]:not(.no-image) figcaption {
+.author-images .prose figure[data-image]:not(.no-image) figcaption,
+.author-images-ready .prose figure.github[data-image]:not(.no-image) figcaption {
   padding: 0;
   border: 0;
 }
 
 /* An image that has nothing to say keeps a caption for the reader who does not get the image, and no
    caption under the image itself. */
-.author-images .prose figure[data-image]:not(.no-image) figcaption.untitled {
+.author-images .prose figure[data-image]:not(.no-image) figcaption.untitled,
+.author-images-ready .prose figure.github[data-image]:not(.no-image) figcaption.untitled {
   display: none;
 }
 
-.author-images .prose figure[data-image]:not(.no-image) .credit {
+.author-images .prose figure[data-image]:not(.no-image) .credit,
+.author-images-ready .prose figure.github[data-image]:not(.no-image) .credit {
   display: inline;
   margin-left: 10px;
   color: var(--text-2);
 }
 
 /* RFC 0058 asks a client to offer a reader a way to load no image from the host of an author. The page
-   carries the switch, and the script that drives it opens it, so a page with no script offers no switch. */
+   carries the switch when it has an image on another host than GitHub, and the script that drives it opens
+   it, so a page with no script offers no switch. */
 .image-switch {
   display: none;
   flex-wrap: wrap;

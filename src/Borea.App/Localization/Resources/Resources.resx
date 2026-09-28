@@ -3900,17 +3900,23 @@
   <data name="LaunchWrapperRuntimeFormat" xml:space="preserve">
     <value>The start entry for Windows in the listing of {0} needs a runtime, and the Wine wrapper '{1}' starts only the file itself. Borea starts nothing.</value>
   </data>
-  <data name="LaunchRuntimeTitle" xml:space="preserve">
-    <value>Install the .NET runtime</value>
+  <data name="LaunchRuntimeTitleFormat" xml:space="preserve">
+    <value>Install the .NET {0} runtime</value>
   </data>
   <data name="LaunchRuntimeMissingFormat" xml:space="preserve">
-    <value>{0} needs the .NET runtime {1} for Windows x64, and the Wine wrapper '{2}' does not have it. Borea starts nothing. Download the .NET {3} runtime installer for Windows x64 from Microsoft and install it inside the wrapper, in Sikarugir through its Install Software action. Then click Check again.</value>
+    <value>{0} needs the .NET {1} runtime for Windows x64, and the Wine wrapper '{2}' does not have it. Borea cannot start the instance until it is installed.</value>
   </data>
   <data name="LaunchRuntimeStillMissingFormat" xml:space="preserve">
     <value>Borea still finds no .NET runtime {0} in the wrapper.</value>
   </data>
   <data name="LaunchRuntimeDownloadFormat" xml:space="preserve">
-    <value>Open the .NET {0} download page of Microsoft</value>
+    <value>Download the .NET {0} installer for Windows x64</value>
+  </data>
+  <data name="LaunchRuntimeInstallStep" xml:space="preserve">
+    <value>In the Configure window of the wrapper, choose Install Software and select the installer.</value>
+  </data>
+  <data name="LaunchRuntimeCheckStep" xml:space="preserve">
+    <value>Click Check again.</value>
   </data>
   <data name="LaunchRuntimeCheckAgain" xml:space="preserve">
     <value>Check again</value>

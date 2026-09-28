@@ -9,7 +9,7 @@
         <Border Classes="modal" Width="561" Margin="80,0,0,0">
             <StackPanel>
                 <Grid ColumnDefinitions="*,Auto" Margin="24,24,24,0">
-                    <TextBlock Classes="heading-lg" Text="{Binding Localization.LaunchRuntimeTitle}" VerticalAlignment="Center" />
+                    <TextBlock Classes="heading-lg" Text="{Binding RuntimePromptTitle}" VerticalAlignment="Center" />
                     <Button x:Name="CloseButton" Grid.Column="1" Classes="icon" Command="{Binding CloseRuntimePromptCommand}" AutomationProperties.Name="{Binding Localization.ModalClose}">
                         <Path Classes="icon" Data="{StaticResource Icon.Close}" />
                     </Button>
@@ -17,9 +17,17 @@
                 <Border Height="1" Background="{StaticResource Brush.Window}" Margin="0,24,0,0" />
                 <StackPanel Margin="36,32,24,32" Spacing="16">
                     <TextBlock Classes="body-md" Text="{Binding RuntimePromptText}" TextWrapping="Wrap" />
-                    <Button Classes="link" HorizontalAlignment="Left" Command="{Binding OpenRuntimeDownloadCommand}" ToolTip.Tip="{Binding PromptedRuntime.Runtime.DownloadPage}">
-                        <TextBlock Classes="action-md" Text="{Binding RuntimeDownloadText}" />
-                    </Button>
+                    <!-- the numbers sit in the layout, so a translation holds only the steps -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="8">
+                        <TextBlock Classes="body-md" Text="1." VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="link" HorizontalAlignment="Left" Command="{Binding OpenRuntimeDownloadCommand}" ToolTip.Tip="{Binding PromptedRuntime.Runtime.DownloadPage}">
+                            <TextBlock Classes="action-md" Text="{Binding RuntimeDownloadText}" TextWrapping="Wrap" />
+                        </Button>
+                        <TextBlock Grid.Row="1" Classes="body-md" Text="2." />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Classes="body-md" Text="{Binding Localization.LaunchRuntimeInstallStep}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="2" Classes="body-md" Text="3." />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Classes="body-md" Text="{Binding Localization.LaunchRuntimeCheckStep}" TextWrapping="Wrap" />
+                    </Grid>
                     <TextBlock Classes="body-md danger" Text="{Binding RuntimePromptError}" TextWrapping="Wrap" IsVisible="{Binding RuntimePromptError, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                         <Button Classes="text tall" Content="{Binding Localization.ModalClose}" Command="{Binding CloseRuntimePromptCommand}" VerticalAlignment="Center" />

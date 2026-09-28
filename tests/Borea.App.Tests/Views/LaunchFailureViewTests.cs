@@ -1,8 +1,11 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using Borea.App.Tests.ViewModels;
+using Borea.App.ViewModels;
 using Borea.App.Views;
 using Borea.App.Views.Pages;
+using Borea.Core.Launch;
 using Borea.Core.Mods;
 
 namespace Borea.App.Tests.Views;
@@ -40,6 +43,35 @@ public sealed class LaunchFailureViewTests
         Assert.Contains(viewModel.DisableBlamedModText, shown.Modal);
         Assert.Contains(localization.LaunchShowDetails, shown.Modal);
         Assert.Contains(localization.LaunchOpenLog, shown.Modal);
+    }
+
+    [Fact]
+    public async Task RuntimePrompt_ShowsTheVersionInTheTitle_AndTheThreeStepsInOrder()
+    {
+        using var harness = await LaunchFailureTests.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var runtime = DotnetRuntimeNeed.Parse("""{ "runtimeOptions": { "framework": { "name": "Microsoft.NETCore.App", "version": "10.0.0" } } }""")!;
+        viewModel.PromptedRuntime = new RuntimePrompt("StarMap", runtime, "/Applications/KSA.app");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var shown = await HeadlessApp.Session.Dispatch(() =>
+        {
+            var modal = new RuntimePromptModal { DataContext = viewModel };
+            var window = new Window { Width = 1280, Height = 832, Content = modal };
+            window.Show();
+            window.UpdateLayout();
+            // top to bottom, then left to right, as a reader sees them
+            return modal.GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible)
+                .Select(text => (text.Text, Where: text.TranslatePoint(default, modal)!.Value))
+                .OrderBy(text => Math.Round(text.Where.Y)).ThenBy(text => text.Where.X)
+                .Select(text => text.Text).ToList();
+        }, timeout.Token);
+
+        var localization = harness.Localization;
+        Assert.Equal(localization.FormatLaunchRuntimeTitle("10.0"), shown[0]);
+        Assert.Contains(localization.FormatLaunchRuntimeMissing("StarMap", "10.0", "/Applications/KSA.app"), shown);
+        var steps = new[] { "1.", localization.FormatLaunchRuntimeDownload("10.0"), "2.", localization.LaunchRuntimeInstallStep, "3.", localization.LaunchRuntimeCheckStep };
+        Assert.Equal(steps, shown.Where(steps.Contains));
     }
 
     /// <summary>The texts that show, which includes the text of each shown button.</summary>

@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using Borea.App.Formatting;
+using Borea.App.Links;
 using Borea.App.Localization;
 using Borea.App.ViewModels;
 using Borea.Composition;
@@ -21,7 +22,10 @@ namespace Borea.App.Tests.ViewModels;
 /// <summary>
 /// A <see cref="MainViewModel"/> over real services in a temporary Borea root.
 /// The content index comes from the shared snapshot fixture; SpaceDock is a
-/// fake that knows one mirrored listing and one listing of its own.
+/// fake that knows one mirrored listing and one listing of its own. A test
+/// builds every further view model on these services through
+/// <see cref="NewViewModel"/> and never with <c>new MainViewModel</c>, because
+/// only then does <see cref="Dispose"/> wait for its preference saves.
 /// </summary>
 internal sealed class ViewModelHarness : IDisposable
 {
@@ -33,6 +37,9 @@ internal sealed class ViewModelHarness : IDisposable
     public BoreaServices Services { get; private set; } = null!;
 
     public MainViewModel ViewModel { get; private set; } = null!;
+
+    /// <summary>The view models that <see cref="NewViewModel"/> built.</summary>
+    private readonly List<MainViewModel> _otherViewModels = [];
 
     public LocalizationService Localization { get; } = new(CultureInfo.GetCultureInfo("en"));
 
@@ -139,6 +146,28 @@ internal sealed class ViewModelHarness : IDisposable
         return harness;
     }
 
+    /// <summary>
+    /// Builds one more view model, for a test that restarts Borea or starts from
+    /// other values. <see cref="WhenIdleAsync"/> and <see cref="Dispose"/> wait for
+    /// its work too, because Windows cannot delete the folder while a preference
+    /// save still has its file open.
+    /// </summary>
+    /// <param name="appPreferencesRepository">Where it saves its preferences. Null saves none.</param>
+    /// <param name="appPreferences">The preferences it starts from. Null starts from none.</param>
+    /// <param name="services">The services it works on. Null leaves it without services.</param>
+    /// <param name="localization">Null uses <see cref="Localization"/>.</param>
+    /// <param name="linkHandler">Registers the borea links. Null registers none.</param>
+    public MainViewModel NewViewModel(IAppPreferencesRepository? appPreferencesRepository = null, AppPreferences? appPreferences = null, BoreaServices? services = null, LocalizationService? localization = null, LinkHandler? linkHandler = null)
+    {
+        localization ??= Localization;
+        var viewModel = new MainViewModel(localization, new RegionalFormatService(localization), appPreferencesRepository, appPreferences ?? AppPreferences.Empty, services)
+        {
+            LinkHandler = linkHandler,
+        };
+        _otherViewModels.Add(viewModel);
+        return viewModel;
+    }
+
     /// <summary>Adds a curated tag vocabulary for mods to the snapshot, in the given order.</summary>
     public static Func<string, string> CuratedTags(params (string Tag, string Name)[] tags) =>
         json => "{ \"tags\": " + $$"""{ "spec_version": 1, "mod": [{{string.Join(", ", tags.Select(tag => $$"""{ "tag": "{{tag.Tag}}", "name": "{{tag.Name}}", "meaning": "{{tag.Name}} content." }"""))}}] }""" + "," + json.TrimStart()[1..];
@@ -187,8 +216,9 @@ internal sealed class ViewModelHarness : IDisposable
         BoreaServices.BuildAsync(Root, new IndexOnlyHandler(this), SpaceDock, Candidates, processStarter: _processStarter, images: _images ?? Images, sharedProfileRoot: _sharedProfileRoot ?? Path.Combine(Root, "GameProfile"), isGameProcessRunning: () => IsGameProcessRunning(), isOtherBoreaRunning: () => IsOtherBoreaRunning(), gitHub: _gitHub, listingPublisher: _listingPublisher, selfUpdater: _selfUpdater, indexStatusEditor: _indexStatusEditor, stewardQueue: _stewardQueue, watcherIssues: _watcherIssues, pullRequestReviews: _pullRequestReviews, pullRequestActions: _pullRequestActions, indexReports: _indexReports, releaseAmendments: _releaseAmendments);
 
     /// <summary>
-    /// Completes when no background work of the view model is in flight. Work that
-    /// such a task starts is waited for as well, until nothing is left.
+    /// Completes when no background work of a view model of this harness is in
+    /// flight. Work that such a task starts is waited for as well, until nothing
+    /// is left.
     /// </summary>
     /// <remarks>
     /// A test that renders must call this inside its headless dispatch. The work of
@@ -222,12 +252,12 @@ internal sealed class ViewModelHarness : IDisposable
             }
             catch (TimeoutException)
             {
-                throw new TimeoutException($"The background work of the view model did not finish in {end.TotalSeconds:0} seconds, which leaves {string.Join(", ", pending.Select(work => work.Name))}.");
+                throw new TimeoutException($"The background work of the view models did not finish in {end.TotalSeconds:0} seconds, which leaves {string.Join(", ", pending.Select(work => work.Name))}.");
             }
         }
 
         if (Pending().Any())
-            throw new InvalidOperationException($"The view model started new background work in each of {IdlePasses} passes.");
+            throw new InvalidOperationException($"The view models started new background work in each of {IdlePasses} passes.");
     }
 
     /// <summary>How often <see cref="WhenIdleAsync"/> waits for work that the last wait started.</summary>
@@ -241,12 +271,22 @@ internal sealed class ViewModelHarness : IDisposable
     /// </summary>
     private static readonly TimeSpan DisposeLimit = TimeSpan.FromSeconds(60);
 
-    /// <summary>Every background task of the view model that is not done yet, by name.</summary>
+    /// <summary>Every background task of the view models that is not done yet, by name.</summary>
     private IEnumerable<(string Name, Task Task)> Pending()
     {
-        if (ViewModel is not { } viewModel)
+        if (ViewModel is null)
             yield break;
 
+        foreach (var item in Pending(ViewModel))
+            yield return item;
+
+        for (var index = 0; index < _otherViewModels.Count; index++)
+            foreach (var (name, task) in Pending(_otherViewModels[index]))
+                yield return ($"{name} of view model {index + 2}", task);
+    }
+
+    private static IEnumerable<(string Name, Task Task)> Pending(MainViewModel viewModel)
+    {
         (string Name, Task Task)[] work =
         [
             ("PreferencesSaved", viewModel.WhenPreferencesSavedAsync()),
@@ -280,7 +320,7 @@ internal sealed class ViewModelHarness : IDisposable
 
     public void Dispose()
     {
-        // a language or theme change saves in the background; let it finish before the folder goes
+        // a view model saves its preferences in the background, so every save has to finish before the folder goes
         WhenIdleAsync(DisposeLimit).GetAwaiter().GetResult();
         Services.Dispose();
         CultureInfo.CurrentCulture = _originalCulture;

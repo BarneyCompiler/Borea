@@ -436,6 +436,10 @@
             <Setter Property="Background" Value="{StaticResource Brush.Accent}" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
+        <!-- a leading icon weighs the left side, so the pill gives it less room there -->
+        <Style Selector="Button.cta.with-icon">
+            <Setter Property="Padding" Value="20,0,24,0" />
+        </Style>
         <Style Selector="Button.cta:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="{StaticResource Brush.Accent}" />
             <Setter Property="Opacity" Value="0.9" />

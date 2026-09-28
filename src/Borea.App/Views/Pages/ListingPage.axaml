@@ -504,7 +504,7 @@
                                 <!-- no GitHub sign-in in this build, so the browser opens the pull request -->
                                 <StackPanel Spacing="12" IsVisible="{Binding ListingEditor.UsesBrowserOnly}">
                                     <TextBlock Classes="body-sm secondary" Text="{Binding ListingEditor.PullRequestText}" TextWrapping="Wrap" />
-                                    <Button Classes="cta" Command="{Binding ListingEditor.OpenPullRequestCommand}" IsEnabled="{Binding ListingEditor.CanOpenPullRequest}" HorizontalAlignment="Left">
+                                    <Button Classes="cta with-icon" Command="{Binding ListingEditor.OpenPullRequestCommand}" IsEnabled="{Binding ListingEditor.CanOpenPullRequest}" HorizontalAlignment="Left">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <Path Classes="icon size-16" Data="{StaticResource Icon.GithubLogo}" Stroke="{StaticResource Brush.SurfaceHeader}" VerticalAlignment="Center" />
                                             <TextBlock Classes="action-lg" Text="{Binding Localization.ListingOpenPullRequest}" VerticalAlignment="Center" />
@@ -539,7 +539,7 @@
                                         </WrapPanel>
                                     </StackPanel>
                                     <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                        <Button Classes="cta" Command="{Binding ListingEditor.PublishCommand}" IsEnabled="{Binding ListingEditor.CanPublish}">
+                                        <Button Classes="cta with-icon" Command="{Binding ListingEditor.PublishCommand}" IsEnabled="{Binding ListingEditor.CanPublish}">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Path Classes="icon size-16" Data="{StaticResource Icon.GithubLogo}" Stroke="{StaticResource Brush.SurfaceHeader}" VerticalAlignment="Center" />
                                                 <TextBlock Classes="action-lg" Text="{Binding ListingEditor.PublishLabel}" VerticalAlignment="Center" />

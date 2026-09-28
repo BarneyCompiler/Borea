@@ -67,7 +67,8 @@ public sealed class StewardViewModelTests
     [Fact]
     public async Task SignOut_HidesTheStatusActions()
     {
-        using var harness = await CreateAsync();
+        // built without a synchronization context, so the session and the role refresh the page inline and in order
+        using var harness = await Task.Run(() => CreateAsync());
         var viewModel = harness.ViewModel;
         await OpenListingAsync(viewModel, "MeasureTools");
         Assert.True(viewModel.CanEditContentStatus);

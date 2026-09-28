@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Borea.Core.Index;
+using Borea.Core.Updates;
 using Borea.Network.Images;
 
 namespace Borea.Network.Tests.Images;
@@ -30,6 +31,21 @@ public sealed class ContentImageSourceTests
         Assert.Equal(IconBytes, result.Bytes.ToArray());
         Assert.Equal(new[] { new Uri(IconUrl) }, requested);
         Assert.Equal(IconBytes, cache.Entries[Icon(IconBytes).Sha256]);
+    }
+
+    [Fact]
+    public async Task GetAsync_Request_NamesBoreaAndTheContactLinkInTheUserAgent()
+    {
+        string? userAgent = null;
+        using var source = Source((request, _) =>
+        {
+            userAgent = request.Headers.UserAgent.ToString();
+            return Task.FromResult(Image(IconBytes));
+        });
+
+        await source.GetAsync(Icon(IconBytes), loadFromAuthorHosts: true);
+
+        Assert.Equal($"Borea/{BoreaBuild.Version} (+https://github.com/KSAModding/Borea)", userAgent);
     }
 
     [Fact]

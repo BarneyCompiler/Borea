@@ -12,6 +12,7 @@ using Borea.Core.ModLoaders;
 using Borea.Storage.Launch;
 using Borea.Core.Mods;
 using Borea.Core.Settings;
+using Borea.Core.Updates;
 using Borea.Network.GitHub;
 using Borea.Network.Index;
 using Borea.Network.Listings;
@@ -594,6 +595,25 @@ public sealed class BoreaServicesTests : IDisposable
         await Assert.ThrowsAsync<ObjectDisposedException>(() => services.IndexFetcher.FetchAsync(services.Paths.GetIndexPath()));
     }
 
+    [Fact]
+    public async Task ForumThreads_Request_NamesBoreaAndTheContactLinkInTheUserAgent()
+    {
+        var handler = new UserAgentRecordingHandler();
+        using var services = await BoreaServices.BuildAsync(_tempRoot, handler, new ReleaseListRepository([]));
+
+        await services.ForumThreads.GetPrefixesAsync("https://forums.ahwoo.com/threads/borea.1/");
+
+        Assert.Equal([$"Borea/{BoreaBuild.Version} (+https://github.com/KSAModding/Borea)"], handler.UserAgents);
+    }
+
+    [Fact]
+    public void GitHubClient_NamesBoreaAndTheContactLinkInTheUserAgent()
+    {
+        using var client = BoreaServices.BuildGitHubHttpClient();
+
+        Assert.Equal($"Borea/{BoreaBuild.Version} (+https://github.com/KSAModding/Borea)", client.DefaultRequestHeaders.UserAgent.ToString());
+    }
+
     /// <summary>The least a release needs to reach the client, which is all the
     /// disposal probe above asks of it.</summary>
     private static ModVersionMetadata Release() => new(
@@ -675,6 +695,17 @@ public sealed class BoreaServicesTests : IDisposable
             {
                 Content = new StringContent(snapshot, Encoding.UTF8, "application/json"),
             });
+        }
+    }
+
+    private sealed class UserAgentRecordingHandler : HttpMessageHandler
+    {
+        public List<string> UserAgents { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            UserAgents.Add(request.Headers.UserAgent.ToString());
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html></html>", Encoding.UTF8, "text/html") });
         }
     }
 

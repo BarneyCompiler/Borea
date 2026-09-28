@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using Borea.Core.Index;
 
 namespace Borea.Network.Images;
@@ -26,7 +25,7 @@ internal sealed class ContentImageFetcher : IDisposable
             throw new ArgumentOutOfRangeException(nameof(timeout), "The timeout must be a positive finite timer interval.");
 
         _client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-        _client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Borea", typeof(ContentImageFetcher).Assembly.GetName().Version?.ToString(3)));
+        BoreaUserAgent.Apply(_client);
         _timeout = timeout;
     }
 

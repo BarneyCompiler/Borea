@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Reflection;
 using Borea.Core.Announcements;
 using Borea.Core.Dependencies;
@@ -20,6 +19,7 @@ using Borea.Core.Settings;
 using Borea.Core.State;
 using Borea.Core.Stewardship;
 using Borea.Core.Updates;
+using Borea.Network;
 using Borea.Network.Announcements;
 using Borea.Network.Downloads;
 using Borea.Network.GitHub;
@@ -281,7 +281,7 @@ public sealed class BoreaServices : IDisposable
     /// under the default root, because the session outlives the graph and its root.
     /// </summary>
     private static readonly Lazy<GitHubSession> ProcessGitHub = new(() => new GitHubSession(
-        BuildHttpClient(new SocketsHttpHandler { PooledConnectionLifetime = ConnectionLifetime, AllowAutoRedirect = false }),
+        BuildGitHubHttpClient(),
         BoreaGitHubApp.ClientId,
         BoreaGitHubApp.Slug,
         secrets: SecretStores.ForCurrentUser(new GamePathProvider(gameDirectory: null))));
@@ -562,14 +562,15 @@ public sealed class BoreaServices : IDisposable
             ? BoreaProduct.Cli
             : BoreaProduct.App;
 
+    /// <summary>The client of the process GitHub session, which does not follow redirects.</summary>
+    internal static HttpClient BuildGitHubHttpClient()
+        => BuildHttpClient(new SocketsHttpHandler { PooledConnectionLifetime = ConnectionLifetime, AllowAutoRedirect = false });
+
     private static HttpClient BuildHttpClient(HttpMessageHandler? handler)
     {
         handler ??= new SocketsHttpHandler { PooledConnectionLifetime = ConnectionLifetime };
         var http = new HttpClient(handler);
-
-        var version = typeof(BoreaServices).Assembly.GetName().Version?.ToString(3);
-        http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Borea", version));
-
+        BoreaUserAgent.Apply(http);
         return http;
     }
 

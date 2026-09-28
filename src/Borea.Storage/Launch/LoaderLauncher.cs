@@ -14,7 +14,8 @@ namespace Borea.Storage.Launch;
 /// ILauncher over the configured loader directories and a process starter.
 /// It remembers every launch per instance until the process has ended, which
 /// includes a restart that took over its streams, so a second launch of a
-/// running instance is refused.
+/// running instance is refused, and then until the next launch of the
+/// instance, so its exit watch still finds it.
 /// </summary>
 public sealed class LoaderLauncher : ILauncher, IDisposable
 {
@@ -25,12 +26,21 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     private readonly Func<bool> _isGameRunning;
     private readonly object _gate;
     private readonly Dictionary<Guid, IStartedProcess> _running;
-    private readonly Dictionary<Guid, (DateTime? GameLogAtLaunch, string LoaderName)> _starts;
+    private readonly Dictionary<Guid, (DateTime? GameLogAtLaunch, DateTime? CrashLogAtLaunch, string LoaderName)> _starts;
+    private readonly Dictionary<Guid, (IStartedProcess Process, DateTime? CrashLogAtLaunch)> _ended;
     private readonly bool _ownsLaunches;
     private readonly TimeSpan _startupWindow;
+    private readonly TimeSpan _crashLogWait;
 
     /// <summary>How long a launch is watched when the game does not write its log first.</summary>
     public static readonly TimeSpan DefaultStartupWindow = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// How long an exit watch waits for the crash log of a process that ended
+    /// with an error. The monitor process of the game writes it only after it
+    /// saw the game end.
+    /// </summary>
+    public static readonly TimeSpan DefaultCrashLogWait = TimeSpan.FromSeconds(10);
 
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
 
@@ -57,7 +67,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     {
     }
 
-    internal LoaderLauncher(IGamePathProvider pathProvider, IProcessStarter starter, OsPlatform? platform, Func<string?> findDotnet, TimeSpan startupWindow, RunningLaunches? launches = null, Func<bool>? isGameRunning = null)
+    internal LoaderLauncher(IGamePathProvider pathProvider, IProcessStarter starter, OsPlatform? platform, Func<string?> findDotnet, TimeSpan startupWindow, RunningLaunches? launches = null, Func<bool>? isGameRunning = null, TimeSpan? crashLogWait = null)
     {
         _pathProvider = pathProvider ?? throw new ArgumentNullException(nameof(pathProvider));
         _starter = starter ?? throw new ArgumentNullException(nameof(starter));
@@ -68,11 +78,13 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
             throw new ArgumentOutOfRangeException(nameof(startupWindow), "The startup window cannot be negative.");
 
         _startupWindow = startupWindow;
+        _crashLogWait = crashLogWait ?? DefaultCrashLogWait;
         _ownsLaunches = launches is null;
         launches ??= new RunningLaunches();
         _gate = launches.Gate;
         _running = launches.Processes;
         _starts = launches.Starts;
+        _ended = launches.Ended;
     }
 
     public LaunchResult Launch(Instance instance, ModMetadata? loader, IReadOnlyList<string>? arguments = null)
@@ -196,8 +208,10 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                     plan);
             }
 
+            var gameLog = _pathProvider.GetInstanceGameLogPath(instance.InstanceId);
             _running[instance.InstanceId] = process;
-            _starts[instance.InstanceId] = (LastWrite(_pathProvider.GetInstanceGameLogPath(instance.InstanceId)), loader.Name);
+            _starts[instance.InstanceId] = (LastWrite(gameLog), LastCrashLogWrite(gameLog), loader.Name);
+            _ended.Remove(instance.InstanceId);
 
             return LaunchResult.Success(
                 plan,
@@ -214,7 +228,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
             return started;
 
         IStartedProcess? process;
-        (DateTime? GameLogAtLaunch, string LoaderName) start;
+        (DateTime? GameLogAtLaunch, DateTime? CrashLogAtLaunch, string LoaderName) start;
         lock (_gate)
         {
             if (!_running.TryGetValue(instance.InstanceId, out process) || process.Id != started.ProcessId || !_starts.TryGetValue(instance.InstanceId, out start))
@@ -282,7 +296,7 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                 $"{start.LoaderName} stopped without starting the game. The details show what it wrote.");
         }
 
-        var blamed = Blame(instance, output);
+        var blamed = ModBlame.Find(instance, _pathProvider.GetInstanceModsFolder(instance.InstanceId), LoaderCrashReport.AssemblyNames(output));
         var cause = blamed is null ? LoaderCrashCause.Unknown : LoaderCrashCause.ModAssembly;
         if (blamed is null && LoaderCrashReport.StoppedWhileLoadingMods(output))
         {
@@ -301,36 +315,74 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
         return LaunchResult.ExitedEarly(started.Plan, exitCode.Value, output, blamed?.ModId, message, cause);
     }
 
-    /// <summary>
-    /// The installed mod behind the first assembly the output names: a mod
-    /// whose id is the assembly's name, or whose folder holds that assembly.
-    /// </summary>
-    private InstalledMod? Blame(Instance instance, IReadOnlyList<string> output)
+    public async Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default)
     {
-        var modsFolder = _pathProvider.GetInstanceModsFolder(instance.InstanceId);
-        foreach (var assembly in LoaderCrashReport.AssemblyNames(output))
-        {
-            var byId = instance.Mods.FirstOrDefault(mod => string.Equals(mod.ModId, assembly, StringComparison.OrdinalIgnoreCase));
-            if (byId is not null)
-                return byId;
+        ArgumentNullException.ThrowIfNull(instance);
+        ArgumentNullException.ThrowIfNull(started);
+        if (!started.Started || started.ProcessId is not { } processId)
+            return GameExit.Unknown;
 
-            foreach (var mod in instance.Mods)
-            {
-                var folder = Path.Combine(modsFolder, mod.ModId);
-                try
-                {
-                    if (Directory.Exists(folder) && Directory.EnumerateFiles(folder, assembly + ".dll", new EnumerationOptions { RecurseSubdirectories = true, MatchCasing = MatchCasing.CaseInsensitive, IgnoreInaccessible = true }).Any())
-                        return mod;
-                }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
-                {
-                    // a folder that cannot be searched, such as a link to a removed folder, blames nothing
-                }
-            }
+        IStartedProcess process;
+        DateTime? crashLogAtLaunch;
+        lock (_gate)
+        {
+            if (_running.TryGetValue(instance.InstanceId, out var running) && running.Id == processId && _starts.TryGetValue(instance.InstanceId, out var start))
+                (process, crashLogAtLaunch) = (running, start.CrashLogAtLaunch);
+            else if (_ended.TryGetValue(instance.InstanceId, out var ended) && ended.Process.Id == processId)
+                (process, crashLogAtLaunch) = ended;
+            else
+                return GameExit.Unknown;
         }
 
-        return null;
+        int? endedWith;
+        try
+        {
+            await process.WaitForExitAsync(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            endedWith = process.ExitCode;
+        }
+        catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException)
+        {
+            // a released handle keeps the exit code of a process that had ended
+            endedWith = process.ExitCode;
+        }
+
+        if (endedWith is not { } exitCode)
+            return GameExit.Unknown;
+
+        // a quit and a restart exit with 0, and neither is a crash
+        var output = process.RecentOutput;
+        var crash = exitCode == 0 ? null : await FindCrashAsync(instance, processId, crashLogAtLaunch, cancellationToken).ConfigureAwait(false);
+        return new GameExit(crash is null ? GameExitKind.Closed : GameExitKind.Crashed, exitCode, output, crash);
     }
+
+    /// <summary>
+    /// The crash log that the game wrote for the process after the launch. The
+    /// log names the process, so the crash of another run, such as the new
+    /// process of a restart, is never taken for this one.
+    /// </summary>
+    private async Task<GameCrash?> FindCrashAsync(Instance instance, int processId, DateTime? crashLogAtLaunch, CancellationToken cancellationToken)
+    {
+        var gameLog = _pathProvider.GetInstanceGameLogPath(instance.InstanceId);
+        var modsFolder = _pathProvider.GetInstanceModsFolder(instance.InstanceId);
+        var watched = Stopwatch.StartNew();
+        while (true)
+        {
+            var log = GameLogFiles.FindCrashLogs(gameLog)
+                .Where(log => log.ProcessId == processId && (crashLogAtLaunch is null || log.File.LastWriteTimeUtc > crashLogAtLaunch))
+                .MaxBy(log => log.File.LastWriteTimeUtc);
+            if (log is not null && GameCrashLogs.Read(log, instance, modsFolder) is { } crash)
+                return crash;
+
+            if (watched.Elapsed >= _crashLogWait)
+                return null;
+
+            await Task.Delay(Min(PollInterval, _crashLogWait - watched.Elapsed), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static DateTime? LastCrashLogWrite(string gameLogPath) => GameLogFiles.FindCrashLogs(gameLogPath)
+        .Select(log => (DateTime?)log.File.LastWriteTimeUtc)
+        .Max();
 
     /// <summary>
     /// Whether a session log appeared or changed after the launch. The files'
@@ -408,11 +460,16 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
     /// <summary>Drops the launches that ended, or every launch, and releases their handles.</summary>
     private void Forget(bool ended)
     {
+        if (!ended)
+            _ended.Clear();
+
         foreach (var (instanceId, process) in _running.ToArray())
         {
             if (ended && !HasEnded(process))
                 continue;
 
+            if (ended)
+                _ended[instanceId] = (process, _starts.GetValueOrDefault(instanceId).CrashLogAtLaunch);
             _running.Remove(instanceId);
             _starts.Remove(instanceId);
             process.Dispose();

@@ -1020,6 +1020,212 @@ public sealed class LoaderLauncherTests : IDisposable
         Assert.Same(failed, await _launcher.WatchStartAsync(_instance, failed));
     }
 
+    private const int UnhandledException = -532462766;
+
+    /// <summary>The end of a tail that Brutal.Monitor kept of a run that crashed, with an exception the game caught before it.</summary>
+    private static string[] CrashTail(params string[] innerFrames) =>
+    [
+        "[Brutal.Monitor] the most recent 37 log lines - full history in KittenSpaceAgency.260926-122536.1000.log",
+        "System.InvalidOperationException: There is an error in XML document (4364, 39).",
+        " ---> System.FormatException: The input string '0,389' was not in a correct format.",
+        "   at KSArmory.Settings.Read()",
+        "loaded system 'Test'",
+        "Unhandled exception System.Reflection.TargetInvocationException: Exception has been thrown by the target of an invocation.",
+        " ---> System.NullReferenceException: Object reference not set to an instance of an object.",
+        .. innerFrames,
+        "   at KSA.ConfigOnStartPopup.SetVehicles()",
+        "   at KSA.Program.Main(String[] inArgs)",
+        "   --- End of inner exception stack trace ---",
+        "   at StarMap.GameSurveyer.RunGame()",
+        "   at StarMap.Program.Main(String[] args).",
+        "Last chance dump: Failed Write dump failed - HRESULT: 0x80004005..",
+    ];
+
+    private string LogsFolder(Instance instance) => Path.GetDirectoryName(_paths.GetInstanceGameLogPath(instance.InstanceId))!;
+
+    /// <summary>Writes a crash log the way Brutal.Monitor names it for the run of the process.</summary>
+    private string WriteCrashLog(Instance instance, int processId, string kind = "abnormal-exit", string[]? lines = null)
+    {
+        var name = kind == "abnormal-exit"
+            ? $"KittenSpaceAgency.260926-122536.{processId}.20260926_122557.abnormal-exit.log"
+            : $"KittenSpaceAgency.260926-122536.{processId}.{kind}.log";
+        var path = Path.Combine(LogsFolder(instance), name);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllLines(path, lines ?? CrashTail());
+        return path;
+    }
+
+    /// <summary>A launch whose game wrote its log, so its start was watched as good, and whose process still runs.</summary>
+    private async Task<(LaunchResult Started, FakeStartedProcess Process)> StartGameAsync(LoaderLauncher launcher, Instance instance)
+    {
+        var launched = launcher.Launch(instance, LoaderListing(provides: StarMapProvides()));
+        var process = _starter.Processes[^1];
+        var gameLog = _paths.GetInstanceGameLogPath(instance.InstanceId);
+        Directory.CreateDirectory(Path.GetDirectoryName(gameLog)!);
+        File.WriteAllText(gameLog, "INFO loaded settings");
+        var started = await launcher.WatchStartAsync(instance, launched);
+        Assert.True(started.Started);
+        return (started, process);
+    }
+
+    private LoaderLauncher LauncherWithCrashLogWait(TimeSpan wait) =>
+        new(_paths, _starter, OsPlatform.Windows, NoDotnetNeeded, LoaderLauncher.DefaultStartupWindow, crashLogWait: wait);
+
+    [Fact]
+    public async Task WatchExit_GameCrashesAfterTheStart_ReportsItsCrashLogAndException()
+    {
+        PlaceStarMap();
+        var (started, process) = await StartGameAsync(_launcher, _instance);
+
+        var watch = _launcher.WatchExitAsync(_instance, started);
+        Assert.False(watch.IsCompleted);
+        var log = WriteCrashLog(_instance, process.Id);
+        process.Exit(UnhandledException);
+        var exit = await watch.WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(GameExitKind.Crashed, exit.Kind);
+        Assert.Equal(UnhandledException, exit.ExitCode);
+        var crash = Assert.IsType<GameCrash>(exit.Crash);
+        Assert.Equal(log, crash.LogPath);
+        Assert.Equal($"KittenSpaceAgency.260926-122536.{process.Id}", crash.Run);
+        Assert.Equal("System.NullReferenceException: Object reference not set to an instance of an object.", crash.Exception);
+        Assert.Null(crash.BlamedModId);
+    }
+
+    [Fact]
+    public async Task WatchExit_CrashLogWrittenAfterTheProcessEnded_IsWaitedFor()
+    {
+        PlaceStarMap();
+        using var launcher = LauncherWithCrashLogWait(TimeSpan.FromSeconds(30));
+        var (started, process) = await StartGameAsync(launcher, _instance);
+        process.Exit(UnhandledException);
+
+        var watch = launcher.WatchExitAsync(_instance, started);
+        await Task.Delay(300);
+        Assert.False(watch.IsCompleted);
+        var log = WriteCrashLog(_instance, process.Id, "previous-crash");
+
+        Assert.Equal(log, (await watch.WaitAsync(TimeSpan.FromSeconds(30))).Crash?.LogPath);
+    }
+
+    [Fact]
+    public async Task WatchExit_StackNamesAModAssembly_BlamesThatMod()
+    {
+        PlaceStarMap();
+        var instance = InstanceWith("ModMenu", "kessler-armory");
+        PlaceMod(instance, "ModMenu", "name = \"ModMenu\"", "ModMenu");
+        PlaceMod(instance, "kessler-armory", "name = \"KSArmory\"", "KSArmory");
+        var (started, process) = await StartGameAsync(_launcher, instance);
+        WriteCrashLog(instance, process.Id, lines: CrashTail("   at KSArmory.RoundFollowable.DrawAxes()"));
+        process.Exit(UnhandledException);
+
+        var exit = await _launcher.WatchExitAsync(instance, started);
+
+        Assert.Equal("kessler-armory", exit.Crash?.BlamedModId);
+    }
+
+    [Fact]
+    public async Task WatchExit_OnlyTheGameAndTheRuntimeInTheStack_BlamesNoMod()
+    {
+        PlaceStarMap();
+        var instance = InstanceWith("KSArmory");
+        PlaceMod(instance, "KSArmory", "name = \"KSArmory\"", "KSArmory", "KSA", "System");
+        var (started, process) = await StartGameAsync(_launcher, instance);
+        WriteCrashLog(instance, process.Id);
+        process.Exit(UnhandledException);
+
+        var exit = await _launcher.WatchExitAsync(instance, started);
+
+        Assert.Equal(GameExitKind.Crashed, exit.Kind);
+        Assert.Null(exit.Crash?.BlamedModId);
+    }
+
+    [Fact]
+    public async Task WatchExit_QuitOrRestartWithZero_IsClosedEvenWithACrashLog()
+    {
+        PlaceStarMap();
+        var (started, process) = await StartGameAsync(_launcher, _instance);
+        process.Output.Add("StarMap - RESTARTING");
+        WriteCrashLog(_instance, process.Id);
+        process.Exit(0);
+
+        var exit = await _launcher.WatchExitAsync(_instance, started);
+
+        Assert.Equal(GameExitKind.Closed, exit.Kind);
+        Assert.Equal(0, exit.ExitCode);
+        Assert.Null(exit.Crash);
+        Assert.Equal(["StarMap - RESTARTING"], exit.Output);
+    }
+
+    [Fact]
+    public async Task WatchExit_RunLogWithTheExceptionButNoCrashLog_IsClosed()
+    {
+        PlaceStarMap();
+        using var launcher = LauncherWithCrashLogWait(TimeSpan.FromMilliseconds(100));
+        var (started, process) = await StartGameAsync(launcher, _instance);
+        File.WriteAllLines(Path.Combine(LogsFolder(_instance), $"KittenSpaceAgency.260926-122536.{process.Id}.log"), ["12:25:43.983 ERROR " + CrashTail()[5], .. CrashTail()[6..]]);
+        process.Exit(UnhandledException);
+
+        var exit = await launcher.WatchExitAsync(_instance, started);
+
+        Assert.Equal(GameExitKind.Closed, exit.Kind);
+        Assert.Equal(UnhandledException, exit.ExitCode);
+        Assert.Null(exit.Crash);
+    }
+
+    [Fact]
+    public async Task WatchExit_CrashLogOfAnotherProcess_IsNotThisCrash()
+    {
+        PlaceStarMap();
+        using var launcher = LauncherWithCrashLogWait(TimeSpan.FromMilliseconds(100));
+        var (started, process) = await StartGameAsync(launcher, _instance);
+        WriteCrashLog(_instance, process.Id + 1);
+        process.Exit(UnhandledException);
+
+        Assert.Equal(GameExitKind.Closed, (await launcher.WatchExitAsync(_instance, started)).Kind);
+    }
+
+    [Fact]
+    public async Task WatchExit_CrashLogFromBeforeTheLaunch_IsNotThisCrash()
+    {
+        PlaceStarMap();
+        var old = WriteCrashLog(_instance, 1000);
+        File.SetLastWriteTimeUtc(old, DateTime.UtcNow.AddDays(-3));
+        using var launcher = LauncherWithCrashLogWait(TimeSpan.FromMilliseconds(100));
+        var (started, process) = await StartGameAsync(launcher, _instance);
+        Assert.Equal(1000, process.Id);
+        process.Exit(UnhandledException);
+
+        Assert.Equal(GameExitKind.Closed, (await launcher.WatchExitAsync(_instance, started)).Kind);
+    }
+
+    [Fact]
+    public async Task WatchExit_LaunchForgottenBeforeTheWatch_StillReportsTheCrash()
+    {
+        PlaceStarMap();
+        var (started, process) = await StartGameAsync(_launcher, _instance);
+        WriteCrashLog(_instance, process.Id);
+        process.Exit(UnhandledException);
+        Assert.False(_launcher.IsRunning(_instance.InstanceId));
+        Assert.True(process.Disposed);
+
+        var exit = await _launcher.WatchExitAsync(_instance, started);
+
+        Assert.Equal(GameExitKind.Crashed, exit.Kind);
+    }
+
+    [Fact]
+    public async Task WatchExit_LaunchThatDidNotStartOrOfAnEarlierLaunch_IsUnknown()
+    {
+        PlaceStarMap();
+        var (started, process) = await StartGameAsync(_launcher, _instance);
+        process.Exit(0);
+        await StartGameAsync(_launcher, _instance);
+
+        Assert.Same(GameExit.Unknown, await _launcher.WatchExitAsync(_instance, _launcher.Launch(_instance, loader: null)));
+        Assert.Same(GameExit.Unknown, await _launcher.WatchExitAsync(_instance, started));
+    }
+
     public void Dispose()
     {
         _launcher.Dispose();

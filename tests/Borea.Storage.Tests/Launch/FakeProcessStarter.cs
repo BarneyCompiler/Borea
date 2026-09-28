@@ -56,8 +56,26 @@ internal sealed class FakeStartedProcess : IStartedProcess
 
     public IReadOnlyList<string> RecentOutput => Output;
 
-    /// <summary>Answers at once, so a watch over a fake never waits for real time.</summary>
-    public Task<bool> WaitForExitAsync(TimeSpan timeout, CancellationToken cancellationToken = default) => Task.FromResult(HasEnded);
+    private readonly TaskCompletionSource _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Ends the process, which also ends a wait without an end.</summary>
+    public void Exit(int exitCode)
+    {
+        ExitCode = exitCode;
+        HasExited = true;
+        _exited.TrySetResult();
+    }
+
+    /// <summary>
+    /// Answers at once, so a watch over a fake never waits for real time. Only
+    /// a wait without an end waits, until <see cref="Exit"/>.
+    /// </summary>
+    public async Task<bool> WaitForExitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        if (timeout == Timeout.InfiniteTimeSpan && !HasEnded)
+            await _exited.Task.WaitAsync(cancellationToken);
+        return HasEnded;
+    }
 
     public bool Disposed { get; private set; }
 

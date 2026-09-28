@@ -22,7 +22,7 @@ public sealed class LaunchFailureTests
     internal static Task<ViewModelHarness> CreateAsync(int exitCode = UnhandledException) => CreateAsync(new CrashingStarter(exitCode, KsArmoryCrash));
 
     /// <summary>A harness with StarMap recorded that starts its processes through <paramref name="starter"/>.</summary>
-    private static Task<ViewModelHarness> CreateAsync(IProcessStarter starter) =>
+    internal static Task<ViewModelHarness> CreateAsync(IProcessStarter starter) =>
         ViewModelHarness.CreateAsync(
             services => services.SettingsRepository.SaveAsync(services.Settings.WithLoaderInstallation("StarMap", CreateLoader(services, "StarMap"))),
             processStarter: starter);

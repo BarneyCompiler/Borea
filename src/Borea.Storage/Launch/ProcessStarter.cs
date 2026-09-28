@@ -61,28 +61,33 @@ public sealed class ProcessStarter : IProcessStarter
         private readonly Process _process;
         private readonly Queue<string> _output = new();
         private readonly object _outputGate = new();
+        private readonly CancellationTokenSource _released = new();
         private bool _outputClosed;
         private bool _errorClosed;
-        private bool _disposed;
+        private volatile bool _disposed;
+        private int? _exitCodeAtRelease;
 
         public StartedProcess(Process process)
         {
             _process = process;
+            Id = process.Id;
             _process.OutputDataReceived += (_, e) => Keep(e.Data, error: false);
             _process.ErrorDataReceived += (_, e) => Keep(e.Data, error: true);
             _process.BeginOutputReadLine();
             _process.BeginErrorReadLine();
         }
 
-        public int Id => _process.Id;
+        // read once, because a released Process no longer tells its id
+        public int Id { get; }
 
-        public bool HasExited => _process.HasExited;
+        // a released handle keeps what it knew, so a watch that still holds it can tell how the process ended
+        public bool HasExited => _disposed ? _exitCodeAtRelease is not null : _process.HasExited;
 
         public bool HasEnded
         {
             get
             {
-                if (!_process.HasExited)
+                if (!HasExited)
                     return false;
 
                 lock (_outputGate)
@@ -90,7 +95,7 @@ public sealed class ProcessStarter : IProcessStarter
             }
         }
 
-        public int? ExitCode => _process.HasExited ? _process.ExitCode : null;
+        public int? ExitCode => _disposed ? _exitCodeAtRelease : _process.HasExited ? _process.ExitCode : null;
 
         public IReadOnlyList<string> RecentOutput
         {
@@ -101,9 +106,11 @@ public sealed class ProcessStarter : IProcessStarter
             }
         }
 
+        /// <summary>A release of the handle ends the wait with false, and a wait on a released handle throws.</summary>
         public async Task<bool> WaitForExitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         {
-            using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _released.Token);
             window.CancelAfter(timeout);
             try
             {
@@ -142,7 +149,11 @@ public sealed class ProcessStarter : IProcessStarter
             if (_disposed)
                 return;
 
+            _exitCodeAtRelease = _process.HasExited ? _process.ExitCode : null;
             _disposed = true;
+
+            // the waits end on the thread pool, not inside the lock of a launcher that releases the handle
+            _ = _released.CancelAsync();
             try
             {
                 _process.CancelOutputRead();

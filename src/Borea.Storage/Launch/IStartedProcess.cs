@@ -6,6 +6,7 @@ namespace Borea.Storage.Launch;
 /// </summary>
 public interface IStartedProcess : IDisposable
 {
+    /// <summary>The id of the process, which stays readable after the handle is released.</summary>
     int Id { get; }
 
     bool HasExited { get; }

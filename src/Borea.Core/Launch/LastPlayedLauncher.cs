@@ -47,6 +47,8 @@ public sealed class LastPlayedLauncher : ILauncher, IDisposable
         return result;
     }
 
+    public Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Inner.WatchExitAsync(instance, started, cancellationToken);
+
     public bool IsRunning(Guid instanceId) => Inner.IsRunning(instanceId);
 
     public void Dispose()

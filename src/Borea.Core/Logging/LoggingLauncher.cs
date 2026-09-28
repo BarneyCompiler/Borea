@@ -60,6 +60,21 @@ public sealed class LoggingLauncher : ILauncher, IDisposable
         return result;
     }
 
+    public async Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        var exit = await Inner.WatchExitAsync(instance, started, cancellationToken).ConfigureAwait(false);
+        if (exit.ExitCode is not { } code)
+            return exit;
+
+        var exitCode = LoaderExitCode.Describe(code, OperatingSystem.IsWindows());
+        _log.Write(exit.Crash is { } crash
+            ? $"The game of instance {instance.InstanceId} crashed with exit code {exitCode}, {(crash.BlamedModId is { } modId ? $"blames {modId}" : "no mod named")}. Crash log: {crash.LogPath}. {crash.Exception ?? "No exception in the log."}"
+            : $"The game of instance {instance.InstanceId} closed with exit code {exitCode}.");
+        return exit;
+    }
+
     public bool IsRunning(Guid instanceId) => Inner.IsRunning(instanceId);
 
     public void Dispose()

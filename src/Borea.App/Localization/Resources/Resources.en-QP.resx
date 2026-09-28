@@ -2271,4 +2271,10 @@
   <data name="LaunchNoOutput" xml:space="preserve">
     <value>The loader did squat before keelin' over.</value>
   </data>
+  <data name="LaunchGameCrashed" xml:space="preserve">
+    <value>The game sank without warnin'</value>
+  </data>
+  <data name="LaunchGameCrashedByFormat" xml:space="preserve">
+    <value>The game sank without warnin', sprung a leak in {0}</value>
+  </data>
 </root>

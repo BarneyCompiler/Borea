@@ -198,6 +198,26 @@ public sealed class LoggingDecoratorsTests
     }
 
     [Fact]
+    public async Task WatchExit_WritesACrashWithItsLogAndAQuitWithItsExitCode()
+    {
+        var loader = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "StarMap"));
+        var started = LaunchResult.Success(new LaunchPlan(Path.Combine(loader, "StarMap.exe"), [], loader, new Dictionary<string, string>()), 42, "Started.");
+        var instance = new Instance("Main", InstanceSource.Custom.Value);
+        var crash = new GameCrash("C:/logs/KittenSpaceAgency.260926-122536.42.previous-crash.log", "KittenSpaceAgency.260926-122536.42", DateTimeOffset.UnixEpoch, "System.NullReferenceException: Object reference not set.", "KSArmory");
+
+        await new LoggingLauncher(new FixedLauncher(started) { Exit = new GameExit(GameExitKind.Crashed, -532462766, [], crash) }, _log).WatchExitAsync(instance, started);
+        await new LoggingLauncher(new FixedLauncher(started) { Exit = new GameExit(GameExitKind.Closed, 0, [], null) }, _log).WatchExitAsync(instance, started);
+        await new LoggingLauncher(new FixedLauncher(started), _log).WatchExitAsync(instance, started);
+
+        Assert.Equal(
+            [
+                $"The game of instance {instance.InstanceId} crashed with exit code {LoaderExitCode.Describe(-532462766, OperatingSystem.IsWindows())}, blames KSArmory. Crash log: {crash.LogPath}. System.NullReferenceException: Object reference not set.",
+                $"The game of instance {instance.InstanceId} closed with exit code {LoaderExitCode.Describe(0, OperatingSystem.IsWindows())}.",
+            ],
+            _log.Messages);
+    }
+
+    [Fact]
     public void SharedProfileLaunch_WritesTheOutcomeAndThePlanWithTheArguments()
     {
         var game = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "Game"));
@@ -530,6 +550,8 @@ public sealed class LoggingDecoratorsTests
     {
         public IReadOnlyList<string>? Arguments { get; private set; }
 
+        public GameExit Exit { get; init; } = GameExit.Unknown;
+
         public LaunchResult Launch(Instance instance, ModMetadata? loader, IReadOnlyList<string>? arguments = null)
         {
             Arguments = arguments;
@@ -537,6 +559,8 @@ public sealed class LoggingDecoratorsTests
         }
 
         public Task<LaunchResult> WatchStartAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(started);
+
+        public Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(Exit);
 
         public bool IsRunning(Guid instanceId) => false;
     }

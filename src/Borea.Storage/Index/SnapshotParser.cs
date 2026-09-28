@@ -125,7 +125,7 @@ public static class SnapshotParser
             cancellationToken.ThrowIfCancellationRequested();
             var dto = element.Value.Deserialize<CuratedTagsDto>(IndexJsonOptions.Value)
                 ?? throw new JsonException("The tags value deserialized to null.");
-            var tags = dto.Mod.Select(item => new CuratedTag(item.Tag, item.Name, item.Meaning, item.ForumPrefix)).ToArray();
+            var tags = dto.Mod.Select(item => new CuratedTag(item.Tag, item.Name, item.Meaning, item.ForumPrefix, item.ForumPrefixId)).ToArray();
             return (new CuratedTagVocabulary(dto.SpecVersion, tags), null, null);
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException or NullReferenceException)

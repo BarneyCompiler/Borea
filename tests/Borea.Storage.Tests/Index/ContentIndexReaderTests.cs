@@ -137,7 +137,28 @@ public sealed class ContentIndexReaderTests : IDisposable
         Assert.Equal(1, result.Tags.SpecVersion);
         Assert.Equal(["parts", "library"], result.Tags.ModTags.Select(item => item.Tag));
         Assert.Equal("Parts", result.Tags.ModTags[0].ForumPrefix);
+        Assert.Null(result.Tags.ModTags[0].ForumPrefixId);
         Assert.Null(result.Tags.ModTags[1].ForumPrefix);
+    }
+
+    [Fact]
+    public async Task ReadAsync_CuratedTagsWithPrefixIds_ReadsTheIds()
+    {
+        var tags = """
+            "tags": {
+                "spec_version": 1,
+                "mod": [
+                    { "tag": "parts", "name": "Parts", "meaning": "New parts.", "forum_prefix": "Parts", "forum_prefix_id": 4 },
+                    { "tag": "library", "name": "Library", "meaning": "Shared code." }
+                ]
+            },
+            """;
+        await WriteIndexAsync(Snapshot(Listing("test-mod", ValidAuthoredJson), prefix: tags));
+
+        var result = await _reader.ReadAsync();
+
+        Assert.Empty(result.Diagnostics);
+        Assert.Equal([4, null], result.Tags.ModTags.Select(item => item.ForumPrefixId));
     }
 
     [Fact]

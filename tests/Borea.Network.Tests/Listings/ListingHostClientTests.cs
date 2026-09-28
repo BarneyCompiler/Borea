@@ -21,6 +21,8 @@ public sealed class ListingHostClientTests
         }
         """;
 
+    private const string ModReleasesThread = "https://forums.ahwoo.com/forums/kitten-space-agency/mod-releases/my-mod.1/";
+
     [Fact]
     public async Task ReadAsync_GitHubRepository_MapsItsFactsAndTheNewestRelease()
     {
@@ -188,7 +190,45 @@ public sealed class ListingHostClientTests
     {
         var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Listings", "Fixtures", "forum-thread.html"));
 
-        Assert.Equal(["Gameplay"], ForumThreadReader.ParsePrefixes(html));
+        Assert.Equal([new ForumPrefix("Gameplay")], ForumThreadReader.ParsePrefixes(html));
+    }
+
+    [Fact]
+    public void ParsePrefixes_SavedThreadPageWithSimilarThreads_TakesTheIdTheyGiveThePrefix()
+    {
+        var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Listings", "Fixtures", "forum-thread-similar-threads.html"));
+
+        Assert.Equal([new ForumPrefix("User Interface", 8)], ForumThreadReader.ParsePrefixes(html));
+    }
+
+    [Theory]
+    [InlineData("https://forums.ahwoo.com/forums/kitten-space-agency/mod-releases/my-mod.1/")]
+    [InlineData("https://forums.ahwoo.com/forums/kitten-space-agency/mod-releases/my-mod.1/page-2")]
+    public void ParsePrefixes_ListedThreadsOfAnotherForum_TakesTheIdOfTheOwnForumOnly(string canonical)
+    {
+        var html = ThreadPage(canonical,
+            ListedThread("is-prefix15", "User Interface", "/forums/kitten-space-agency/bug-reports/other.3/"),
+            ListedThread("is-prefix8", "User Interface", "/forums/kitten-space-agency/mod-releases/other.2/"));
+
+        Assert.Equal([new ForumPrefix("User Interface", 8)], ForumThreadReader.ParsePrefixes(html));
+    }
+
+    public static TheoryData<string, string> ListedThreadsWithoutOneId => new()
+    {
+        { ModReleasesThread, ListedThread("is-prefix8", "Tools") },
+        { ModReleasesThread, ListedThread("is-prefix8", "User Interface</span><span class=\"label\">Tools") },
+        { ModReleasesThread, ListedThread("", "User Interface") },
+        { ModReleasesThread, ListedThread("is-prefix12", "User Interface") + ListedThread("is-prefix8", "User Interface") },
+        { ModReleasesThread, ListedThread("is-prefix15", "User Interface", "/forums/kitten-space-agency/bug-reports/other.3/") },
+        { ModReleasesThread, ListedThread("is-prefix8", "User Interface", "/forums/kitten-space-agency/mod-releases/") },
+        { "", ListedThread("is-prefix8", "User Interface") },
+    };
+
+    [Theory]
+    [MemberData(nameof(ListedThreadsWithoutOneId))]
+    public void ParsePrefixes_NoListedThreadOfTheForumGivesTheTextOneId_GivesNoId(string canonical, string listedThreads)
+    {
+        Assert.Equal([new ForumPrefix("User Interface")], ForumThreadReader.ParsePrefixes(ThreadPage(canonical, listedThreads)));
     }
 
     [Theory]
@@ -203,7 +243,7 @@ public sealed class ListingHostClientTests
         var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Listings", "Fixtures", "forum-thread.html"));
         var reader = new ForumThreadReader(FakeHttpMessageHandler.BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(html) }, out _));
 
-        Assert.Equal(["Gameplay"], await reader.GetPrefixesAsync("https://forums.ahwoo.com/threads/advanced-flight-computer.783/"));
+        Assert.Equal([new ForumPrefix("Gameplay")], await reader.GetPrefixesAsync("https://forums.ahwoo.com/threads/advanced-flight-computer.783/"));
     }
 
     [Theory]
@@ -321,4 +361,12 @@ public sealed class ListingHostClientTests
 
         return [.. bytes];
     }
+
+    private static string ThreadPage(string canonical, params string[] listedThreads) =>
+        (canonical.Length > 0 ? $"<link rel=\"canonical\" href=\"{canonical}\" />" : string.Empty)
+        + "<h1 class=\"p-title-value\"><span class=\"label\">User Interface</span>My Mod</h1>"
+        + string.Concat(listedThreads);
+
+    private static string ListedThread(string prefixClass, string labels, string link = "/forums/kitten-space-agency/mod-releases/other.2/") =>
+        $"<div class=\"structItem structItem--thread {prefixClass}\"><div class=\"structItem-title\"><span class=\"label\">{labels}</span><a href=\"{link}\">Other</a></div></div>";
 }

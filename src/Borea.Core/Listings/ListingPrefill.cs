@@ -75,14 +75,19 @@ public static class ListingPrefill
             .FirstOrDefault()?.ToString();
     }
 
-    /// <summary>The curated tags whose forum prefix is one of <paramref name="prefixes"/>.</summary>
-    public static IReadOnlyList<string> TagsFor(IReadOnlyList<string> prefixes, CuratedTagVocabulary vocabulary)
+    /// <summary>
+    /// The curated tags whose forum prefix is one of <paramref name="prefixes"/>. A prefix matches by its id where
+    /// both the page and the tag have one, because the forum can rename a prefix, and by its text otherwise.
+    /// </summary>
+    public static IReadOnlyList<string> TagsFor(IReadOnlyList<ForumPrefix> prefixes, CuratedTagVocabulary vocabulary)
     {
         ArgumentNullException.ThrowIfNull(prefixes);
         ArgumentNullException.ThrowIfNull(vocabulary);
 
         return vocabulary.GetTags(ContentType.Mod)
-            .Where(tag => tag.ForumPrefix is { } prefix && prefixes.Any(found => string.Equals(found.Trim(), prefix, StringComparison.OrdinalIgnoreCase)))
+            .Where(tag => tag.ForumPrefix is { } text && prefixes.Any(found => found.Id is { } id && tag.ForumPrefixId is { } tagId
+                ? id == tagId
+                : string.Equals(found.Text.Trim(), text, StringComparison.OrdinalIgnoreCase)))
             .Select(tag => tag.Tag)
             .ToList();
     }

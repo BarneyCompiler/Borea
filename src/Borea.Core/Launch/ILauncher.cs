@@ -14,7 +14,9 @@ public interface ILauncher
     /// for this launch only. For a Windows build in a Wine wrapper on macOS,
     /// it starts the launcher of the wrapper with the loader's file and gives
     /// the instance only through the variable of the handover, because the
-    /// wrapper passes no arguments. It refuses launch arguments there.
+    /// wrapper passes no arguments. It refuses launch arguments there, and it
+    /// refuses a loader whose runtimeconfig.json names a .NET runtime that
+    /// the prefix does not have.
     /// </summary>
     LaunchResult Launch(Instance instance, ModMetadata? loader, IReadOnlyList<string>? arguments = null);
 

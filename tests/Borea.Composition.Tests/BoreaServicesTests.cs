@@ -336,6 +336,30 @@ public sealed class BoreaServicesTests : IDisposable
         1,
         Array.Empty<ModDependency>());
 
+    [Theory]
+    [InlineData("windows", false)]
+    [InlineData("macos", true)]
+    public async Task InstallPlanner_WindowsBuildInAWinePrefixOnMacOs_ChecksTheReleaseAgainstWindows(string os, bool warned)
+    {
+        using var services = await BoreaServices.BuildAsync(_tempRoot);
+        var prefix = Directory.CreateDirectory(Path.Combine(_tempRoot, "prefix")).FullName;
+        Directory.CreateDirectory(Path.Combine(prefix, "dosdevices"));
+        File.WriteAllText(Path.Combine(prefix, "system.reg"), "WINE REGISTRY Version 2\n");
+        var game = Directory.CreateDirectory(Path.Combine(prefix, "drive_c", "Program Files", "Kitten Space Agency")).FullName;
+        File.WriteAllBytes(Path.Combine(game, "KSA.exe"), []);
+        var platform = new GamePlatform(new GamePathProvider(game, boreaRoot: _tempRoot), OsPlatform.MacOs);
+        var release = new ModVersionMetadata(1, "A", ModVersion.Parse("1.0.0"), ReleaseStatus.Stable, DateTimeOffset.UnixEpoch, "2026.7.4.2131", 2131, new DownloadInfo("https://example.com/mod.zip", new string('A', 64), 1, "application/zip"), 1, [], os: [os]);
+        var request = new Borea.Core.Planning.InstallPlanningRequest(
+            new Instance("Test", InstanceSource.Custom.Value),
+            [new Borea.Core.Planning.RequestedMod(release, InstallReason.Manual, Exact: false)],
+            new ReleaseListRepository([release]),
+            TargetPlatform: platform.Current);
+
+        var plan = await services.InstallPlanner.PlanAsync(request);
+
+        Assert.Equal(warned, plan.Warnings.Any(warning => warning.Code == "platform"));
+    }
+
     private sealed class ReleaseListRepository(IReadOnlyList<ModVersionMetadata> releases) : IModRepository
     {
         public Task<IReadOnlyList<ModMetadata>> GetAvailableModsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ModMetadata>>([]);

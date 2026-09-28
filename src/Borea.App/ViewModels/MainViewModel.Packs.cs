@@ -405,7 +405,7 @@ public partial class MainViewModel
             InstallChoices? choices = null;
             if (requested.Count > 0)
             {
-                plan = await PlanWithChoicesAsync(services, new InstallPlanningRequest(instance, requested, services.Mods, installed, CurrentPlatform()), null);
+                plan = await PlanWithChoicesAsync(services, new InstallPlanningRequest(instance, requested, services.Mods, installed, services.GamePlatform.Current), null);
                 if (InstallChoices.AreNeeded(plan))
                 {
                     choices = NewChoices(instance.InstanceId, requested, plan);
@@ -418,7 +418,7 @@ public partial class MainViewModel
                 selected,
                 services.Mods,
                 installed,
-                CurrentPlatform(),
+                services.GamePlatform.Current,
                 ProceedWithYankedMembers: yanked.Count == 0 ? null : yanked);
 
             if (run.InstallStop.IsRequested)

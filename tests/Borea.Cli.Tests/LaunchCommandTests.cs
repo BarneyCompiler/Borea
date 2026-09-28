@@ -450,6 +450,63 @@ public sealed class LaunchCommandTests : IDisposable
         Assert.Empty(_host.ProcessStarter.Plans);
     }
 
+    [Fact]
+    public async Task Launch_RefreshesTheGamePathOfTheLoaderBeforeItStarts()
+    {
+        var configurator = new RefreshRecorder(_host.ProcessStarter);
+        _host.LoaderConfiguration = configurator;
+        _host.Mods.Listings.Add(LoaderFixtures.Listing());
+        var loaderDirectory = LoaderCommandTests.CreateLoaderDirectory("StarMap", "not a program", _host.Root);
+        var game = Directory.CreateDirectory(Path.Combine(_host.Root, "Game")).FullName;
+        await _host.RunAsync("settings", "set", "game", game);
+        await _host.RunAsync("settings", "set", "loader", "StarMap", loaderDirectory);
+        await _host.RunAsync("instance", "create", "Flight Test");
+
+        var run = await _host.RunAsync("launch", "Flight Test", "StarMap");
+
+        Assert.Equal(0, run.ExitCode);
+        var refresh = Assert.Single(configurator.Refreshes);
+        Assert.Equal("StarMap", refresh.LoaderId);
+        Assert.Equal(Path.GetFullPath(loaderDirectory), Path.GetFullPath(refresh.LoaderDirectory));
+        Assert.Equal(game, Path.GetFullPath(refresh.GameDirectory));
+        Assert.Equal(0, refresh.PlansBefore);
+        Assert.Single(_host.ProcessStarter.Plans);
+    }
+
+    [Fact]
+    public async Task Launch_GamePathCannotBeRefreshed_StartsNothing()
+    {
+        _host.LoaderConfiguration = new RefreshRecorder(_host.ProcessStarter, new InvalidOperationException("No drive of the Wine prefix holds the game."));
+        _host.Mods.Listings.Add(LoaderFixtures.Listing());
+        var loaderDirectory = LoaderCommandTests.CreateLoaderDirectory("StarMap", "not a program", _host.Root);
+        await _host.RunAsync("settings", "set", "game", Directory.CreateDirectory(Path.Combine(_host.Root, "Game")).FullName);
+        await _host.RunAsync("settings", "set", "loader", "StarMap", loaderDirectory);
+        await _host.RunAsync("instance", "create", "Flight Test");
+
+        var run = await _host.RunAsync("launch", "Flight Test", "StarMap");
+
+        Assert.Equal(1, run.ExitCode);
+        Assert.Contains("No drive of the Wine prefix holds the game.", run.Error);
+        Assert.Empty(_host.ProcessStarter.Plans);
+    }
+
+    /// <summary>Records each refresh with the number of processes started before it, and throws <paramref name="failure"/> when set.</summary>
+    private sealed class RefreshRecorder(FakeProcessStarter starter, Exception? failure = null) : ILoaderConfigurator
+    {
+        public List<(string LoaderId, string LoaderDirectory, string GameDirectory, int PlansBefore)> Refreshes { get; } = [];
+
+        public Task<string?> ConfigureAsync(ModMetadata loader, string loaderDirectory, string gameDirectory, CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(null);
+
+        public Task<string?> RefreshForWineAsync(ModMetadata loader, string loaderDirectory, string gameDirectory, CancellationToken cancellationToken = default)
+        {
+            Refreshes.Add((loader.ModId, loaderDirectory, gameDirectory, starter.Plans.Count));
+            return failure is null ? Task.FromResult<string?>(null) : Task.FromException<string?>(failure);
+        }
+
+        public string GamePathValue(string gameDirectory) => gameDirectory;
+    }
+
     private async Task SaveInstanceAsync(params ModVersionMetadata[] releases)
     {
         var mods = releases

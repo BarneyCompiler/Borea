@@ -37,7 +37,7 @@ internal static class ModListCommands
             var reasons = source.Mods.ToDictionary(mod => mod.ModId, mod => mod.Reason, ModIds.Comparer);
             var context = RunContext.From(parseResult, skipUnknown, proceedWithYanked, dryRun, json, output, error);
 
-            var request = new ModListRequest(ModList.FromInstance(source, manifest), source.Source, Repository(cli, context), GameVersion(cli), CurrentPlatform(), reasons, InstanceOrigin.Duplicate);
+            var request = new ModListRequest(ModList.FromInstance(source, manifest), source.Source, Repository(cli, context), GameVersion(cli), cli.GamePlatform.Current, reasons, InstanceOrigin.Duplicate);
 
             return await PlanAndInstallAsync(cli, installer, request, newName, source.ForeignMods.Select(mod => mod.FolderName).ToList(), context, ct).ConfigureAwait(false);
         }));
@@ -137,7 +137,7 @@ internal static class ModListCommands
             var newName = await NameAsync(cli, installer, parseResult.GetValue(name), wanted).ConfigureAwait(false);
             var context = RunContext.From(parseResult, skipUnknown, proceedWithYanked, dryRun, json, output, error);
 
-            var request = new ModListRequest(modList, InstanceSource.Custom.Value, Repository(cli, context), GameVersion(cli), CurrentPlatform());
+            var request = new ModListRequest(modList, InstanceSource.Custom.Value, Repository(cli, context), GameVersion(cli), cli.GamePlatform.Current);
 
             return await PlanAndInstallAsync(cli, installer, request, newName, [], context, ct).ConfigureAwait(false);
         }));
@@ -241,9 +241,6 @@ internal static class ModListCommands
 
     private static Option<bool> DryRunOption() =>
         new("--dry-run") { Description = "Print the plan from the cached index without creating the instance." };
-
-    private static OsPlatform CurrentPlatform() =>
-        OperatingSystem.IsWindows() ? OsPlatform.Windows : OperatingSystem.IsLinux() ? OsPlatform.Linux : OsPlatform.MacOs;
 
     private static void WriteHuman(TextWriter output, ModListPlan plan, string name, IReadOnlyList<string> notCopied)
     {

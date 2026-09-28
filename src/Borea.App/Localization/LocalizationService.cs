@@ -2927,8 +2927,23 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatLaunchWindowsBuildInPrefix(string prefix)
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWindowsBuildInPrefixFormat, prefix);
 
-    public string FormatLaunchWindowsBuildInWrapper(string wrapper)
-        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWindowsBuildInWrapperFormat, wrapper);
+    public string FormatLaunchPathOutsidePrefix(string path, string prefix)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchPathOutsidePrefixFormat, path, prefix);
+
+    public string FormatLaunchWrapperBusy(string wrapper)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWrapperBusyFormat, wrapper);
+
+    public string FormatLaunchWrapperNeedsVariable(string loader, string flag, string wrapper)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWrapperNeedsVariableFormat, loader, flag, wrapper);
+
+    public string FormatLaunchWrapperArguments(string wrapper, string loader)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWrapperArgumentsFormat, wrapper, loader);
+
+    public string FormatLaunchWrapperRuntime(string loader, string wrapper)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWrapperRuntimeFormat, loader, wrapper);
+
+    public string FormatLaunchWrapperStopped(string wrapper, string loader)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWrapperStoppedFormat, wrapper, loader);
 
     public string FormatLaunchDisableMod(string mod)
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchDisableModFormat, mod);

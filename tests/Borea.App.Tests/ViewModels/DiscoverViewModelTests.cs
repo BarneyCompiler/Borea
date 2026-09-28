@@ -485,6 +485,38 @@ public sealed class DiscoverViewModelTests
         Assert.Empty((await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods);
     }
 
+    [Theory]
+    [InlineData(OsPlatform.Windows, false)]
+    [InlineData(OsPlatform.MacOs, true)]
+    public async Task Install_WindowsOnlyRelease_WarnsOnlyWhenTheGameBuildIsOfAnotherPlatform(OsPlatform game, bool warned)
+    {
+        using var harness = await ViewModelHarness.CreateAsync(
+            editSnapshot: json =>
+            {
+                var root = JsonNode.Parse(json)!;
+                var listing = root["listings"]!.AsArray().Single(node => (string?)node!["id"] == "AdvancedFlightComputer")!;
+                foreach (var release in listing["releases"]!.AsArray())
+                    release!["os"] = new JsonArray("windows");
+                return root.ToJsonString();
+            },
+            gamePlatform: new FixedGamePlatform(game));
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        await harness.Services.Instances.SetActiveInstanceAsync(instance.InstanceId);
+        await viewModel.LoadAsync();
+        await viewModel.EnsureDiscoverLoadedAsync();
+        var item = viewModel.DiscoverItems.Single(row => row.ModId == "AdvancedFlightComputer");
+
+        await item.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal(warned, item.InstallWarning?.Contains("macOS") == true);
+    }
+
+    private sealed class FixedGamePlatform(OsPlatform platform) : IGamePlatform
+    {
+        public OsPlatform Current => platform;
+    }
+
     [Fact]
     public async Task Install_WarningCancelled_InstallsNothing()
     {

@@ -181,6 +181,9 @@ public sealed class BoreaServices : IDisposable
 
     public required ILoaderAdopter LoaderAdopter { get; init; }
 
+    /// <summary>Writes the game path into the configuration of a loader, which a launch through a Wine wrapper refreshes first.</summary>
+    public required ILoaderConfigurator LoaderConfiguration { get; init; }
+
     public required ILoaderUninstaller LoaderUninstaller { get; init; }
 
     public required ILauncher Launcher { get; init; }
@@ -199,6 +202,9 @@ public sealed class BoreaServices : IDisposable
     public required IAnnouncementFeed Announcements { get; init; }
 
     public required IInstalledGameVersionProvider InstalledVersion { get; init; }
+
+    /// <summary>The platform whose code the game build runs, which the planner checks releases against.</summary>
+    public required IGamePlatform GamePlatform { get; init; }
 
     /// <summary>
     /// What Borea assumes about the game, checked against the installation. The
@@ -337,6 +343,10 @@ public sealed class BoreaServices : IDisposable
     /// <param name="pullRequestReviews">Reads one pull request for a steward. Null builds one on the GitHub session.</param>
     /// <param name="pullRequestActions">Acts on one pull request for a steward. Null builds one on the GitHub session.</param>
     /// <param name="selfUpdater">Replaces this Borea build. Null reads the build that runs.</param>
+    /// <param name="gamePlatform">The platform of the game build. Null reads it from the game folder on this system.</param>
+    /// <param name="loaderLauncher">Starts the game through a loader. Null starts it with the process starter.</param>
+    /// <param name="sharedProfileLauncher">Starts the game without a loader. Null starts it with the process starter.</param>
+    /// <param name="loaderConfigurator">What <see cref="LoaderConfiguration"/> gives. Null gives the configurator the loader installer writes with.</param>
     internal static Task<BoreaServices> BuildAsync(
         string? boreaRoot,
         HttpMessageHandler httpHandler,
@@ -357,12 +367,16 @@ public sealed class BoreaServices : IDisposable
         IPullRequestReviews? pullRequestReviews = null,
         IPullRequestActions? pullRequestActions = null,
         IIndexReports? indexReports = null,
-        IReleaseAmendments? releaseAmendments = null)
+        IReleaseAmendments? releaseAmendments = null,
+        IGamePlatform? gamePlatform = null,
+        ILauncher? loaderLauncher = null,
+        ISharedProfileLauncher? sharedProfileLauncher = null,
+        ILoaderConfigurator? loaderConfigurator = null)
     {
         ArgumentNullException.ThrowIfNull(httpHandler);
         ArgumentNullException.ThrowIfNull(fallbackRepository);
         ArgumentNullException.ThrowIfNull(installCandidates);
-        return BuildCoreAsync(boreaRoot, BoreaLogSource.App, httpHandler, fallbackRepository, installCandidates, new RunningLaunches(), cancellationToken, processStarter, images, sharedProfileRoot, isGameProcessRunning, isOtherBoreaRunning, gitHub, listingPublisher, selfUpdater, indexStatusEditor, stewardQueue, watcherIssues, pullRequestReviews, pullRequestActions, indexReports, releaseAmendments);
+        return BuildCoreAsync(boreaRoot, BoreaLogSource.App, httpHandler, fallbackRepository, installCandidates, new RunningLaunches(), cancellationToken, processStarter, images, sharedProfileRoot, isGameProcessRunning, isOtherBoreaRunning, gitHub, listingPublisher, selfUpdater, indexStatusEditor, stewardQueue, watcherIssues, pullRequestReviews, pullRequestActions, indexReports, releaseAmendments, gamePlatform, loaderLauncher, sharedProfileLauncher, loaderConfigurator);
     }
 
     private static async Task<BoreaServices> BuildCoreAsync(
@@ -387,7 +401,11 @@ public sealed class BoreaServices : IDisposable
         IPullRequestReviews? pullRequestReviews = null,
         IPullRequestActions? pullRequestActions = null,
         IIndexReports? indexReports = null,
-        IReleaseAmendments? releaseAmendments = null)
+        IReleaseAmendments? releaseAmendments = null,
+        IGamePlatform? gamePlatform = null,
+        ILauncher? loaderLauncher = null,
+        ISharedProfileLauncher? sharedProfileLauncher = null,
+        ILoaderConfigurator? loaderConfigurator = null)
     {
         // the settings file lives under Borea's own root and needs no
         // game path to be found, so a provider without one reads it.
@@ -460,7 +478,7 @@ public sealed class BoreaServices : IDisposable
         var foreignModHandover = new LoggingForeignModHandover(new FileForeignModHandover(paths, downloader, instances, checkedModState, store: modStore), log);
         var installPlanner = new LoggingInstallPlanner(new RepositoryInstallPlanner(new ModDependencyResolver(), settings.ReleaseChannel), log);
         isGameProcessRunning ??= RunningProcesses.IsGameRunning;
-        var launcher = new LoggingLauncher(new LastPlayedLauncher(new LoaderLauncher(paths, processStarter ?? new ProcessStarter(), launches, isGameProcessRunning), instances), log);
+        var launcher = new LoggingLauncher(new LastPlayedLauncher(loaderLauncher ?? new LoaderLauncher(paths, processStarter ?? new ProcessStarter(), launches, isGameProcessRunning), instances), log);
         var defaultLibraryFolder = Path.GetDirectoryName(bootstrapPaths.GetInstancesRoot())!;
         var announcementReader = new AnnouncementReader();
         var listedDocuments = new ListedDocumentFetcher(http);
@@ -518,14 +536,16 @@ public sealed class BoreaServices : IDisposable
             SpaceCheck = spaceCheck,
             LoaderInstaller = new FileLoaderInstaller(paths, downloader, settingsRepository, loaderConfiguration),
             LoaderAdopter = loaderAdopter,
+            LoaderConfiguration = loaderConfigurator ?? loaderConfiguration,
             LoaderUninstaller = new FileLoaderUninstaller(settingsRepository),
             Launcher = launcher,
-            SharedProfileLauncher = new LoggingSharedProfileLauncher(new SharedProfileLauncher(paths, processStarter ?? new ProcessStarter()), log),
+            SharedProfileLauncher = new LoggingSharedProfileLauncher(sharedProfileLauncher ?? new SharedProfileLauncher(paths, processStarter ?? new ProcessStarter(), launches), log),
             LatestVersion = new LatestVersionPing(http),
             ReleaseCheck = new BoreaReleaseCheck(http),
             SelfUpdater = selfUpdater ?? new FileSelfUpdater(new BoreaReleaseFiles(http), log, RunningProduct(), platform: BoreaArchive.RunningPlatform, fromCommandLine: logSource == BoreaLogSource.Cli),
             Announcements = new AnnouncementFeed(new AnnouncementFetcher(http, AnnouncementFetcher.DefaultUri, announcementReader), announcementReader, paths, log),
             InstalledVersion = installedVersion,
+            GamePlatform = gamePlatform ?? new Borea.Storage.Game.GamePlatform(paths),
             GameShape = gameShape,
             GamePatchNotes = new FileGamePatchNotesReader(paths),
             GamePatchNotesFetcher = new GamePatchNotesFetcher(http, new FileGamePatchNotesCache(paths)),

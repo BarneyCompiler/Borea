@@ -55,6 +55,9 @@ internal sealed class CliServices : IDisposable
 
     public required IInstalledGameVersionProvider InstalledVersion { get; init; }
 
+    /// <summary>The platform whose code the game build runs, which the planner checks releases against.</summary>
+    public required IGamePlatform GamePlatform { get; init; }
+
     public required IGameShapeCheck GameShape { get; init; }
 
     public required IContentIndexFetcher IndexFetcher { get; init; }
@@ -95,6 +98,8 @@ internal sealed class CliServices : IDisposable
     public required ILoaderInstaller LoaderInstaller { get; init; }
 
     public required ILoaderAdopter LoaderAdopter { get; init; }
+
+    public required ILoaderConfigurator LoaderConfiguration { get; init; }
 
     public required ILoaderUninstaller LoaderUninstaller { get; init; }
 
@@ -137,6 +142,7 @@ internal sealed class CliServices : IDisposable
         IInstanceRepository? instances = null,
         ILatestVersionPing? latestVersion = null,
         IInstalledGameVersionProvider? installedVersion = null,
+        IGamePlatform? gamePlatform = null,
         IGameShapeCheck? gameShape = null,
         IContentIndexFetcher? indexFetcher = null,
         IContentIndexReader? indexReader = null,
@@ -166,7 +172,8 @@ internal sealed class CliServices : IDisposable
         IBoreaReleaseCheck? releaseCheck = null,
         ISelfUpdater? selfUpdater = null,
         Func<bool>? isGameProcessRunning = null,
-        ISharedModStore? sharedModStore = null)
+        ISharedModStore? sharedModStore = null,
+        ILoaderConfigurator? loaderConfiguration = null)
     {
         if (services is null)
             throw new ArgumentNullException(nameof(services));
@@ -187,6 +194,7 @@ internal sealed class CliServices : IDisposable
             ModListFormat = services.ModListFormat,
             LatestVersion = latestVersion ?? services.LatestVersion,
             InstalledVersion = installedVersion ?? services.InstalledVersion,
+            GamePlatform = gamePlatform ?? services.GamePlatform,
             GameShape = gameShape ?? services.GameShape,
             IndexFetcher = indexFetcher ?? services.IndexFetcher,
             IndexReader = indexReader ?? services.IndexReader,
@@ -208,6 +216,7 @@ internal sealed class CliServices : IDisposable
             SharedProfileImporter = sharedProfileImporter ?? services.SharedProfileImporter,
             LoaderInstaller = loaderInstaller ?? services.LoaderInstaller,
             LoaderAdopter = loaderAdopter ?? services.LoaderAdopter,
+            LoaderConfiguration = loaderConfiguration ?? services.LoaderConfiguration,
             LoaderUninstaller = loaderUninstaller ?? services.LoaderUninstaller,
             Launcher = launcher ?? services.Launcher,
             ModPacks = modPacks ?? services.ModPacks,

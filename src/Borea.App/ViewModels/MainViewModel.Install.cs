@@ -6,7 +6,6 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Borea.App.Localization;
 using Borea.Composition;
-using Borea.Core.Game;
 using Borea.Core.History;
 using Borea.Core.Instances;
 using Borea.Core.Mods;
@@ -236,7 +235,7 @@ public partial class MainViewModel
     }
 
     private static InstallPlanningRequest PlanningRequest(BoreaServices services, Instance instance, IReadOnlyList<RequestedMod> requested)
-        => new(instance, requested, services.Mods, services.InstalledVersion.GetInstalledVersion()?.Version, CurrentPlatform());
+        => new(instance, requested, services.Mods, services.InstalledVersion.GetInstalledVersion()?.Version, services.GamePlatform.Current);
 
     /// <summary>
     /// Plans with the user's choices and selects every recommendation the user has not seen yet,
@@ -605,7 +604,4 @@ public partial class MainViewModel
     /// </summary>
     private static string Describe(IEnumerable<PlanningMessage> messages)
         => string.Join(" ", messages.Select(message => $"{message.ModId}: {PlanningText.Message(message)}"));
-
-    private static OsPlatform CurrentPlatform()
-        => OperatingSystem.IsWindows() ? OsPlatform.Windows : OperatingSystem.IsLinux() ? OsPlatform.Linux : OsPlatform.MacOs;
 }

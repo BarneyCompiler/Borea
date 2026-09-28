@@ -253,7 +253,7 @@ public partial class MainViewModel
         => new(services.Instances, services.InstallPlanner, services.PlanExecutor, services.ModState);
 
     private static ModListRequest RequestFor(BoreaServices services, ModList modList, InstanceSource source, IReadOnlyDictionary<string, InstallReason>? reasons)
-        => new(modList, source, services.Mods, services.InstalledVersion.GetInstalledVersion()?.Version, CurrentPlatform(), reasons);
+        => new(modList, source, services.Mods, services.InstalledVersion.GetInstalledVersion()?.Version, services.GamePlatform.Current, reasons);
 }
 
 /// <summary>

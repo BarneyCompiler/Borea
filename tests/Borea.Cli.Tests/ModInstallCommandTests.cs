@@ -1,5 +1,6 @@
 using Borea.Storage.Instances;
 using Borea.Core.Dependencies;
+using Borea.Core.Game;
 using Borea.Core.Mods;
 using Borea.Composition;
 using Borea.Core.Instances;
@@ -24,6 +25,26 @@ public sealed class ModInstallCommandTests : IDisposable
         Assert.Contains("Install flight-tools 1.0.0.", run.Output);
         var instance = Assert.Single(await new FileInstanceRepository(_host.Paths).GetAllAsync());
         Assert.Empty(instance.Mods);
+    }
+
+    [Theory]
+    [InlineData(OsPlatform.Windows, false)]
+    [InlineData(OsPlatform.MacOs, true)]
+    public async Task InstallDryRun_WindowsOnlyRelease_WarnsOnlyWhenTheGameBuildIsOfAnotherPlatform(OsPlatform game, bool warned)
+    {
+        _host.GamePlatform = new FixedGamePlatform(game);
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "1.0.0", os: ["windows"]));
+        await _host.RunAsync("instance", "create", "Alpha");
+
+        var run = await _host.RunAsync("install", "flight-tools", "--instance", "Alpha", "--dry-run");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal(warned, run.Output.Contains("supported platform"));
+    }
+
+    private sealed class FixedGamePlatform(OsPlatform platform) : IGamePlatform
+    {
+        public OsPlatform Current => platform;
     }
 
     [Fact]

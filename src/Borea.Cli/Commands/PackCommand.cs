@@ -274,7 +274,7 @@ internal static class PackCommand
                 selected,
                 isDryRun ? cli.ReadOnlyMods : cli.Mods,
                 installed,
-                CurrentPlatform(),
+                cli.GamePlatform.Current,
                 Alternatives: chosenAlternatives.Count == 0 ? null : chosenAlternatives,
                 ProceedWithRetractedPack: parseResult.GetValue(proceedWithRetracted),
                 ProceedWithYankedMembers: yanked.Length == 0 ? null : new HashSet<string>(yanked, ModIds.Comparer));
@@ -392,7 +392,7 @@ internal static class PackCommand
                 newer,
                 isDryRun ? cli.ReadOnlyMods : cli.Mods,
                 installed,
-                CurrentPlatform(),
+                cli.GamePlatform.Current,
                 Alternatives: chosenAlternatives.Count == 0 ? null : chosenAlternatives,
                 ProceedWithYankedMembers: yanked.Length == 0 ? null : new HashSet<string>(yanked, ModIds.Comparer));
 
@@ -656,9 +656,6 @@ internal static class PackCommand
         var incomplete = view.Members.Count(member => member.Status is not ("installed" or "replaced" or "already-installed" or "removed"));
         return $"The pack was not updated completely, because {incomplete} of {view.Members.Count} steps did not finish. The instance still names pack version {view.CurrentVersion}.";
     }
-
-    private static OsPlatform CurrentPlatform() =>
-        OperatingSystem.IsWindows() ? OsPlatform.Windows : OperatingSystem.IsLinux() ? OsPlatform.Linux : OsPlatform.MacOs;
 
     private static int CompareVersionsNewestFirst(VersionView left, VersionView right)
     {

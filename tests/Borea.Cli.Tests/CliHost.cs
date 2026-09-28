@@ -37,6 +37,12 @@ internal sealed class CliHost : IDisposable
 
     public FakeInstalledGameVersionProvider? InstalledVersion { get; set; }
 
+    /// <summary>The platform of the game build. Null reads it from the game folder on this system.</summary>
+    public IGamePlatform? GamePlatform { get; set; }
+
+    /// <summary>The configurator a launch refreshes the loader's game path with. Null uses the one of the graph.</summary>
+    public ILoaderConfigurator? LoaderConfiguration { get; set; }
+
     public FakeContentIndexFetcher IndexFetcher { get; } = new();
 
     public FakeContentIndexReader IndexReader { get; } = new();
@@ -139,6 +145,7 @@ internal sealed class CliHost : IDisposable
             instances: instances,
             latestVersion: LatestVersion,
             installedVersion: InstalledVersion,
+            gamePlatform: GamePlatform,
             // the graph resolves the real shared profile, so the check gets a provider that points at the test one
             gameShape: new GameShapeCheck(new GamePathProvider(graph.Settings.GameDirectoryPath, boreaRoot: Root, sharedProfileRoot: SharedProfile), graph.InstalledVersion),
             indexFetcher: IndexFetcher,
@@ -169,7 +176,8 @@ internal sealed class CliHost : IDisposable
             // a game or a Borea the developer runs next to the tests must not refuse the move
             libraryFolderChanger: LibraryChanger ?? new LibraryFolderChanger(graph.SettingsRepository, graph.Paths, Root, graph.Launcher, (FileInstanceRepository)((LoggingInstanceRepository)graph.Instances).Inner, isGameProcessRunning: () => false, isOtherBoreaRunning: () => false, isSameVolume: LibraryOnSameVolume),
             isGameProcessRunning: () => GameRunning,
-            sharedModStore: new FileSharedModStore(graph.Paths, new ModStore(graph.Paths, new DirectoryLinker(), graph.Settings.SharedModStore), graph.Instances, graph.SettingsRepository, graph.Launcher, () => GameRunning, () => OtherBoreaRunning));
+            sharedModStore: new FileSharedModStore(graph.Paths, new ModStore(graph.Paths, new DirectoryLinker(), graph.Settings.SharedModStore), graph.Instances, graph.SettingsRepository, graph.Launcher, () => GameRunning, () => OtherBoreaRunning),
+            loaderConfiguration: LoaderConfiguration);
     }
 
     private FileSharedProfileImporter BuildSharedProfileImporter(BoreaServices graph)

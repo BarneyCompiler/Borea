@@ -3885,8 +3885,23 @@
   <data name="LaunchWindowsBuildInPrefixFormat" xml:space="preserve">
     <value>The game folder holds the Windows build of KSA in the Wine prefix '{0}'. Borea cannot start a game through Wine yet, so it starts nothing. Start the game through Wine to play.</value>
   </data>
-  <data name="LaunchWindowsBuildInWrapperFormat" xml:space="preserve">
-    <value>The game folder holds the Windows build of KSA in the Wine wrapper '{0}'. Borea cannot start a game through a Wine wrapper yet, so it starts nothing. Start the wrapper to play.</value>
+  <data name="LaunchPathOutsidePrefixFormat" xml:space="preserve">
+    <value>No drive of the Wine prefix '{1}' holds '{0}', so the programs in the prefix cannot open it. Borea starts nothing. Add a drive for this folder in the Wine configuration of the prefix.</value>
+  </data>
+  <data name="LaunchWrapperBusyFormat" xml:space="preserve">
+    <value>A game that Borea started through the Wine wrapper '{0}' is still running. The wrapper runs one game at a time, so close that game first.</value>
+  </data>
+  <data name="LaunchWrapperNeedsVariableFormat" xml:space="preserve">
+    <value>{0} takes the instance folder only after '{1}', and the Wine wrapper '{2}' passes no arguments to it. Borea starts nothing. The loader author can add a variable to the [provides.instance] table of the listing.</value>
+  </data>
+  <data name="LaunchWrapperArgumentsFormat" xml:space="preserve">
+    <value>The Wine wrapper '{0}' passes no launch arguments to {1}, so Borea starts nothing. Remove the launch arguments of the instance to start it through the wrapper.</value>
+  </data>
+  <data name="LaunchWrapperRuntimeFormat" xml:space="preserve">
+    <value>The start entry for Windows in the listing of {0} needs a runtime, and the Wine wrapper '{1}' starts only the file itself. Borea starts nothing.</value>
+  </data>
+  <data name="LaunchWrapperStoppedFormat" xml:space="preserve">
+    <value>The Wine wrapper '{0}' stopped before {1} started the game. The details show what it wrote.</value>
   </data>
   <data name="LaunchDisableModFormat" xml:space="preserve">
     <value>Disable {0}</value>

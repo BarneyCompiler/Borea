@@ -54,6 +54,14 @@ internal static class LaunchCommand
                 cli.Log.Write($"Instance {target.InstanceId}: the game's own content now loads before the mods.");
             }
 
+            // an older Borea wrote the host path of the game, which a loader in a Wine prefix cannot open
+            if (cli.Paths.GetGameDirectoryPath() is { } game
+                && cli.Paths.GetLoaderDirectoryPath(loader.ModId) is { } loaderDirectory
+                && await cli.LoaderConfiguration.RefreshForWineAsync(loader, loaderDirectory, game, ct).ConfigureAwait(false) is { } refreshed)
+            {
+                cli.Log.Write($"Wrote the game path of the Wine prefix to '{refreshed}' before the launch.");
+            }
+
             ct.ThrowIfCancellationRequested();
             var result = cli.Launcher.Launch(target, loader, passThrough.Values);
 

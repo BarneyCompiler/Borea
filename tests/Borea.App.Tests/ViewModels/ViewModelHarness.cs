@@ -54,6 +54,10 @@ internal sealed class ViewModelHarness : IDisposable
     private Func<string, string>? _editSnapshot;
 
     private Borea.Storage.Launch.IProcessStarter? _processStarter;
+    private IGamePlatform? _gamePlatform;
+    private Borea.Core.Launch.ILauncher? _loaderLauncher;
+    private Borea.Core.Launch.ISharedProfileLauncher? _sharedProfileLauncher;
+    private Borea.Core.ModLoaders.ILoaderConfigurator? _loaderConfigurator;
 
     private string? _sharedProfileRoot;
 
@@ -116,9 +120,13 @@ internal sealed class ViewModelHarness : IDisposable
     /// <param name="indexReports">Lists the takedown and id dispute reports. Null builds one that reads GitHub without the token.</param>
     /// <param name="releaseAmendments">Opens the steward amendments of release files. Null builds one on the GitHub session.</param>
     /// <param name="images">The image source of every service graph, which a dispose of the services disposes too. Null uses <see cref="Images"/>.</param>
-    public static async Task<ViewModelHarness> CreateAsync(Func<BoreaServices, Task>? seed = null, Func<HttpRequestMessage, HttpResponseMessage?>? respond = null, Func<string, string>? editSnapshot = null, bool indexOffline = false, bool indexEtag = false, Action<ViewModelHarness>? candidates = null, Borea.Storage.Launch.IProcessStarter? processStarter = null, bool waitForDetection = true, string? sharedProfileRoot = null, IGitHubSession? gitHub = null, IListingPublisher? listingPublisher = null, Borea.Core.Updates.ISelfUpdater? selfUpdater = null, Borea.Core.Stewardship.IIndexStatusEditor? indexStatusEditor = null, Borea.Core.Stewardship.IStewardQueue? stewardQueue = null, Borea.Core.Stewardship.IWatcherIssues? watcherIssues = null, Borea.Core.Stewardship.IPullRequestReviews? pullRequestReviews = null, Borea.Core.Stewardship.IPullRequestActions? pullRequestActions = null, Borea.Core.Stewardship.IIndexReports? indexReports = null, Borea.Core.Stewardship.IReleaseAmendments? releaseAmendments = null, IContentImageSource? images = null)
+    /// <param name="gamePlatform">The platform of the game build. Null reads it from the game folder on this system.</param>
+    /// <param name="loaderLauncher">Starts the game through a loader. Null starts it with <paramref name="processStarter"/>.</param>
+    /// <param name="sharedProfileLauncher">Starts the game without a loader. Null starts it with <paramref name="processStarter"/>.</param>
+    /// <param name="loaderConfigurator">What the launch refreshes the loader's game path with. Null uses the one of the graph.</param>
+    public static async Task<ViewModelHarness> CreateAsync(Func<BoreaServices, Task>? seed = null, Func<HttpRequestMessage, HttpResponseMessage?>? respond = null, Func<string, string>? editSnapshot = null, bool indexOffline = false, bool indexEtag = false, Action<ViewModelHarness>? candidates = null, Borea.Storage.Launch.IProcessStarter? processStarter = null, bool waitForDetection = true, string? sharedProfileRoot = null, IGitHubSession? gitHub = null, IListingPublisher? listingPublisher = null, Borea.Core.Updates.ISelfUpdater? selfUpdater = null, Borea.Core.Stewardship.IIndexStatusEditor? indexStatusEditor = null, Borea.Core.Stewardship.IStewardQueue? stewardQueue = null, Borea.Core.Stewardship.IWatcherIssues? watcherIssues = null, Borea.Core.Stewardship.IPullRequestReviews? pullRequestReviews = null, Borea.Core.Stewardship.IPullRequestActions? pullRequestActions = null, Borea.Core.Stewardship.IIndexReports? indexReports = null, Borea.Core.Stewardship.IReleaseAmendments? releaseAmendments = null, IContentImageSource? images = null, IGamePlatform? gamePlatform = null, Borea.Core.Launch.ILauncher? loaderLauncher = null, Borea.Core.Launch.ISharedProfileLauncher? sharedProfileLauncher = null, Borea.Core.ModLoaders.ILoaderConfigurator? loaderConfigurator = null)
     {
-        var harness = new ViewModelHarness { _respond = respond, _editSnapshot = editSnapshot, IndexOffline = indexOffline, IndexEtag = indexEtag, _processStarter = processStarter, _sharedProfileRoot = sharedProfileRoot, _gitHub = gitHub, _listingPublisher = listingPublisher, _selfUpdater = selfUpdater, _indexStatusEditor = indexStatusEditor, _stewardQueue = stewardQueue, _watcherIssues = watcherIssues, _pullRequestReviews = pullRequestReviews, _pullRequestActions = pullRequestActions, _indexReports = indexReports, _releaseAmendments = releaseAmendments, _images = images };
+        var harness = new ViewModelHarness { _respond = respond, _editSnapshot = editSnapshot, IndexOffline = indexOffline, IndexEtag = indexEtag, _processStarter = processStarter, _sharedProfileRoot = sharedProfileRoot, _gitHub = gitHub, _listingPublisher = listingPublisher, _selfUpdater = selfUpdater, _indexStatusEditor = indexStatusEditor, _stewardQueue = stewardQueue, _watcherIssues = watcherIssues, _pullRequestReviews = pullRequestReviews, _pullRequestActions = pullRequestActions, _indexReports = indexReports, _releaseAmendments = releaseAmendments, _images = images, _gamePlatform = gamePlatform, _loaderLauncher = loaderLauncher, _sharedProfileLauncher = sharedProfileLauncher, _loaderConfigurator = loaderConfigurator };
         Directory.CreateDirectory(harness.Root);
         candidates?.Invoke(harness);
         harness.Services = await harness.BuildServicesAsync();
@@ -213,7 +221,7 @@ internal sealed class ViewModelHarness : IDisposable
     }
 
     public Task<BoreaServices> BuildServicesAsync() =>
-        BoreaServices.BuildAsync(Root, new IndexOnlyHandler(this), SpaceDock, Candidates, processStarter: _processStarter, images: _images ?? Images, sharedProfileRoot: _sharedProfileRoot ?? Path.Combine(Root, "GameProfile"), isGameProcessRunning: () => IsGameProcessRunning(), isOtherBoreaRunning: () => IsOtherBoreaRunning(), gitHub: _gitHub, listingPublisher: _listingPublisher, selfUpdater: _selfUpdater, indexStatusEditor: _indexStatusEditor, stewardQueue: _stewardQueue, watcherIssues: _watcherIssues, pullRequestReviews: _pullRequestReviews, pullRequestActions: _pullRequestActions, indexReports: _indexReports, releaseAmendments: _releaseAmendments);
+        BoreaServices.BuildAsync(Root, new IndexOnlyHandler(this), SpaceDock, Candidates, processStarter: _processStarter, images: _images ?? Images, sharedProfileRoot: _sharedProfileRoot ?? Path.Combine(Root, "GameProfile"), isGameProcessRunning: () => IsGameProcessRunning(), isOtherBoreaRunning: () => IsOtherBoreaRunning(), gitHub: _gitHub, listingPublisher: _listingPublisher, selfUpdater: _selfUpdater, indexStatusEditor: _indexStatusEditor, stewardQueue: _stewardQueue, watcherIssues: _watcherIssues, pullRequestReviews: _pullRequestReviews, pullRequestActions: _pullRequestActions, indexReports: _indexReports, releaseAmendments: _releaseAmendments, gamePlatform: _gamePlatform, loaderLauncher: _loaderLauncher, sharedProfileLauncher: _sharedProfileLauncher, loaderConfigurator: _loaderConfigurator);
 
     /// <summary>
     /// Completes when no background work of a view model of this harness is in

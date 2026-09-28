@@ -6,6 +6,7 @@
              x:Class="Borea.App.Views.Pages.ListingPage"
              x:DataType="vm:MainViewModel">
     <UserControl.Styles>
+        <StyleInclude Source="avares://Borea.App/Views/PageBodyStyles.axaml" />
         <Style Selector="Button.step">
             <Setter Property="Padding" Value="8,6" />
             <Setter Property="Margin" Value="-8,0" />

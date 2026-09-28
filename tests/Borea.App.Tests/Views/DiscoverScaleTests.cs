@@ -35,6 +35,9 @@ public sealed class DiscoverScaleTests
     /// <summary>The icon files that the rows and the idle icons hold together, whatever the length of the list. The files of the whole list are about 14 MiB.</summary>
     private const long MaxIconBytes = 8L * 1024 * 1024;
 
+    /// <summary>What the list may allocate for each row that it shows again while it scrolls, so that a fast scroll does not keep the garbage collector busy.</summary>
+    private const long MaxBytesPerShownRow = 1024L * 1024;
+
     [Fact]
     public async Task LongList_KeepsItsRowsBitmapsAndIconFilesWithTheWindow()
     {
@@ -206,20 +209,23 @@ public sealed class DiscoverScaleTests
 
             // a row takes the styles of the page again each time the list shows it
             list.ContainerPrepared += (_, _) => styled++;
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
             while (scroller.Offset.Y > 0)
             {
                 scroller.Offset = scroller.Offset.WithY(Math.Max(0, scroller.Offset.Y - scroller.Viewport.Height));
                 window.UpdateLayout();
             }
 
+            allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
             var top = RowsInView(page, scroller).FirstOrDefault();
             window.Close();
-            return Task.FromResult((built, styled, top));
+            return Task.FromResult((built, styled, allocated, top));
         });
 
         Assert.Equal("Mod 000", scrolled.top);
         Assert.InRange(scrolled.built, 0, MaxRealizedRows);
         Assert.InRange(scrolled.styled, Listings - MaxRealizedRows, Listings);
+        Assert.InRange(scrolled.allocated / scrolled.styled, 1, MaxBytesPerShownRow);
     }
 
     private static (MainViewModel ViewModel, DiscoverPage Page, Window Window, ScrollViewer Scroller) ShowLongList()

@@ -1,7 +1,6 @@
 using System.CommandLine;
 using Borea.Cli.Output;
 using Borea.Core.Dependencies;
-using Borea.Core.Game;
 using Borea.Core.Instances;
 using Borea.Core.Mods;
 using Borea.Core.Planning;
@@ -144,7 +143,7 @@ internal static class ModInstallCommands
     private static async Task<InstallPlan> PlanAsync(CliServices cli, Instance instance, IModRepository repository, IReadOnlyList<RequestedMod> requested, ReleaseChannel channel, bool withRecommended, IReadOnlyDictionary<string, string> alternatives, CancellationToken cancellationToken)
     {
         var gameVersion = cli.InstalledVersion.GetInstalledVersion()?.Version;
-        var request = new InstallPlanningRequest(instance, requested, repository, gameVersion, CurrentPlatform(), Alternatives: alternatives, Channel: channel);
+        var request = new InstallPlanningRequest(instance, requested, repository, gameVersion, cli.GamePlatform.Current, Alternatives: alternatives, Channel: channel);
         var plan = await cli.InstallPlanner.PlanAsync(request, cancellationToken).ConfigureAwait(false);
         if (!withRecommended)
             return plan;
@@ -225,9 +224,6 @@ internal static class ModInstallCommands
             return null;
         }
     }
-
-    internal static OsPlatform CurrentPlatform() =>
-        OperatingSystem.IsWindows() ? OsPlatform.Windows : OperatingSystem.IsLinux() ? OsPlatform.Linux : OsPlatform.MacOs;
 
     internal static async Task RequireCachedIndexAsync(CliServices cli, CancellationToken cancellationToken)
     {

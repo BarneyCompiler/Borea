@@ -20,6 +20,9 @@ public sealed class SharedProfileLaunchResult
     /// <summary>The Wine prefix around a Windows build that stopped the launch, or null when Borea found none.</summary>
     public WineInstall? Wine { get; private init; }
 
+    /// <summary>The host path that no drive of the Wine prefix holds, when that stopped the launch.</summary>
+    public string? UnmappedPath { get; private init; }
+
     private SharedProfileLaunchResult(SharedProfileLaunchOutcome outcome, string message, LaunchPlan? plan, int? processId)
     {
         if (string.IsNullOrWhiteSpace(message))
@@ -39,11 +42,11 @@ public sealed class SharedProfileLaunchResult
         return new SharedProfileLaunchResult(SharedProfileLaunchOutcome.Started, message, plan, processId);
     }
 
-    public static SharedProfileLaunchResult Failed(SharedProfileLaunchOutcome outcome, string message, LaunchPlan? plan = null, WineInstall? wine = null)
+    public static SharedProfileLaunchResult Failed(SharedProfileLaunchOutcome outcome, string message, LaunchPlan? plan = null, WineInstall? wine = null, string? unmappedPath = null)
     {
         if (outcome == SharedProfileLaunchOutcome.Started)
             throw new ArgumentException("A started launch is a success, not a failure.", nameof(outcome));
 
-        return new SharedProfileLaunchResult(outcome, message, plan, processId: null) { Wine = wine };
+        return new SharedProfileLaunchResult(outcome, message, plan, processId: null) { Wine = wine, UnmappedPath = unmappedPath };
     }
 }

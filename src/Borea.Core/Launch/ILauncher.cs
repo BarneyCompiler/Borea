@@ -11,7 +11,10 @@ public interface ILauncher
     /// <summary>
     /// Starts the loader with the instance handover, then the saved
     /// <see cref="Instance.LaunchArguments"/>, then <paramref name="arguments"/>
-    /// for this launch only.
+    /// for this launch only. For a Windows build in a Wine wrapper on macOS,
+    /// it starts the launcher of the wrapper with the loader's file and gives
+    /// the instance only through the variable of the handover, because the
+    /// wrapper passes no arguments. It refuses launch arguments there.
     /// </summary>
     LaunchResult Launch(Instance instance, ModMetadata? loader, IReadOnlyList<string>? arguments = null);
 
@@ -20,7 +23,11 @@ public interface ILauncher
     /// comes up, the loader stops, or the startup window ends. A loader that
     /// stops with a non-zero exit code in that time turns the result into
     /// <see cref="LaunchOutcome.ExitedEarly"/>, with its output and the mod it
-    /// likely stopped on. Any other result is returned as it is.
+    /// likely stopped on. For a launch through a Wine wrapper, only the game
+    /// log decides, because the exit code of the wrapper says nothing about the
+    /// game. A wrapper that stops before the log appears gives
+    /// <see cref="LaunchOutcome.ExitedEarly"/> with <see cref="LaunchResult.Wine"/>
+    /// set and no mod blamed. Any other result is returned as it is.
     /// </summary>
     Task<LaunchResult> WatchStartAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default);
 

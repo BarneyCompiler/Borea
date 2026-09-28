@@ -187,7 +187,7 @@ public partial class MainViewModel
                 [new RequestedMod(release, InstallReason.Manual, false)],
                 services.Mods,
                 services.InstalledVersion.GetInstalledVersion()?.Version,
-                CurrentPlatform());
+                services.GamePlatform.Current);
             var planned = await services.InstallPlanner.PlanAsync(request);
 
             if (!planned.IsReady)

@@ -3885,8 +3885,23 @@
   <data name="LaunchWindowsBuildInPrefixFormat" xml:space="preserve">
     <value>Der Spielordner enthält den Windows-Build von KSA im Wine-Präfix '{0}'. Borea kann ein Spiel noch nicht über Wine starten und startet deshalb nichts. Starte das Spiel über Wine, um zu spielen.</value>
   </data>
-  <data name="LaunchWindowsBuildInWrapperFormat" xml:space="preserve">
-    <value>Der Spielordner enthält den Windows-Build von KSA im Wine-Wrapper '{0}'. Borea kann ein Spiel noch nicht über einen Wine-Wrapper starten und startet deshalb nichts. Starte den Wrapper, um zu spielen.</value>
+  <data name="LaunchPathOutsidePrefixFormat" xml:space="preserve">
+    <value>Kein Laufwerk des Wine-Präfixes '{1}' enthält '{0}', deshalb können die Programme im Präfix es nicht öffnen. Borea startet nichts. Füge in der Wine-Konfiguration des Präfixes ein Laufwerk für diesen Ordner hinzu.</value>
+  </data>
+  <data name="LaunchWrapperBusyFormat" xml:space="preserve">
+    <value>Ein Spiel, das Borea über den Wine-Wrapper '{0}' gestartet hat, läuft noch. Der Wrapper führt immer nur ein Spiel aus, also schließe dieses Spiel zuerst.</value>
+  </data>
+  <data name="LaunchWrapperNeedsVariableFormat" xml:space="preserve">
+    <value>{0} nimmt den Instanzordner nur nach '{1}' entgegen, und der Wine-Wrapper '{2}' gibt ihm keine Argumente weiter. Borea startet nichts. Der Autor des Loaders kann der Tabelle [provides.instance] im Listing eine Variable hinzufügen.</value>
+  </data>
+  <data name="LaunchWrapperArgumentsFormat" xml:space="preserve">
+    <value>Der Wine-Wrapper '{0}' gibt keine Startargumente an {1} weiter, deshalb startet Borea nichts. Entferne die Startargumente der Instanz, um sie über den Wrapper zu starten.</value>
+  </data>
+  <data name="LaunchWrapperRuntimeFormat" xml:space="preserve">
+    <value>Der Starteintrag für Windows im Listing von {0} braucht eine Laufzeitumgebung, und der Wine-Wrapper '{1}' startet nur die Datei selbst. Borea startet nichts.</value>
+  </data>
+  <data name="LaunchWrapperStoppedFormat" xml:space="preserve">
+    <value>Der Wine-Wrapper '{0}' wurde beendet, bevor {1} das Spiel gestartet hat. Die Details zeigen, was er ausgegeben hat.</value>
   </data>
   <data name="LaunchDisableModFormat" xml:space="preserve">
     <value>{0} deaktivieren</value>

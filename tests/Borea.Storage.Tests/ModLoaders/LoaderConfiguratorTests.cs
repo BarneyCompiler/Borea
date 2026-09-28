@@ -419,6 +419,49 @@ public sealed class LoaderConfiguratorTests : IDisposable
         Assert.Equal(GameInPrefix, configured);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RefreshForWineAsync_HostPathAnOlderBoreaWroteOrNoValue_WritesTheWindowsPath(bool hostPathWritten)
+    {
+        await WriteConfigAsync(hostPathWritten
+            ? new JsonObject { ["GameLocation"] = GameInPrefix + Path.DirectorySeparatorChar, ["Other"] = "kept" }.ToJsonString()
+            : new JsonObject { ["Other"] = "kept" }.ToJsonString());
+
+        var written = await WineConfigurator().RefreshForWineAsync(Loader(Json()), _loaderDirectory, GameInPrefix);
+
+        Assert.Equal(ConfigPath(), written);
+        var json = await ReadJsonAsync();
+        Assert.Equal(@"C:\Program Files\Kitten Space Agency", (string?)json["GameLocation"]);
+        Assert.Equal("kept", (string?)json["Other"]);
+    }
+
+    [Theory]
+    [InlineData(@"C:\\Program Files\\Kitten Space Agency")]
+    [InlineData(@"D:\\Games\\KSA")]
+    public async Task RefreshForWineAsync_ValueInTheFormOfThePrefix_LeavesTheFile(string configured)
+    {
+        var text = $$"""{ "GameLocation": "{{configured}}" }""";
+        await WriteConfigAsync(text);
+
+        var written = await WineConfigurator().RefreshForWineAsync(Loader(Json()), _loaderDirectory, GameInPrefix);
+
+        Assert.Null(written);
+        Assert.Equal(text, await File.ReadAllTextAsync(ConfigPath()));
+    }
+
+    [Fact]
+    public async Task RefreshForWineAsync_GameOutsideAPrefix_LeavesTheHostPath()
+    {
+        var text = new JsonObject { ["GameLocation"] = _gameDirectory }.ToJsonString();
+        await WriteConfigAsync(text);
+
+        var written = await WineConfigurator().RefreshForWineAsync(Loader(Json()), _loaderDirectory, _gameDirectory);
+
+        Assert.Null(written);
+        Assert.Equal(text, await File.ReadAllTextAsync(ConfigPath()));
+    }
+
     [UnixFact("Windows cannot name a file 'c:', so the drive links exist only on Linux and macOS.")]
     public async Task ConfigureAsync_GameInARealPrefix_WritesTheWindowsPathAndReadsTheGameDirectoryBack()
     {

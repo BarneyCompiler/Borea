@@ -587,7 +587,7 @@ internal static class InstanceCommand
                             recorded,
                             cli.Mods,
                             cli.InstalledVersion.GetInstalledVersion()?.Version,
-                            ModInstallCommands.CurrentPlatform(),
+                            cli.GamePlatform.Current,
                             ct).ConfigureAwait(false);
                         ModInstallCommands.PrintPlan(output, dependencies.Plan!);
                         if (dependencies.NotOwned.Count > 0)

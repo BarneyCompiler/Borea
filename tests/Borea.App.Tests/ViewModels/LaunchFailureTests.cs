@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Borea.Composition;
+using Borea.Core.Game;
 using Borea.Core.Instances;
 using Borea.Core.Launch;
 using Borea.Core.ModLoaders;
@@ -357,6 +358,128 @@ public sealed class LaunchFailureTests
         Assert.Empty(starter.Plans);
     }
 
+    private const string WrapperBundle = "/Applications/Kitten Space Agency.app";
+
+    private static readonly WineInstall WrapperInstall = new(
+        WrapperBundle + "/Contents/SharedSupport/prefix",
+        new WineDriveMap(new Dictionary<char, string>(), StringComparison.OrdinalIgnoreCase),
+        new WineWrapper(WrapperBundle, WrapperBundle + "/Contents/MacOS/launcher"));
+
+    private static LaunchPlan WrapperPlan => new(Path.Combine(Path.GetTempPath(), "launcher"), [], Path.GetTempPath(), new Dictionary<string, string>());
+
+    /// <summary>A harness with StarMap recorded whose loader launches all end in <paramref name="launcher"/>.</summary>
+    private static Task<ViewModelHarness> CreateWithLauncherAsync(ILauncher launcher) =>
+        ViewModelHarness.CreateAsync(
+            services => services.SettingsRepository.SaveAsync(services.Settings.WithLoaderInstallation("StarMap", CreateLoader(services, "StarMap"))),
+            loaderLauncher: launcher);
+
+    [Theory]
+    [InlineData(LaunchOutcome.WrapperBusy)]
+    [InlineData(LaunchOutcome.WrapperNeedsVariable)]
+    [InlineData(LaunchOutcome.WrapperArguments)]
+    [InlineData(LaunchOutcome.WrapperRuntime)]
+    [InlineData(LaunchOutcome.PathOutsidePrefix)]
+    public async Task PlayActiveInstance_WrapperRefusesTheLaunch_SaysWhyInTheDisplayLanguage(LaunchOutcome outcome)
+    {
+        var unmapped = Path.Combine(Path.GetTempPath(), "Instances", "Main");
+        var launcher = new FixedLauncher(LaunchResult.Failed(outcome, "English text.", wine: WrapperInstall, unmappedPath: unmapped));
+        using var harness = await CreateWithLauncherAsync(launcher);
+        harness.Localization.TrySetCulture("de");
+
+        await PlayActiveInstanceAsync(harness);
+
+        var localization = harness.Localization;
+        var expected = outcome switch
+        {
+            LaunchOutcome.WrapperBusy => localization.FormatLaunchWrapperBusy(WrapperBundle),
+            LaunchOutcome.WrapperNeedsVariable => localization.FormatLaunchWrapperNeedsVariable("StarMap", "-InstancePath", WrapperBundle),
+            LaunchOutcome.WrapperArguments => localization.FormatLaunchWrapperArguments(WrapperBundle, "StarMap"),
+            LaunchOutcome.WrapperRuntime => localization.FormatLaunchWrapperRuntime("StarMap", WrapperBundle),
+            _ => localization.FormatLaunchPathOutsidePrefix(unmapped, WrapperInstall.PrefixRoot),
+        };
+        Assert.Equal(expected, harness.ViewModel.LaunchMessage);
+        Assert.NotEqual("English text.", harness.ViewModel.LaunchMessage);
+    }
+
+    [Fact]
+    public async Task PlayActiveInstance_WrapperStopsBeforeTheGame_OpensTheModalThatNamesTheWrapper()
+    {
+        var started = LaunchResult.Success(WrapperPlan, 4244, "Started.");
+        var stopped = LaunchResult.ExitedEarly(WrapperPlan, 0, ["Sikarugir: launching"], blamedModId: null, "English text.", wine: WrapperInstall);
+        using var harness = await CreateWithLauncherAsync(new FixedLauncher(started, stopped));
+
+        await PlayActiveInstanceAsync(harness);
+
+        var viewModel = harness.ViewModel;
+        Assert.True(viewModel.IsLaunchFailureOpen);
+        Assert.Equal(harness.Localization.FormatLaunchWrapperStopped(WrapperBundle, "StarMap"), viewModel.LaunchMessage);
+        Assert.Contains("Sikarugir: launching", viewModel.LaunchOutputText);
+        Assert.False(viewModel.CanDisableBlamedMod);
+    }
+
+    [Fact]
+    public async Task PlayWithoutModLoader_GameOnNoDriveOfTheWrapper_NamesTheExecutable()
+    {
+        var executable = Path.Combine(Path.GetTempPath(), "KSA.exe");
+        var launcher = new FixedSharedProfileLauncher(SharedProfileLaunchResult.Failed(SharedProfileLaunchOutcome.PathOutsidePrefix, "English text.", wine: WrapperInstall, unmappedPath: executable));
+        using var harness = await ViewModelHarness.CreateAsync(sharedProfileLauncher: launcher);
+        harness.Localization.TrySetCulture("de");
+
+        await harness.ViewModel.PlayWithoutModLoaderCommand.ExecuteAsync(null);
+
+        Assert.Equal(harness.Localization.FormatLaunchPathOutsidePrefix(executable, WrapperInstall.PrefixRoot), harness.ViewModel.LaunchMessage);
+    }
+
+    [Fact]
+    public async Task PlayWithoutModLoader_WrapperBusy_SaysWhyInTheDisplayLanguage()
+    {
+        var launcher = new FixedSharedProfileLauncher(SharedProfileLaunchResult.Failed(SharedProfileLaunchOutcome.WrapperBusy, "English text.", wine: WrapperInstall));
+        using var harness = await ViewModelHarness.CreateAsync(sharedProfileLauncher: launcher);
+        harness.Localization.TrySetCulture("de");
+
+        await harness.ViewModel.PlayWithoutModLoaderCommand.ExecuteAsync(null);
+
+        Assert.Equal(harness.Localization.FormatLaunchWrapperBusy(WrapperBundle), harness.ViewModel.LaunchMessage);
+    }
+
+    /// <summary>A harness with a game directory and StarMap recorded, whose launches go to <paramref name="launcher"/> and whose refreshes to <paramref name="configurator"/>.</summary>
+    private static Task<ViewModelHarness> CreateWithConfiguratorAsync(ILauncher launcher, RefreshRecorder configurator) =>
+        ViewModelHarness.CreateAsync(
+            services => services.SettingsRepository.SaveAsync(services.Settings
+                .WithGameDirectory(Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(services.Paths.GetBoreaSettingsPath())!, "Game")).FullName)
+                .WithLoaderInstallation("StarMap", CreateLoader(services, "StarMap"))),
+            loaderLauncher: launcher,
+            loaderConfigurator: configurator);
+
+    [Fact]
+    public async Task PlayActiveInstance_RefreshesTheGamePathOfTheLoaderBeforeItStarts()
+    {
+        var launcher = new FixedLauncher(LaunchResult.Failed(LaunchOutcome.NoLaunchTarget, "Not started."));
+        var configurator = new RefreshRecorder(launcher);
+        using var harness = await CreateWithConfiguratorAsync(launcher, configurator);
+
+        await PlayActiveInstanceAsync(harness);
+
+        var refresh = Assert.Single(configurator.Refreshes);
+        Assert.Equal("StarMap", refresh.LoaderId);
+        Assert.Equal(harness.Services.Paths.GetLoaderDirectoryPath("StarMap"), refresh.LoaderDirectory);
+        Assert.Equal(harness.Services.Paths.GetGameDirectoryPath(), refresh.GameDirectory);
+        Assert.Equal(0, refresh.LaunchesBefore);
+        Assert.Equal(1, launcher.Launches);
+    }
+
+    [Fact]
+    public async Task PlayActiveInstance_GamePathCannotBeRefreshed_StartsNothingAndSaysWhy()
+    {
+        var launcher = new FixedLauncher(LaunchResult.Failed(LaunchOutcome.NoLaunchTarget, "Not started."));
+        using var harness = await CreateWithConfiguratorAsync(launcher, new RefreshRecorder(launcher, new InvalidOperationException("No drive of the Wine prefix holds the game.")));
+
+        await PlayActiveInstanceAsync(harness);
+
+        Assert.Equal("No drive of the Wine prefix holds the game.", harness.ViewModel.LaunchMessage);
+        Assert.Equal(0, launcher.Launches);
+    }
+
     [Fact]
     public async Task PlayWithoutModLoader_PassesNoSavedLaunchArguments()
     {
@@ -602,6 +725,46 @@ public sealed class LaunchFailureTests
             {
             }
         }
+    }
+
+    /// <summary>A loader launcher that answers every launch with <paramref name="launched"/> and its watch with <paramref name="watched"/>.</summary>
+    private sealed class FixedLauncher(LaunchResult launched, LaunchResult? watched = null) : ILauncher
+    {
+        public int Launches { get; private set; }
+
+        public LaunchResult Launch(Instance instance, ModMetadata? loader, IReadOnlyList<string>? arguments = null)
+        {
+            Launches++;
+            return launched;
+        }
+
+        public Task<LaunchResult> WatchStartAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(watched ?? started);
+
+        public Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(GameExit.Unknown);
+
+        public bool IsRunning(Guid instanceId) => false;
+    }
+
+    private sealed class FixedSharedProfileLauncher(SharedProfileLaunchResult result) : ISharedProfileLauncher
+    {
+        public SharedProfileLaunchResult Launch(IReadOnlyList<string>? arguments = null) => result;
+    }
+
+    /// <summary>Records each refresh with the launches before it, and throws <paramref name="failure"/> when set.</summary>
+    private sealed class RefreshRecorder(FixedLauncher launcher, Exception? failure = null) : ILoaderConfigurator
+    {
+        public List<(string LoaderId, string LoaderDirectory, string GameDirectory, int LaunchesBefore)> Refreshes { get; } = [];
+
+        public Task<string?> ConfigureAsync(ModMetadata loader, string loaderDirectory, string gameDirectory, CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(null);
+
+        public Task<string?> RefreshForWineAsync(ModMetadata loader, string loaderDirectory, string gameDirectory, CancellationToken cancellationToken = default)
+        {
+            Refreshes.Add((loader.ModId, loaderDirectory, gameDirectory, launcher.Launches));
+            return failure is null ? Task.FromResult<string?>(null) : Task.FromException<string?>(failure);
+        }
+
+        public string GamePathValue(string gameDirectory) => gameDirectory;
     }
 
     /// <summary>Hands out a loader process that has already exited with the given code and output.</summary>

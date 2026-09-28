@@ -220,20 +220,20 @@ public sealed class LoaderLauncherTests : IDisposable
     }
 
     [Fact]
-    public void Launch_WindowsBuildInAWrapperOnMacOs_NamesTheWrapper()
+    public void Launch_WindowsBuildInAWrapperOnLinux_RefusesItAsAPrefix()
     {
         var prefix = WineFixtures.Prefix(WineFixtures.WrapperPrefix(Path.Combine(_tempRoot, "Applications")));
-        var bundle = WineFixtures.Wrapper(prefix);
+        WineFixtures.Wrapper(prefix);
         var paths = new TestGamePathProvider(Path.Combine(prefix, "drive_c"));
         PlaceWindowsBuild(paths);
-        using var launcher = new LoaderLauncher(paths, _starter, OsPlatform.MacOs, NoDotnetNeeded);
+        using var launcher = new LoaderLauncher(paths, _starter, OsPlatform.Linux, NoDotnetNeeded);
 
         var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
 
         Assert.Equal(LaunchOutcome.WindowsBuild, result.Outcome);
-        Assert.Contains("Wine wrapper", result.Message);
-        Assert.Contains(Path.GetFileName(bundle), result.Message);
-        Assert.Equal(Path.GetFileName(bundle), Path.GetFileName(result.Wine?.Wrapper?.BundlePath));
+        Assert.Contains("Wine prefix", result.Message);
+        Assert.Equal("prefix", Path.GetFileName(result.Wine?.PrefixRoot));
+        Assert.Null(result.Wine?.Wrapper);
         Assert.Empty(_starter.Plans);
     }
 
@@ -266,6 +266,223 @@ public sealed class LoaderLauncherTests : IDisposable
 
         Assert.True(result.Started);
         Assert.Single(_starter.Plans);
+    }
+
+    /// <summary>
+    /// The Windows build in the game folder of a prefix at the temp root, with
+    /// a wrapper app in it. Unless <paramref name="drives"/> says otherwise,
+    /// drive c: is drive_c and drive z: the root of the host, as in every
+    /// prefix Wine creates.
+    /// </summary>
+    private FakeWineProbe PlaceWrapper(Dictionary<char, string>? drives = null)
+    {
+        PlaceWindowsBuild(_paths);
+        drives ??= new Dictionary<char, string>
+        {
+            ['c'] = Directory.CreateDirectory(Path.Combine(_tempRoot, "drive_c")).FullName,
+            ['z'] = Path.GetPathRoot(Path.GetFullPath(_tempRoot))!,
+        };
+        var bundle = Path.Combine(Path.GetFullPath(_tempRoot), "Kitten Space Agency.app");
+        var wrapper = new WineWrapper(bundle, Path.Combine(bundle, "Contents", "MacOS", "launcher"));
+        return new FakeWineProbe(new WineInstall(Path.GetFullPath(_tempRoot), WineFixtures.Drives(drives), wrapper));
+    }
+
+    private LoaderLauncher WrapperLauncher(FakeWineProbe wine, TimeSpan? startupWindow = null) =>
+        new(_paths, _starter, OsPlatform.MacOs, NoDotnetNeeded, startupWindow ?? LoaderLauncher.DefaultStartupWindow, wine: wine);
+
+    /// <summary>The path a program in the prefix of <see cref="PlaceWrapper"/> uses for a host path on drive z:.</summary>
+    private static string OnDriveZ(string hostPath)
+    {
+        var full = Path.GetFullPath(hostPath);
+        return @"Z:\" + string.Join('\\', full[Path.GetPathRoot(full)!.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    [Fact]
+    public void Launch_WindowsBuildInAWrapperOnMacOs_StartsTheDefaultLaunchThroughTheWrapperWithOnlyTheVariable()
+    {
+        var executable = PlaceStarMap();
+        PlaceStarMap("StarMap.dll");
+        var wine = PlaceWrapper();
+        var platforms = new Dictionary<OsPlatform, LoaderPlatformLaunch> { [OsPlatform.MacOs] = new("StarMap.dll", "dotnet") };
+        using var launcher = WrapperLauncher(wine);
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides(platforms: platforms)));
+
+        Assert.True(result.Started);
+        var plan = Assert.Single(_starter.Plans);
+        Assert.Same(plan, result.Plan);
+        Assert.Equal(Path.Combine(_tempRoot, "Kitten Space Agency.app", "Contents", "MacOS", "launcher"), plan.Executable);
+        Assert.Equal([executable], plan.Arguments);
+        Assert.Equal(Path.GetFullPath(StarMapDirectory), plan.WorkingDirectory);
+        var variable = Assert.Single(plan.EnvironmentVariables);
+        Assert.Equal("STARMAP_INSTANCE_PATH", variable.Key);
+        Assert.Equal(OnDriveZ(_paths.GetInstanceRoot(_instance.InstanceId)), variable.Value);
+        Assert.StartsWith(@"Z:", variable.Value);
+        Assert.EndsWith(@"\Instances\" + _instance.InstanceId, variable.Value);
+        Assert.True(launcher.IsRunning(_instance.InstanceId));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Launch_WrapperAndLaunchArguments_StartsNothing(bool saved)
+    {
+        PlaceStarMap();
+        using var launcher = WrapperLauncher(PlaceWrapper());
+        if (saved)
+            _instance.SetLaunchArguments(["-windowed"]);
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()), saved ? null : ["-windowed"]);
+
+        Assert.Equal(LaunchOutcome.WrapperArguments, result.Outcome);
+        Assert.Contains("Kitten Space Agency.app", result.Message);
+        Assert.NotNull(result.Wine?.Wrapper);
+        Assert.Empty(_starter.Plans);
+        Assert.False(launcher.IsRunning(_instance.InstanceId));
+    }
+
+    [Fact]
+    public void Launch_WrapperAndAListingWithOnlyAFlag_StartsNothing()
+    {
+        PlaceStarMap();
+        using var launcher = WrapperLauncher(PlaceWrapper());
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides(instance: new InstanceHandover("-InstancePath", null))));
+
+        Assert.Equal(LaunchOutcome.WrapperNeedsVariable, result.Outcome);
+        Assert.Contains("'-InstancePath'", result.Message);
+        Assert.NotNull(result.Wine?.Wrapper);
+        Assert.Empty(_starter.Plans);
+    }
+
+    [Fact]
+    public void Launch_WrapperAndADotnetEntryForWindows_StartsNothing()
+    {
+        PlaceStarMap();
+        PlaceStarMap("StarMap.dll");
+        using var launcher = WrapperLauncher(PlaceWrapper());
+        var platforms = new Dictionary<OsPlatform, LoaderPlatformLaunch> { [OsPlatform.Windows] = new("StarMap.dll", "dotnet") };
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides(platforms: platforms)));
+
+        Assert.Equal(LaunchOutcome.WrapperRuntime, result.Outcome);
+        Assert.Contains("'dotnet'", result.Message);
+        Assert.Empty(_starter.Plans);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Launch_WrapperAndAPathOnNoDrive_StartsNothingAndNamesThePath(bool loaderOnADrive)
+    {
+        var executable = PlaceStarMap();
+        var drives = new Dictionary<char, string> { ['c'] = Directory.CreateDirectory(Path.Combine(_tempRoot, "drive_c")).FullName };
+        if (loaderOnADrive)
+            drives['d'] = Path.GetFullPath(StarMapDirectory);
+        using var launcher = WrapperLauncher(PlaceWrapper(drives));
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        var unmapped = loaderOnADrive ? Path.GetFullPath(_paths.GetInstanceRoot(_instance.InstanceId)) : executable;
+        Assert.Equal(LaunchOutcome.PathOutsidePrefix, result.Outcome);
+        Assert.Equal(unmapped, result.UnmappedPath);
+        Assert.Contains($"'{unmapped}'", result.Message);
+        Assert.Empty(_starter.Plans);
+        Assert.False(launcher.IsRunning(_instance.InstanceId));
+    }
+
+    [Fact]
+    public void Launch_SecondInstanceThroughTheSameWrapperWhileTheFirstRuns_IsRefused()
+    {
+        PlaceStarMap();
+        var listing = LoaderListing(provides: StarMapProvides());
+        var other = new Instance("Other", InstanceSource.Custom.Value);
+        using var launcher = WrapperLauncher(PlaceWrapper());
+        Assert.True(launcher.Launch(_instance, listing).Started);
+
+        var second = launcher.Launch(other, listing);
+
+        Assert.Equal(LaunchOutcome.WrapperBusy, second.Outcome);
+        Assert.Contains("Kitten Space Agency.app", second.Message);
+        Assert.Single(_starter.Plans);
+        Assert.False(launcher.IsRunning(other.InstanceId));
+
+        Assert.Single(_starter.Processes).HasExited = true;
+
+        Assert.True(launcher.Launch(other, listing).Started);
+    }
+
+    [Fact]
+    public void Launch_InstanceWhileAStartWithoutALoaderRunsThroughTheWrapper_IsRefused()
+    {
+        PlaceStarMap();
+        var wine = PlaceWrapper();
+        var launches = new RunningLaunches();
+        var shared = new SharedProfileLauncher(_paths, _starter, OsPlatform.MacOs, wine, launches);
+        using var launcher = new LoaderLauncher(_paths, _starter, OsPlatform.MacOs, NoDotnetNeeded, LoaderLauncher.DefaultStartupWindow, launches, wine: wine);
+        var listing = LoaderListing(provides: StarMapProvides());
+        Assert.True(shared.Launch().Started);
+        Assert.False(Assert.Single(_starter.Processes).Disposed);
+
+        var result = launcher.Launch(_instance, listing);
+
+        Assert.Equal(LaunchOutcome.WrapperBusy, result.Outcome);
+        Assert.Single(_starter.Plans);
+
+        _starter.Processes[0].HasExited = true;
+
+        Assert.True(launcher.Launch(_instance, listing).Started);
+        Assert.True(_starter.Processes[0].Disposed);
+    }
+
+    [Fact]
+    public void LaunchWithoutALoader_WhileAGameRunsThroughTheWrapper_IsRefused()
+    {
+        PlaceStarMap();
+        var wine = PlaceWrapper();
+        var launches = new RunningLaunches();
+        var shared = new SharedProfileLauncher(_paths, _starter, OsPlatform.MacOs, wine, launches);
+        using var launcher = new LoaderLauncher(_paths, _starter, OsPlatform.MacOs, NoDotnetNeeded, LoaderLauncher.DefaultStartupWindow, launches, wine: wine);
+        Assert.True(launcher.Launch(_instance, LoaderListing(provides: StarMapProvides())).Started);
+
+        var whileTheInstanceRuns = shared.Launch();
+
+        Assert.Equal(SharedProfileLaunchOutcome.WrapperBusy, whileTheInstanceRuns.Outcome);
+        Assert.Contains("Kitten Space Agency.app", whileTheInstanceRuns.Message);
+        Assert.NotNull(whileTheInstanceRuns.Wine?.Wrapper);
+        Assert.Single(_starter.Plans);
+
+        _starter.Processes[0].HasExited = true;
+        Assert.True(shared.Launch().Started);
+
+        Assert.Equal(SharedProfileLaunchOutcome.WrapperBusy, shared.Launch().Outcome);
+        Assert.Equal(2, _starter.Plans.Count);
+    }
+
+    [Fact]
+    public void Launch_DotnetEntryOnANativeMacOsInstall_StillStartsDotnet()
+    {
+        PlaceStarMap();
+        var assembly = PlaceStarMap("StarMap.dll");
+        var dotnet = PlaceDotnet();
+        var platforms = new Dictionary<OsPlatform, LoaderPlatformLaunch> { [OsPlatform.MacOs] = new("StarMap.dll", "dotnet") };
+        Directory.CreateDirectory(_paths.GetGameDirectoryPath()!);
+        using var launcher = new LoaderLauncher(_paths, _starter, OsPlatform.MacOs, () => dotnet, LoaderLauncher.DefaultStartupWindow, wine: PlaceWrapperProbeWithoutTheGame());
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides(platforms: platforms)));
+
+        Assert.True(result.Started);
+        var plan = Assert.Single(_starter.Plans);
+        Assert.Equal(dotnet, plan.Executable);
+        Assert.Equal(assembly, plan.Arguments[0]);
+    }
+
+    /// <summary>A probe that finds a wrapper around the game folder, which holds no game build.</summary>
+    private FakeWineProbe PlaceWrapperProbeWithoutTheGame()
+    {
+        var bundle = Path.Combine(Path.GetFullPath(_tempRoot), "Kitten Space Agency.app");
+        var drives = WineFixtures.Drives(new Dictionary<char, string> { ['z'] = Path.GetPathRoot(Path.GetFullPath(_tempRoot))! });
+        return new FakeWineProbe(new WineInstall(Path.GetFullPath(_tempRoot), drives, new WineWrapper(bundle, Path.Combine(bundle, "Contents", "MacOS", "launcher"))));
     }
 
     [Fact]
@@ -1090,6 +1307,54 @@ public sealed class LoaderLauncherTests : IDisposable
 
         Assert.True(await Task.WhenAny(watch, Task.Delay(TimeSpan.FromSeconds(10))) == watch, "The watch did not stop when the game wrote its log.");
         Assert.True((await watch).Started);
+    }
+
+    [Fact]
+    public async Task WatchStart_WrapperLauncherExitsWithAnErrorBeforeTheGameComesUp_StaysStarted()
+    {
+        PlaceStarMap();
+        using var launcher = WrapperLauncher(PlaceWrapper(), TimeSpan.FromMinutes(5));
+        var started = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+        var process = Assert.Single(_starter.Processes);
+        process.Output.AddRange(KsArmoryCrash);
+        process.HasExited = true;
+        process.ExitCode = 1;
+        var gameLog = _paths.GetInstanceGameLogPath(_instance.InstanceId);
+        var gameComesUp = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+            Directory.CreateDirectory(Path.GetDirectoryName(gameLog)!);
+            await File.WriteAllTextAsync(gameLog, "INFO loaded settings");
+        });
+
+        var result = await launcher.WatchStartAsync(_instance, started);
+        await gameComesUp;
+
+        Assert.True(result.Started);
+        Assert.Null(result.BlamedModId);
+    }
+
+    [Fact]
+    public async Task WatchStart_WrapperLauncherEndsWithoutTheGame_NamesTheWrapperAndBlamesNoMod()
+    {
+        PlaceStarMap();
+        var instance = InstanceWith("KSArmory");
+        var wine = PlaceWrapper();
+        using var launcher = WrapperLauncher(wine, TimeSpan.FromMilliseconds(100));
+        var started = launcher.Launch(instance, LoaderListing(provides: StarMapProvides()));
+        var process = Assert.Single(_starter.Processes);
+        process.Output.AddRange(KsArmoryCrash);
+        process.HasExited = true;
+        process.ExitCode = 0;
+
+        var result = await launcher.WatchStartAsync(instance, started);
+
+        Assert.Equal(LaunchOutcome.ExitedEarly, result.Outcome);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Null(result.BlamedModId);
+        Assert.Contains($"Wine wrapper '{Path.Combine(Path.GetFullPath(_tempRoot), "Kitten Space Agency.app")}'", result.Message);
+        Assert.NotNull(result.Wine?.Wrapper);
+        Assert.Equal(KsArmoryCrash, result.Output);
     }
 
     [Fact]

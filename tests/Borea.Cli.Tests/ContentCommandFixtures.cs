@@ -45,7 +45,8 @@ internal static class ContentCommandFixtures
         LoaderRequirement? loader = null,
         string? changelog = null,
         string? changelogText = null,
-        DateTimeOffset? unavailableSince = null) => new(
+        DateTimeOffset? unavailableSince = null,
+        IReadOnlyList<string>? os = null) => new(
             specVersion: 1,
             modId: id,
             version: ModVersion.Parse(version),
@@ -59,6 +60,7 @@ internal static class ContentCommandFixtures
             loader: loader,
             gameMax: gameMaxRevision is null ? null : $"2026.1.1.{gameMaxRevision}",
             gameMaxRevision: gameMaxRevision,
+            os: os,
             yanked: yanked,
             yankedReason: yankedReason,
             source: "index",

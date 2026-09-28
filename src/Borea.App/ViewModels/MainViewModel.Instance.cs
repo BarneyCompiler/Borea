@@ -594,6 +594,14 @@ public partial class MainViewModel
                 services.Log.Write($"Instance {instance.InstanceId}: the game's own content now loads before the mods.");
             }
 
+            // an older Borea wrote the host path of the game, which a loader in a Wine prefix cannot open
+            if (services.Paths.GetGameDirectoryPath() is { } game
+                && services.Paths.GetLoaderDirectoryPath(loader.ModId) is { } loaderDirectory
+                && await services.LoaderConfiguration.RefreshForWineAsync(loader, loaderDirectory, game) is { } refreshed)
+            {
+                services.Log.Write($"Wrote the game path of the Wine prefix to '{refreshed}' before the launch.");
+            }
+
             var result = services.Launcher.Launch(instance, loader);
             if (result.Started)
             {
@@ -638,7 +646,13 @@ public partial class MainViewModel
         try
         {
             var result = _services.SharedProfileLauncher.Launch();
-            LaunchMessage = result.Outcome == SharedProfileLaunchOutcome.WindowsBuild ? WindowsBuildText(result.Wine) : result.Message;
+            LaunchMessage = result.Outcome switch
+            {
+                SharedProfileLaunchOutcome.WindowsBuild => WindowsBuildText(result.Wine),
+                SharedProfileLaunchOutcome.PathOutsidePrefix => Localization.FormatLaunchPathOutsidePrefix(result.UnmappedPath!, result.Wine!.PrefixRoot),
+                SharedProfileLaunchOutcome.WrapperBusy => Localization.FormatLaunchWrapperBusy(result.Wine!.Wrapper!.BundlePath),
+                _ => result.Message,
+            };
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or System.Net.Http.HttpRequestException)
         {
@@ -655,7 +669,11 @@ public partial class MainViewModel
         var loaderName = _launchLoaderName = loader?.Name ?? string.Empty;
         var blamed = result.BlamedModId is null ? null : instance.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, result.BlamedModId));
         var loadingMods = result.CrashCause == LoaderCrashCause.ModLoading;
-        if (blamed is null)
+        if (result.Wine?.Wrapper is { } wrapper)
+        {
+            LaunchMessage = Localization.FormatLaunchWrapperStopped(wrapper.BundlePath, loaderName);
+        }
+        else if (blamed is null)
         {
             LaunchMessage = loadingMods
                 ? Localization.FormatLaunchStoppedLoadingMods(loaderName, result.ExitCode ?? 0)
@@ -740,12 +758,16 @@ public partial class MainViewModel
         LaunchOutcome.DotnetMissing => Localization.FormatLaunchDotnetMissing(loader.Name),
         LaunchOutcome.LaunchTargetMissing when result.Plan is { } plan => Localization.FormatLaunchTargetMissing(plan.Executable, loader.Name),
         LaunchOutcome.WindowsBuild => WindowsBuildText(result.Wine),
+        LaunchOutcome.PathOutsidePrefix => Localization.FormatLaunchPathOutsidePrefix(result.UnmappedPath!, result.Wine!.PrefixRoot),
+        LaunchOutcome.WrapperBusy => Localization.FormatLaunchWrapperBusy(result.Wine!.Wrapper!.BundlePath),
+        LaunchOutcome.WrapperNeedsVariable => Localization.FormatLaunchWrapperNeedsVariable(loader.Name, loader.Provides!.Instance!.Flag!, result.Wine!.Wrapper!.BundlePath),
+        LaunchOutcome.WrapperArguments => Localization.FormatLaunchWrapperArguments(result.Wine!.Wrapper!.BundlePath, loader.Name),
+        LaunchOutcome.WrapperRuntime => Localization.FormatLaunchWrapperRuntime(loader.Name, result.Wine!.Wrapper!.BundlePath),
         _ => result.Message,
     };
 
     private string WindowsBuildText(WineInstall? wine) => wine switch
     {
-        { Wrapper: { } wrapper } => Localization.FormatLaunchWindowsBuildInWrapper(wrapper.BundlePath),
         { } prefix => Localization.FormatLaunchWindowsBuildInPrefix(prefix.PrefixRoot),
         null => Localization.LaunchWindowsBuildWithoutWine,
     };
@@ -935,7 +957,7 @@ public partial class MainViewModel
                 recorded,
                 services.Mods,
                 services.InstalledVersion.GetInstalledVersion()?.Version,
-                CurrentPlatform());
+                services.GamePlatform.Current);
             item.InstallManageDependencies = true;
             item.IsConfirmingManage = true;
         }

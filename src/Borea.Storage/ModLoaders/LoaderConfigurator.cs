@@ -89,6 +89,48 @@ public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurati
         return file;
     }
 
+    public async Task<string?> RefreshForWineAsync(
+        ModMetadata loader,
+        string loaderDirectory,
+        string gameDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(loader);
+
+        if (loader.Type != ContentType.ModLoader)
+            throw new ArgumentException("Only a mod loader has a configuration file to write.", nameof(loader));
+
+        var configure = loader.Provides?.Configure;
+        if (configure?.GamePath is null
+            || configure.Format is not (ConfigureFormat.Json or ConfigureFormat.Toml)
+            || string.IsNullOrWhiteSpace(loaderDirectory) || !Path.IsPathFullyQualified(loaderDirectory)
+            || string.IsNullOrWhiteSpace(gameDirectory) || !Path.IsPathFullyQualified(gameDirectory))
+        {
+            return null;
+        }
+
+        var directory = Path.GetFullPath(loaderDirectory);
+        var game = Path.TrimEndingDirectorySeparator(Path.GetFullPath(gameDirectory));
+
+        // the host starts a loader that reads the host path, so nothing is stale
+        if (string.Equals(GamePathValue(game), game, StringComparison.Ordinal))
+            return null;
+
+        // only the host path of the game, which an older Borea wrote, or no value is replaced, so a value the player set stays
+        var configured = await ReadRawGamePathAsync(loader, configure, directory, cancellationToken).ConfigureAwait(false);
+        if (configured is not null && !string.Equals(Path.TrimEndingDirectorySeparator(configured), game, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        try
+        {
+            return await ConfigureAsync(loader, directory, game, cancellationToken).ConfigureAwait(false);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new InvalidOperationException($"Borea could not write the Windows game path to the configuration of {loader.Name} in '{directory}', so {loader.Name} in the Wine prefix could not find the game. {exception.Message}", exception);
+        }
+    }
+
     public async Task<string?> ReadConfiguredGamePathAsync(
         ModMetadata loader,
         string loaderDirectory,
@@ -108,6 +150,13 @@ public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurati
         if (configure.Format is not (ConfigureFormat.Json or ConfigureFormat.Toml))
             throw new NotSupportedException($"The listing of {loader.Name} keeps its configuration in a format this version of Borea cannot read.");
 
+        var configured = await ReadRawGamePathAsync(loader, configure, directory, cancellationToken).ConfigureAwait(false);
+        return configured is null ? null : HostGamePath(configured, gameDirectory, directory);
+    }
+
+    /// <summary>The game path as the file holds it, or null when the file or the key is absent.</summary>
+    private static async Task<string?> ReadRawGamePathAsync(ModMetadata loader, LoaderConfigure configure, string directory, CancellationToken cancellationToken)
+    {
         var file = Path.GetFullPath(Path.Combine(directory, configure.File.Replace('/', Path.DirectorySeparatorChar)));
         if (!File.Exists(file))
             return null;
@@ -116,11 +165,10 @@ public sealed class LoaderConfigurator : ILoaderConfigurator, ILoaderConfigurati
         if (string.IsNullOrWhiteSpace(text))
             return null;
 
-        var keys = configure.GamePath.Split('.');
-        var configured = configure.Format == ConfigureFormat.Json
+        var keys = configure.GamePath!.Split('.');
+        return configure.Format == ConfigureFormat.Json
             ? ReadJsonGamePath(text, keys, file, loader)
             : ReadTomlGamePath(text, keys, file, loader);
-        return configured is null ? null : HostGamePath(configured, gameDirectory, directory);
     }
 
     /// <summary>

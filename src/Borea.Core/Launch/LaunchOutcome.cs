@@ -58,4 +58,7 @@ public enum LaunchOutcome
 
     /// <summary>A launch this launcher started through the same Wine wrapper is still running.</summary>
     WrapperBusy = 18,
+
+    /// <summary>The loader needs a shared .NET runtime, and the Wine prefix of the wrapper that starts it has none that fits.</summary>
+    WrapperRuntimeMissing = 19,
 }

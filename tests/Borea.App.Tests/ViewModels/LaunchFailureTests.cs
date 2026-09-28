@@ -442,6 +442,116 @@ public sealed class LaunchFailureTests
         Assert.Equal(harness.Localization.FormatLaunchWrapperBusy(WrapperBundle), harness.ViewModel.LaunchMessage);
     }
 
+    private static readonly DotnetRuntimeNeed Dotnet10 = DotnetRuntimeNeed.Parse("""{ "runtimeOptions": { "framework": { "name": "Microsoft.NETCore.App", "version": "10.0.0" } } }""")!;
+
+    private static LaunchResult RuntimeMissing => LaunchResult.Failed(LaunchOutcome.WrapperRuntimeMissing, "English text.", WrapperPlan, wine: WrapperInstall, missingRuntime: Dotnet10);
+
+    [Fact]
+    public async Task PlayActiveInstance_WrapperLacksTheRuntime_OpensThePromptInTheDisplayLanguage()
+    {
+        var launcher = new SequenceLauncher(RuntimeMissing);
+        using var harness = await CreateWithLauncherAsync(launcher);
+        harness.Localization.TrySetCulture("de");
+
+        await PlayActiveInstanceAsync(harness);
+
+        var viewModel = harness.ViewModel;
+        var localization = harness.Localization;
+        Assert.True(viewModel.IsRuntimePromptOpen);
+        Assert.Equal(localization.FormatLaunchRuntimeMissing("StarMap", "10.0.0", WrapperBundle, "10.0"), viewModel.RuntimePromptText);
+        Assert.Contains("Install Software", viewModel.RuntimePromptText);
+        Assert.Equal(localization.FormatLaunchRuntimeDownload("10.0"), viewModel.RuntimeDownloadText);
+        Assert.Null(viewModel.RuntimePromptError);
+        Assert.Null(viewModel.LaunchMessage);
+        Assert.False(viewModel.IsLaunchFailureOpen);
+    }
+
+    [Fact]
+    public async Task CheckRuntimeAgain_RuntimeNowThere_StartsTheLaunchAndClosesThePrompt()
+    {
+        var launcher = new SequenceLauncher(RuntimeMissing, LaunchResult.Success(WrapperPlan, 4244, "Started StarMap."));
+        using var harness = await CreateWithLauncherAsync(launcher);
+        await PlayActiveInstanceAsync(harness);
+        var viewModel = harness.ViewModel;
+        Assert.True(viewModel.IsRuntimePromptOpen);
+        bool? openWhileWatched = null;
+        launcher.OnWatch = () => openWhileWatched = viewModel.IsRuntimePromptOpen;
+
+        await viewModel.CheckRuntimeAgainCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, launcher.Launches);
+        Assert.Equal(1, launcher.Watches);
+        Assert.False(openWhileWatched);
+        Assert.False(viewModel.IsRuntimePromptOpen);
+        Assert.Equal("Started StarMap.", viewModel.LaunchMessage);
+    }
+
+    [Fact]
+    public async Task CheckRuntimeAgain_RuntimeStillMissing_KeepsThePromptAndSaysSo()
+    {
+        var launcher = new SequenceLauncher(RuntimeMissing, RuntimeMissing);
+        using var harness = await CreateWithLauncherAsync(launcher);
+        harness.Localization.TrySetCulture("de");
+        await PlayActiveInstanceAsync(harness);
+        var viewModel = harness.ViewModel;
+
+        await viewModel.CheckRuntimeAgainCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, launcher.Launches);
+        Assert.True(viewModel.IsRuntimePromptOpen);
+        Assert.Equal(harness.Localization.FormatLaunchRuntimeStillMissing("10.0.0"), viewModel.RuntimePromptError);
+        Assert.Equal(0, launcher.Watches);
+    }
+
+    [Fact]
+    public async Task CheckRuntimeAgain_LaunchStopsForAnotherReason_ClosesThePromptAndSaysWhy()
+    {
+        var launcher = new SequenceLauncher(RuntimeMissing, LaunchResult.Failed(LaunchOutcome.WrapperBusy, "English text.", wine: WrapperInstall));
+        using var harness = await CreateWithLauncherAsync(launcher);
+        await PlayActiveInstanceAsync(harness);
+        var viewModel = harness.ViewModel;
+
+        await viewModel.CheckRuntimeAgainCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsRuntimePromptOpen);
+        Assert.Equal(harness.Localization.FormatLaunchWrapperBusy(WrapperBundle), viewModel.LaunchMessage);
+    }
+
+    [Fact]
+    public async Task CheckRuntimeAgain_InstanceGoneBeforeTheLaunch_ClosesThePromptAndSaysWhy()
+    {
+        var launcher = new SequenceLauncher(RuntimeMissing);
+        using var harness = await CreateWithLauncherAsync(launcher);
+        await PlayActiveInstanceAsync(harness);
+        var viewModel = harness.ViewModel;
+        await harness.Services.Instances.DeleteAsync(viewModel.ActiveInstance!.InstanceId);
+
+        await viewModel.CheckRuntimeAgainCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, launcher.Launches);
+        Assert.False(viewModel.IsRuntimePromptOpen);
+        Assert.Equal(harness.Localization.LaunchInstanceMissing, viewModel.LaunchMessage);
+    }
+
+    [Fact]
+    public async Task OpenRuntimeDownload_OpensTheDownloadPageOfTheMajorVersion()
+    {
+        using var harness = await CreateWithLauncherAsync(new SequenceLauncher(RuntimeMissing));
+        await PlayActiveInstanceAsync(harness);
+        var viewModel = harness.ViewModel;
+        var opened = new List<string>();
+        viewModel.OpenWithSystem = opened.Add;
+
+        viewModel.OpenRuntimeDownloadCommand.Execute(null);
+
+        Assert.Equal(["https://dotnet.microsoft.com/download/dotnet/10.0"], opened);
+        Assert.Null(viewModel.RuntimePromptError);
+
+        viewModel.CloseRuntimePromptCommand.Execute(null);
+
+        Assert.False(viewModel.IsRuntimePromptOpen);
+    }
+
     /// <summary>A harness with a game directory and StarMap recorded, whose launches go to <paramref name="launcher"/> and whose refreshes to <paramref name="configurator"/>.</summary>
     private static Task<ViewModelHarness> CreateWithConfiguratorAsync(ILauncher launcher, RefreshRecorder configurator) =>
         ViewModelHarness.CreateAsync(
@@ -739,6 +849,30 @@ public sealed class LaunchFailureTests
         }
 
         public Task<LaunchResult> WatchStartAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(watched ?? started);
+
+        public Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(GameExit.Unknown);
+
+        public bool IsRunning(Guid instanceId) => false;
+    }
+
+    /// <summary>A loader launcher that answers the launches with <paramref name="results"/> in turn, and each watch with the started result.</summary>
+    private sealed class SequenceLauncher(params LaunchResult[] results) : ILauncher
+    {
+        public int Launches { get; private set; }
+
+        public int Watches { get; private set; }
+
+        /// <summary>Runs when a watch starts.</summary>
+        public Action? OnWatch { get; set; }
+
+        public LaunchResult Launch(Instance instance, ModMetadata? loader, IReadOnlyList<string>? arguments = null) => results[Launches++];
+
+        public Task<LaunchResult> WatchStartAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default)
+        {
+            Watches++;
+            OnWatch?.Invoke();
+            return Task.FromResult(started);
+        }
 
         public Task<GameExit> WatchExitAsync(Instance instance, LaunchResult started, CancellationToken cancellationToken = default) => Task.FromResult(GameExit.Unknown);
 

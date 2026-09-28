@@ -109,6 +109,9 @@
     <!-- modal: the mod loader a launch needs -->
     <views:LoaderPromptModal IsVisible="{Binding IsLoaderPromptOpen}" />
 
+    <!-- modal: the .NET runtime a launch through a Wine wrapper needs -->
+    <views:RuntimePromptModal IsVisible="{Binding IsRuntimePromptOpen}" />
+
     <!-- modal: the loader stopped right after Play -->
     <views:LaunchFailureModal IsVisible="{Binding IsLaunchFailureOpen}" />
 

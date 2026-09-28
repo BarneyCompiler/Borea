@@ -3900,6 +3900,21 @@
   <data name="LaunchWrapperRuntimeFormat" xml:space="preserve">
     <value>Der Starteintrag für Windows im Listing von {0} braucht eine Laufzeitumgebung, und der Wine-Wrapper '{1}' startet nur die Datei selbst. Borea startet nichts.</value>
   </data>
+  <data name="LaunchRuntimeTitle" xml:space="preserve">
+    <value>.NET-Laufzeitumgebung installieren</value>
+  </data>
+  <data name="LaunchRuntimeMissingFormat" xml:space="preserve">
+    <value>{0} braucht die .NET-Laufzeitumgebung {1} für Windows x64, und der Wine-Wrapper '{2}' hat sie nicht. Borea startet nichts. Lade das Installationsprogramm der .NET-{3}-Laufzeitumgebung für Windows x64 von Microsoft herunter und installiere es im Wrapper, in Sikarugir über die Aktion Install Software. Klicke dann auf Erneut prüfen.</value>
+  </data>
+  <data name="LaunchRuntimeStillMissingFormat" xml:space="preserve">
+    <value>Borea findet die .NET-Laufzeitumgebung {0} im Wrapper noch immer nicht.</value>
+  </data>
+  <data name="LaunchRuntimeDownloadFormat" xml:space="preserve">
+    <value>Downloadseite von Microsoft für .NET {0} öffnen</value>
+  </data>
+  <data name="LaunchRuntimeCheckAgain" xml:space="preserve">
+    <value>Erneut prüfen</value>
+  </data>
   <data name="LaunchWrapperStoppedFormat" xml:space="preserve">
     <value>Der Wine-Wrapper '{0}' wurde beendet, bevor {1} das Spiel gestartet hat. Die Details zeigen, was er ausgegeben hat.</value>
   </data>

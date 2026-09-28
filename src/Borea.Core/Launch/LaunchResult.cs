@@ -45,6 +45,9 @@ public sealed class LaunchResult
     /// <summary>The host path that no drive of the Wine prefix holds, when that stopped the launch.</summary>
     public string? UnmappedPath { get; private init; }
 
+    /// <summary>The .NET runtime that the loader needs and the Wine prefix lacks, when that stopped the launch.</summary>
+    public DotnetRuntimeNeed? MissingRuntime { get; private init; }
+
     private LaunchResult(LaunchOutcome outcome, string message, LaunchPlan? plan, int? processId)
     {
         if (string.IsNullOrWhiteSpace(message))
@@ -97,11 +100,11 @@ public sealed class LaunchResult
         };
     }
 
-    public static LaunchResult Failed(LaunchOutcome outcome, string message, LaunchPlan? plan = null, string? unknownName = null, WineInstall? wine = null, string? unmappedPath = null)
+    public static LaunchResult Failed(LaunchOutcome outcome, string message, LaunchPlan? plan = null, string? unknownName = null, WineInstall? wine = null, string? unmappedPath = null, DotnetRuntimeNeed? missingRuntime = null)
     {
         if (outcome == LaunchOutcome.Started)
             throw new ArgumentException("A started launch is a success, not a failure.", nameof(outcome));
 
-        return new LaunchResult(outcome, message, plan, processId: null) { UnknownName = unknownName, Wine = wine, UnmappedPath = unmappedPath };
+        return new LaunchResult(outcome, message, plan, processId: null) { UnknownName = unknownName, Wine = wine, UnmappedPath = unmappedPath, MissingRuntime = missingRuntime };
     }
 }

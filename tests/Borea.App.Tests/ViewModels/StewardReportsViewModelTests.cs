@@ -238,7 +238,9 @@ public sealed class StewardReportsViewModelTests
     public async Task SignOut_TakesTheReporterWarningAway()
     {
         _reports.Reports.Add(FakeIndexReports.Takedown(10, "MeasureTools", author: "octocat"));
-        using var harness = await CreateAsync();
+
+        // built without a synchronization context, so the session and the role refresh the page inline and in order
+        using var harness = await Task.Run(() => CreateAsync());
         var viewModel = harness.ViewModel;
         var tab = await OpenAsync(viewModel);
         Assert.True(tab.Reports[0].IsReporter);

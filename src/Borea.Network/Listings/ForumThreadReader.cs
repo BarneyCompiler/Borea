@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -54,7 +55,10 @@ public sealed partial class ForumThreadReader : IForumThreadReader
         }
     }
 
-    /// <summary>The labels in front of the thread title of a thread page. Empty when the page has no title or no prefix.</summary>
+    /// <summary>
+    /// The labels in front of the thread title of a thread page, each with the prefix id that the threads listed on
+    /// the page give its text. Empty when the page has no title or no prefix.
+    /// </summary>
     public static IReadOnlyList<ForumPrefix> ParsePrefixes(string html)
     {
         ArgumentNullException.ThrowIfNull(html);
@@ -62,18 +66,83 @@ public sealed partial class ForumThreadReader : IForumThreadReader
         if (Title().Match(html) is not { Success: true } title)
             return [];
 
+        var ids = ListedPrefixIds(html);
         return Label().Matches(title.Groups[1].Value)
-            .Select(label => WebUtility.HtmlDecode(Tags().Replace(label.Groups[1].Value, string.Empty)).Trim())
-            .Where(prefix => prefix.Length > 0)
-            .Select(prefix => new ForumPrefix(prefix))
+            .Select(LabelText)
+            .Where(text => text.Length > 0)
+            .Select(text => new ForumPrefix(text, ids.GetValueOrDefault(text)))
             .ToList();
     }
+
+    /// <summary>
+    /// The prefix id of each label text in the thread lists of the page, such as its similar threads. XenForo renders
+    /// no id on the title of a thread page, but it marks every listed thread with the is-prefix class of its prefix.
+    /// Only the listed threads of the forum that holds the page count, because the similar threads also come from
+    /// other forums, and a prefix there can have the same text and a different id. A text that two listed threads
+    /// give different ids gets none, and a page that does not name its forum in its canonical link gives no ids.
+    /// </summary>
+    private static Dictionary<string, int?> ListedPrefixIds(string html)
+    {
+        var ids = new Dictionary<string, int?>(StringComparer.Ordinal);
+        if (Canonical().Match(html) is not { Success: true } canonical || ForumPath(canonical.Groups[1].Value) is not { } forum)
+            return ids;
+
+        var threads = ListedThread().Matches(html);
+        for (var index = 0; index < threads.Count; index++)
+        {
+            var start = threads[index].Index + threads[index].Length;
+            var end = index + 1 < threads.Count ? threads[index + 1].Index : html.Length;
+            if (PrefixClass().Match(threads[index].Groups[1].Value) is not { Success: true } prefixClass
+                || !int.TryParse(prefixClass.Groups[1].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+                || ListedTitle().Match(html, start, end - start) is not { Success: true } listedTitle
+                || Label().Matches(listedTitle.Groups[1].Value) is not [var label]
+                || ListedLink().Match(listedTitle.Groups[1].Value) is not { Success: true } link
+                || !string.Equals(ForumPath(link.Groups[1].Value), forum, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var text = LabelText(label);
+            ids[text] = ids.TryGetValue(text, out var known) && known != id ? null : id;
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// The path of the forum that holds a thread, from a link to the thread such as
+    /// /forums/kitten-space-agency/mod-releases/deltavmap.978/, or null when the link does not point at a thread.
+    /// </summary>
+    private static string? ForumPath(string link)
+    {
+        var decoded = WebUtility.HtmlDecode(link);
+        var path = decoded.StartsWith('/') ? decoded : Uri.TryCreate(decoded, UriKind.Absolute, out var url) ? url.AbsolutePath : null;
+        return path is not null && ThreadPath().Match(path) is { Success: true } thread ? thread.Groups[1].Value : null;
+    }
+
+    private static string LabelText(Match label) => WebUtility.HtmlDecode(Tags().Replace(label.Groups[1].Value, string.Empty)).Trim();
 
     [GeneratedRegex("""<h1\s[^>]*class="[^"]*\bp-title-value\b[^"]*"[^>]*>([\s\S]*?)</h1>""", RegexOptions.IgnoreCase)]
     private static partial Regex Title();
 
     [GeneratedRegex("""<span\s[^>]*class="[^"]*\blabel\b(?![-])[^"]*"[^>]*>([\s\S]*?)</span>""", RegexOptions.IgnoreCase)]
     private static partial Regex Label();
+
+    [GeneratedRegex("""<div\s[^>]*class="([^"]*\bstructItem--thread\b[^"]*)"[^>]*>""", RegexOptions.IgnoreCase)]
+    private static partial Regex ListedThread();
+
+    [GeneratedRegex(@"(?:^|\s)is-prefix(\d+)(?:\s|$)")]
+    private static partial Regex PrefixClass();
+
+    [GeneratedRegex("""<div\s[^>]*class="[^"]*\bstructItem-title\b[^"]*"[^>]*>([\s\S]*?)</div>""", RegexOptions.IgnoreCase)]
+    private static partial Regex ListedTitle();
+
+    [GeneratedRegex("""<a\s[^>]*\bhref="([^"]*)""", RegexOptions.IgnoreCase)]
+    private static partial Regex ListedLink();
+
+    [GeneratedRegex("""<link\s[^>]*\brel="canonical"[^>]*\bhref="([^"]*)""", RegexOptions.IgnoreCase)]
+    private static partial Regex Canonical();
+
+    [GeneratedRegex(@"^((?:/[^/?#]+)*/)[^/?#]+\.\d+/(?:page-\d+/?)?(?:[?#].*)?$")]
+    private static partial Regex ThreadPath();
 
     [GeneratedRegex("<[^>]*>")]
     private static partial Regex Tags();

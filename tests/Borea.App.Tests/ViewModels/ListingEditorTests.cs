@@ -198,6 +198,21 @@ public sealed class ListingEditorTests
     }
 
     [Fact]
+    public async Task Forums_RenamedPrefix_SelectsTheTagOfItsId()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(respond: Serve(), editSnapshot: WithGameplayPrefix);
+        var editor = harness.ViewModel.ListingEditor;
+        editor.ForumsDelay = TimeSpan.Zero;
+        await harness.ViewModel.OpenListingAsync();
+        editor.StartEmptyCommand.Execute(null);
+
+        editor.Forums = "https://forums.ahwoo.com/threads/my-mod.43/";
+        await editor.TagProposal;
+
+        Assert.Equal(["gameplay"], editor.CuratedTags.Where(chip => chip.IsSelected).Select(chip => chip.Tag));
+    }
+
+    [Fact]
     public async Task Fields_ChecksFollowWhatTheAuthorTypes()
     {
         using var harness = await ViewModelHarness.CreateAsync();
@@ -1379,11 +1394,17 @@ public sealed class ListingEditorTests
         {
             Content = new StringContent("<h1 class=\"p-title-value\"><span class=\"label label--orange\" dir=\"auto\">Gameplay</span>My Mod</h1>"),
         },
+        "https://forums.ahwoo.com/threads/my-mod.43/" => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("<link rel=\"canonical\" href=\"https://forums.ahwoo.com/forums/kitten-space-agency/mod-releases/my-mod.43/\" />"
+                + "<h1 class=\"p-title-value\"><span class=\"label label--orange\" dir=\"auto\">Mechanics</span>My Mod</h1>"
+                + "<div class=\"structItem structItem--thread is-prefix9\"><div class=\"structItem-title\"><span class=\"label label--orange\" dir=\"auto\">Mechanics</span><a href=\"/forums/kitten-space-agency/mod-releases/other.44/\">Other</a></div></div>"),
+        },
         _ => null,
     };
 
     private static string WithGameplayPrefix(string json) =>
-        """{ "tags": { "spec_version": 1, "mod": [{ "tag": "gameplay", "name": "Gameplay", "meaning": "Mechanics.", "forum_prefix": "Gameplay" }, { "tag": "library", "name": "Library", "meaning": "Code." }] }, """
+        """{ "tags": { "spec_version": 1, "mod": [{ "tag": "gameplay", "name": "Gameplay", "meaning": "Mechanics.", "forum_prefix": "Gameplay", "forum_prefix_id": 9 }, { "tag": "library", "name": "Library", "meaning": "Code." }] }, """
         + json.TrimStart()[1..];
 
     private static HttpResponseMessage Json(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };

@@ -92,6 +92,41 @@ public sealed class ContentHeaderTests
     }
 
     [Theory]
+    [InlineData(false, 860, 1, 0)]
+    [InlineData(false, 1920, 0, 2)]
+    [InlineData(true, 860, 1, 0)]
+    [InlineData(true, 1920, 0, 2)]
+    public async Task NarrowPageOnly_PutsTheActionsBelowTheText(bool pack, double width, int row, int column)
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: InstanceViewModelTests.WithPack("starter-pack", "Starter Pack", "1.0.0", (ModId, "0.7.5")));
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        if (pack)
+        {
+            viewModel.ShowDiscoverModpacksCommand.Execute(null);
+            await Assert.Single(viewModel.DiscoverPacks).OpenCommand.ExecuteAsync(null);
+        }
+        else
+        {
+            await viewModel.DiscoverItems.Single(item => item.ModId == ModId).OpenCommand.ExecuteAsync(null);
+        }
+
+        var actions = await HeadlessApp.RunAsync(harness, () =>
+        {
+            Control page = pack ? new Borea.App.Views.Pages.PackPage() : new Borea.App.Views.Pages.ContentPage();
+            var window = new Window { Width = width, Height = 900, DataContext = viewModel, Content = page };
+            window.Show();
+            page.UpdateLayout();
+            var actions = page.GetVisualDescendants().OfType<StackPanel>().Single(panel => panel.Classes.Contains("content-actions"));
+            var cell = (Grid.GetRow(actions), Grid.GetColumn(actions));
+            window.Close();
+            return Task.FromResult(cell);
+        });
+
+        Assert.Equal((row, column), actions);
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task OpenedFromHomeOrDiscover_ShowsNoBanner(bool fromHome)

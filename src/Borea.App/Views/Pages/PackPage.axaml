@@ -4,6 +4,9 @@
              xmlns:views="using:Borea.App.Views"
              x:Class="Borea.App.Views.Pages.PackPage"
              x:DataType="vm:MainViewModel">
+    <UserControl.Styles>
+        <StyleInclude Source="avares://Borea.App/Views/PageBodyStyles.axaml" />
+    </UserControl.Styles>
     <!-- Pack: one modpack, laid out like the content page -->
     <Grid>
         <ScrollViewer>

@@ -7,7 +7,7 @@
              x:DataType="vm:MainViewModel">
     <UserControl.Styles>
         <!-- a virtualizing panel has no Spacing, so each row keeps the gap below itself; a row's logical parent is the list, not the panel -->
-        <Style Selector="ItemsControl.rows > ContentPresenter">
+        <Style Selector="ItemsControl.rows > views|RowListItem">
             <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
     </UserControl.Styles>
@@ -171,20 +171,20 @@
                             </MultiBinding>
                         </Border.IsVisible>
                     </Border>
-                    <ItemsControl Classes="rows" ItemsSource="{Binding DiscoverItems}" ItemTemplate="{StaticResource DiscoverRow}" Margin="0,4,0,0" IsVisible="{Binding !IsModpacksTab}">
-                        <ItemsControl.ItemsPanel>
+                    <views:RowList Classes="rows" ItemsSource="{Binding DiscoverItems}" ItemTemplate="{StaticResource DiscoverRow}" Margin="0,4,0,0" IsVisible="{Binding !IsModpacksTab}">
+                        <views:RowList.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <VirtualizingStackPanel CacheLength="1" />
+                                <VirtualizingStackPanel CacheLength="2" />
                             </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                    <ItemsControl Classes="rows" ItemsSource="{Binding DiscoverPacks}" ItemTemplate="{StaticResource PackRow}" Margin="0,4,0,0" IsVisible="{Binding IsModpacksTab}">
-                        <ItemsControl.ItemsPanel>
+                        </views:RowList.ItemsPanel>
+                    </views:RowList>
+                    <views:RowList Classes="rows" ItemsSource="{Binding DiscoverPacks}" ItemTemplate="{StaticResource PackRow}" Margin="0,4,0,0" IsVisible="{Binding IsModpacksTab}">
+                        <views:RowList.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <VirtualizingStackPanel CacheLength="1" />
+                                <VirtualizingStackPanel CacheLength="2" />
                             </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
+                        </views:RowList.ItemsPanel>
+                    </views:RowList>
                 </StackPanel>
             </views:PageBodyPanel>
         </ScrollViewer>

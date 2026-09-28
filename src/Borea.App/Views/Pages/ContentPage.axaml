@@ -5,6 +5,9 @@
              xmlns:views="using:Borea.App.Views"
              x:Class="Borea.App.Views.Pages.ContentPage"
              x:DataType="vm:MainViewModel">
+    <UserControl.Styles>
+        <StyleInclude Source="avares://Borea.App/Views/PageBodyStyles.axaml" />
+    </UserControl.Styles>
     <UserControl.Resources>
         <!-- one mod of a dependency entry: its index name and icon, its bounds and its state in the active instance -->
         <DataTemplate x:Key="DependencyMemberRow" x:DataType="vm:DependencyMember">

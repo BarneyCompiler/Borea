@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -25,14 +26,20 @@ public sealed class DiscoverScaleTests
 {
     private const int Listings = 300;
 
-    /// <summary>The window shows about five rows and the list keeps one window more above and below, so this ceiling does not grow with the list.</summary>
-    private const int MaxRealizedRows = 30;
+    /// <summary>A list short enough that the list keeps all of its rows alive.</summary>
+    private const int ShortListings = 20;
+
+    /// <summary>The window shows about six rows and the list keeps two windows more above and below, so this ceiling does not grow with the list.</summary>
+    private const int MaxRealizedRows = 45;
 
     /// <summary>The decoded pixels that the rows and the bitmap shelf hold together, whatever the length of the list.</summary>
     private const long MaxDecodedBytes = 10L * 1024 * 1024;
 
     /// <summary>The icon files that the rows and the idle icons hold together, whatever the length of the list. The files of the whole list are about 14 MiB.</summary>
     private const long MaxIconBytes = 8L * 1024 * 1024;
+
+    /// <summary>What the list may allocate for each row that it shows again while it scrolls, so that a fast scroll does not keep the garbage collector busy.</summary>
+    private const long MaxBytesPerShownRow = 1024L * 1024;
 
     [Fact]
     public async Task LongList_KeepsItsRowsBitmapsAndIconFilesWithTheWindow()
@@ -180,11 +187,84 @@ public sealed class DiscoverScaleTests
         Assert.Equal(kept.before.Rows, kept.after.Rows);
     }
 
-    private static (MainViewModel ViewModel, DiscoverPage Page, Window Window, ScrollViewer Scroller) ShowLongList()
+    [Fact]
+    public async Task LongList_ScrolledFromTheEndToTheTop_ReusesTheRowsItBuilt()
+    {
+        var scrolled = await HeadlessApp.RunAsync(() =>
+        {
+            var (_, page, window, scroller) = ShowLongList();
+            var list = page.GetVisualDescendants().OfType<ItemsControl>().First(control => control.Classes.Contains("rows"));
+            window.UpdateLayout();
+
+            // the list learns its height while it scrolls, so the end moves until the last row is in view
+            while (scroller.Offset.Y + scroller.Viewport.Height < scroller.Extent.Height - 1)
+            {
+                scroller.Offset = scroller.Offset.WithY(scroller.Extent.Height);
+                window.UpdateLayout();
+            }
+
+            int built = 0, styled = 0;
+            using var builds = TemplatedControl.TemplateAppliedEvent.AddClassHandler<Button>((button, _) =>
+            {
+                if (button.Classes.Contains("card-button"))
+                    built++;
+            });
+
+            // a row takes the styles of the page again each time the list shows it
+            list.ContainerPrepared += (_, _) => styled++;
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
+            while (scroller.Offset.Y > 0)
+            {
+                scroller.Offset = scroller.Offset.WithY(Math.Max(0, scroller.Offset.Y - scroller.Viewport.Height));
+                window.UpdateLayout();
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+            var top = RowsInView(page, scroller).FirstOrDefault();
+            window.Close();
+            return Task.FromResult((built, styled, allocated, top));
+        });
+
+        Assert.Equal("Mod 000", scrolled.top);
+        Assert.InRange(scrolled.built, 0, MaxRealizedRows);
+        Assert.InRange(scrolled.styled, Listings - MaxRealizedRows, Listings);
+        Assert.InRange(scrolled.allocated / scrolled.styled, 1, MaxBytesPerShownRow);
+    }
+
+    [Fact]
+    public async Task ShortList_ScrolledToTheEndAndBack_KeepsEveryRow()
+    {
+        var recycled = await HeadlessApp.RunAsync(() =>
+        {
+            var (_, page, window, scroller) = ShowLongList(ShortListings);
+            var list = page.GetVisualDescendants().OfType<ItemsControl>().First(control => control.Classes.Contains("rows"));
+            window.UpdateLayout();
+            var cleared = 0;
+            list.ContainerClearing += (_, _) => cleared++;
+            while (scroller.Offset.Y + scroller.Viewport.Height < scroller.Extent.Height - 1)
+            {
+                scroller.Offset = scroller.Offset.WithY(scroller.Offset.Y + scroller.Viewport.Height);
+                window.UpdateLayout();
+            }
+
+            while (scroller.Offset.Y > 0)
+            {
+                scroller.Offset = scroller.Offset.WithY(Math.Max(0, scroller.Offset.Y - scroller.Viewport.Height));
+                window.UpdateLayout();
+            }
+
+            window.Close();
+            return Task.FromResult(cleared);
+        });
+
+        Assert.Equal(0, recycled);
+    }
+
+    private static (MainViewModel ViewModel, DiscoverPage Page, Window Window, ScrollViewer Scroller) ShowLongList(int listings = Listings)
     {
         var viewModel = new MainViewModel();
         var png = IconPng();
-        for (var number = 0; number < Listings; number++)
+        for (var number = 0; number < listings; number++)
         {
             var row = Row(viewModel, number, png);
             row.Icon!.Bytes = [.. png];

@@ -18,7 +18,7 @@ public partial class MainViewModel
 
     /// <summary>The refused launch the modal is about. Null while the modal is closed.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsRuntimePromptOpen), nameof(RuntimePromptText), nameof(RuntimeDownloadText))]
+    [NotifyPropertyChangedFor(nameof(IsRuntimePromptOpen), nameof(RuntimePromptTitle), nameof(RuntimePromptText), nameof(RuntimeDownloadText))]
     private RuntimePrompt? _promptedRuntime;
 
     /// <summary>Why the check or the download page did not work, shown in the modal.</summary>
@@ -27,9 +27,11 @@ public partial class MainViewModel
 
     public bool IsRuntimePromptOpen => PromptedRuntime is not null;
 
+    public string? RuntimePromptTitle => PromptedRuntime is { } prompt ? Localization.FormatLaunchRuntimeTitle(prompt.Runtime.Channel) : null;
+
     public string? RuntimePromptText => PromptedRuntime is not { } prompt
         ? null
-        : Localization.FormatLaunchRuntimeMissing(prompt.LoaderName, prompt.Runtime.Version.ToString(), prompt.WrapperPath, prompt.Runtime.Channel);
+        : Localization.FormatLaunchRuntimeMissing(prompt.LoaderName, prompt.Runtime.Channel, prompt.WrapperPath);
 
     public string? RuntimeDownloadText => PromptedRuntime is { } prompt ? Localization.FormatLaunchRuntimeDownload(prompt.Runtime.Channel) : null;
 

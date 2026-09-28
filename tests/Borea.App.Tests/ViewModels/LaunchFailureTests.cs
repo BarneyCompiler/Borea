@@ -458,9 +458,11 @@ public sealed class LaunchFailureTests
         var viewModel = harness.ViewModel;
         var localization = harness.Localization;
         Assert.True(viewModel.IsRuntimePromptOpen);
-        Assert.Equal(localization.FormatLaunchRuntimeMissing("StarMap", "10.0.0", WrapperBundle, "10.0"), viewModel.RuntimePromptText);
-        Assert.Contains("Install Software", viewModel.RuntimePromptText);
+        Assert.Equal(localization.FormatLaunchRuntimeTitle("10.0"), viewModel.RuntimePromptTitle);
+        Assert.Equal(localization.FormatLaunchRuntimeMissing("StarMap", "10.0", WrapperBundle), viewModel.RuntimePromptText);
+        Assert.Contains(WrapperBundle, viewModel.RuntimePromptText);
         Assert.Equal(localization.FormatLaunchRuntimeDownload("10.0"), viewModel.RuntimeDownloadText);
+        Assert.Contains("Install Software", localization.LaunchRuntimeInstallStep);
         Assert.Null(viewModel.RuntimePromptError);
         Assert.Null(viewModel.LaunchMessage);
         Assert.False(viewModel.IsLaunchFailureOpen);

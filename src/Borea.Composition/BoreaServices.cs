@@ -342,6 +342,7 @@ public sealed class BoreaServices : IDisposable
     /// <param name="indexReports">Lists the takedown and id dispute reports. Null builds one that reads GitHub without the token.</param>
     /// <param name="pullRequestReviews">Reads one pull request for a steward. Null builds one on the GitHub session.</param>
     /// <param name="pullRequestActions">Acts on one pull request for a steward. Null builds one on the GitHub session.</param>
+    /// <param name="releaseCheck">Finds the published Borea releases. Null asks GitHub.</param>
     /// <param name="selfUpdater">Replaces this Borea build. Null reads the build that runs.</param>
     /// <param name="gamePlatform">The platform of the game build. Null reads it from the game folder on this system.</param>
     /// <param name="loaderLauncher">Starts the game through a loader. Null starts it with the process starter.</param>
@@ -360,6 +361,7 @@ public sealed class BoreaServices : IDisposable
         Func<bool>? isOtherBoreaRunning = null,
         IGitHubSession? gitHub = null,
         IListingPublisher? listingPublisher = null,
+        IBoreaReleaseCheck? releaseCheck = null,
         ISelfUpdater? selfUpdater = null,
         IIndexStatusEditor? indexStatusEditor = null,
         IStewardQueue? stewardQueue = null,
@@ -376,7 +378,7 @@ public sealed class BoreaServices : IDisposable
         ArgumentNullException.ThrowIfNull(httpHandler);
         ArgumentNullException.ThrowIfNull(fallbackRepository);
         ArgumentNullException.ThrowIfNull(installCandidates);
-        return BuildCoreAsync(boreaRoot, BoreaLogSource.App, httpHandler, fallbackRepository, installCandidates, new RunningLaunches(), cancellationToken, processStarter, images, sharedProfileRoot, isGameProcessRunning, isOtherBoreaRunning, gitHub, listingPublisher, selfUpdater, indexStatusEditor, stewardQueue, watcherIssues, pullRequestReviews, pullRequestActions, indexReports, releaseAmendments, gamePlatform, loaderLauncher, sharedProfileLauncher, loaderConfigurator);
+        return BuildCoreAsync(boreaRoot, BoreaLogSource.App, httpHandler, fallbackRepository, installCandidates, new RunningLaunches(), cancellationToken, processStarter, images, sharedProfileRoot, isGameProcessRunning, isOtherBoreaRunning, gitHub, listingPublisher, releaseCheck, selfUpdater, indexStatusEditor, stewardQueue, watcherIssues, pullRequestReviews, pullRequestActions, indexReports, releaseAmendments, gamePlatform, loaderLauncher, sharedProfileLauncher, loaderConfigurator);
     }
 
     private static async Task<BoreaServices> BuildCoreAsync(
@@ -394,6 +396,7 @@ public sealed class BoreaServices : IDisposable
         Func<bool>? isOtherBoreaRunning = null,
         IGitHubSession? gitHub = null,
         IListingPublisher? listingPublisher = null,
+        IBoreaReleaseCheck? releaseCheck = null,
         ISelfUpdater? selfUpdater = null,
         IIndexStatusEditor? indexStatusEditor = null,
         IStewardQueue? stewardQueue = null,
@@ -541,7 +544,7 @@ public sealed class BoreaServices : IDisposable
             Launcher = launcher,
             SharedProfileLauncher = new LoggingSharedProfileLauncher(sharedProfileLauncher ?? new SharedProfileLauncher(paths, processStarter ?? new ProcessStarter(), launches), log),
             LatestVersion = new LatestVersionPing(http),
-            ReleaseCheck = new BoreaReleaseCheck(http),
+            ReleaseCheck = releaseCheck ?? new BoreaReleaseCheck(http),
             SelfUpdater = selfUpdater ?? new FileSelfUpdater(new BoreaReleaseFiles(http), log, RunningProduct(), platform: BoreaArchive.RunningPlatform, fromCommandLine: logSource == BoreaLogSource.Cli),
             Announcements = new AnnouncementFeed(new AnnouncementFetcher(http, AnnouncementFetcher.DefaultUri, announcementReader), announcementReader, paths, log),
             InstalledVersion = installedVersion,

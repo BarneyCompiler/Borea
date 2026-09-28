@@ -30,6 +30,13 @@ public sealed class UpdateNoticeViewModelTests
 
     private static Func<HttpRequestMessage, HttpResponseMessage?> ReleaseAt(string tag) => Releases(Release(tag));
 
+    private static BoreaUpdateChannelOption Channel(MainViewModel viewModel, BoreaUpdateChannel channel)
+        => viewModel.UpdateChannelOptions.Single(option => option.Channel == channel);
+
+    /// <summary>A release at <paramref name="version"/>, as the release check gives it.</summary>
+    private static BoreaRelease ReleaseOf(string version)
+        => new(ModVersion.Parse(version), "v" + version, "https://github.com/KSAModding/Borea/releases/tag/v" + version);
+
     /// <summary>Writes the preferences file of a Borea before 0.2.0 that kept a closed update banner closed.</summary>
     private static Func<BoreaServices, Task> ClosedBeforeFor(string version) =>
         services => File.WriteAllTextAsync(services.Paths.GetAppPreferencesPath(), $$"""{ "formatVersion": 1, "dismissedBoreaRelease": "{{version}}" }""");
@@ -185,13 +192,14 @@ public sealed class UpdateNoticeViewModelTests
     }
 
     [Fact]
-    public async Task ChooseUpdateChannel_AfterTheCheck_SavesThePreferenceAndSendsNoSecondRequest()
+    public async Task ChooseUpdateChannel_AfterTheCheck_SavesThePreferenceAndChecksThatChannel()
     {
         using var harness = await ViewModelHarness.CreateAsync(respond: Releases(Release("v999.0.0-beta.1", prerelease: true), Release("v" + MainViewModel.BoreaVersion)));
         var viewModel = harness.ViewModel;
         await viewModel.WhenUpdateCheckedAsync();
+        Assert.False(viewModel.HasAvailableUpdate);
 
-        viewModel.SelectedUpdateChannel = viewModel.UpdateChannelOptions.Single(option => option.Channel == BoreaUpdateChannel.Testing);
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Testing);
         await viewModel.WhenPreferencesSavedAsync();
         await viewModel.WhenUpdateCheckedAsync();
 
@@ -199,8 +207,224 @@ public sealed class UpdateNoticeViewModelTests
         Assert.Equal(BoreaUpdateChannel.Testing, saved.Preferences.UpdateChannel);
         Assert.Equal(BoreaUpdateChannel.Testing, viewModel.SelectedUpdateChannel.Channel);
         Assert.Null(viewModel.PreferenceSaveError);
+        Assert.Equal("999.0.0-beta.1", viewModel.AvailableUpdateVersion);
+        Assert.Equal(2, harness.Requests.Count(uri => uri.Host == ReleaseHost));
+    }
+
+    [Fact]
+    public async Task ChooseDevChannel_ShowsTheBannerOfADevReleaseWithoutARestart()
+    {
+        var check = new HeldReleaseCheck();
+        using var harness = await ViewModelHarness.CreateAsync(releaseCheck: check);
+        var viewModel = harness.ViewModel;
+        check.Answer(0, ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+        Assert.False(viewModel.ShowReleaseBanner);
+
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Dev);
+        check.Answer(1, ReleaseOf("999.0.0-dev.1"), ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+
+        Assert.Equal([BoreaUpdateChannel.Stable, BoreaUpdateChannel.Dev], check.Channels);
+        Assert.True(viewModel.ShowReleaseBanner);
+        Assert.Equal("999.0.0-dev.1", viewModel.AvailableUpdateVersion);
+        Assert.StartsWith(viewModel.AvailableUpdateText!, viewModel.ReleaseBannerText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ChooseStableChannelAgain_RemovesTheBannerOfADevRelease()
+    {
+        var check = new HeldReleaseCheck();
+        using var harness = await ViewModelHarness.CreateAsync(releaseCheck: check);
+        var viewModel = harness.ViewModel;
+        check.Answer(0, ReleaseOf(MainViewModel.BoreaVersion));
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Dev);
+        check.Answer(1, ReleaseOf("999.0.0-dev.1"), ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+        Assert.True(viewModel.ShowReleaseBanner);
+
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Stable);
+        check.Answer(2, ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+
         Assert.False(viewModel.HasAvailableUpdate);
-        Assert.Single(harness.Requests, uri => uri.Host == ReleaseHost);
+        Assert.False(viewModel.ShowReleaseBanner);
+        Assert.Null(viewModel.ReleaseBannerText);
+        viewModel.OpenReleaseNotesCommand.Execute(null);
+        Assert.Equal([MainViewModel.BoreaVersion], viewModel.ReleaseNotes.Select(item => item.Version));
+    }
+
+    [Fact]
+    public async Task ChooseTwoChannelsInARow_ShowsTheAnswerForTheLastOne_WhenTheFirstAnswersLater()
+    {
+        var check = new HeldReleaseCheck();
+        using var harness = await ViewModelHarness.CreateAsync(releaseCheck: check);
+        var viewModel = harness.ViewModel;
+        check.Answer(0, ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Testing);
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Dev);
+        check.Answer(2, ReleaseOf("999.0.0-dev.1"), ReleaseOf(MainViewModel.BoreaVersion));
+        await ViewModelHarness.WaitUntilAsync(() => viewModel.HasAvailableUpdate);
+        check.Answer(1, ReleaseOf("999.0.0-beta.1"), ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+
+        Assert.Equal([BoreaUpdateChannel.Stable, BoreaUpdateChannel.Testing, BoreaUpdateChannel.Dev], check.Channels);
+        Assert.Equal("999.0.0-dev.1", viewModel.AvailableUpdateVersion);
+        viewModel.OpenReleaseNotesCommand.Execute(null);
+        Assert.Equal(["999.0.0-dev.1", MainViewModel.BoreaVersion], viewModel.ReleaseNotes.Select(item => item.Version));
+    }
+
+    [Fact]
+    public async Task TurnSwitchOn_ChecksAtOnce()
+    {
+        var check = new HeldReleaseCheck();
+        using var harness = await ViewModelHarness.CreateAsync(
+            services => services.AppPreferences.SaveAsync(AppPreferences.Empty.WithCheckForUpdatesAtStart(false), MainViewModel.BundledThemeNames),
+            releaseCheck: check);
+        var viewModel = harness.ViewModel;
+        await viewModel.WhenUpdateCheckedAsync();
+        Assert.Empty(check.Channels);
+
+        viewModel.CheckForUpdatesAtStart = true;
+        check.Answer(0, ReleaseOf("999.0.0"));
+        await viewModel.WhenUpdateCheckedAsync();
+
+        Assert.Equal([BoreaUpdateChannel.Stable], check.Channels);
+        Assert.True(viewModel.ShowReleaseBanner);
+        Assert.Equal("999.0.0", viewModel.AvailableUpdateVersion);
+    }
+
+    [Fact]
+    public async Task ChooseChannel_WhileASelfUpdateRuns_LeavesThatUpdateAlone()
+    {
+        var check = new HeldReleaseCheck();
+        var updater = new SteppingSelfUpdater();
+        using var harness = await ViewModelHarness.CreateAsync(releaseCheck: check, selfUpdater: updater);
+        var viewModel = harness.ViewModel;
+        check.Answer(0, ReleaseOf("999.0.0"));
+        await viewModel.WhenUpdateCheckedAsync();
+        var update = viewModel.SelfUpdateCommand.ExecuteAsync(null);
+        var task = Assert.Single(viewModel.Tasks.Running);
+        await ViewModelHarness.WaitUntilAsync(() => task.Progress == 40);
+        var status = viewModel.SelfUpdateStatus;
+
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Dev);
+        check.Answer(1, ReleaseOf("999.0.0-dev.1"));
+        await viewModel.WhenUpdateCheckedAsync();
+
+        Assert.True(viewModel.IsSelfUpdating);
+        Assert.Equal("999.0.0", viewModel.AvailableUpdateVersion);
+        Assert.True(viewModel.ShowReleaseBanner);
+        Assert.Equal(status, viewModel.ReleaseBannerText);
+        updater.Next();
+        updater.Next();
+        updater.Next();
+        await update;
+        Assert.Equal(TaskState.Finished, task.State);
+        Assert.Equal(harness.Localization.FormatSelfUpdateStartAgain("999.0.0"), viewModel.ReleaseBannerText);
+    }
+
+    [Fact]
+    public async Task ChooseChannel_AfterAFailedSelfUpdate_ShowsTheNewReleaseWithoutTheOldReason()
+    {
+        var check = new HeldReleaseCheck();
+        var updater = new SteppingSelfUpdater(SelfUpdateFailure.Download);
+        using var harness = await ViewModelHarness.CreateAsync(releaseCheck: check, selfUpdater: updater);
+        var viewModel = harness.ViewModel;
+        check.Answer(0, ReleaseOf("999.0.0"));
+        await viewModel.WhenUpdateCheckedAsync();
+        var update = viewModel.SelfUpdateCommand.ExecuteAsync(null);
+        var task = Assert.Single(viewModel.Tasks.Running);
+        await ViewModelHarness.WaitUntilAsync(() => task.Progress == 40);
+        updater.Next();
+        await update;
+        Assert.Equal(harness.Localization.SelfUpdateDownloadFailed, viewModel.ReleaseBannerText);
+
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Dev);
+        check.Answer(1, ReleaseOf("999.1.0-dev.1"));
+        await viewModel.WhenUpdateCheckedAsync();
+
+        Assert.Null(viewModel.SelfUpdateStatus);
+        Assert.Equal(viewModel.AvailableUpdateText, viewModel.ReleaseBannerText);
+        Assert.Equal("999.1.0-dev.1", viewModel.AvailableUpdateVersion);
+    }
+
+    [Fact]
+    public async Task ChooseStableChannel_WhileASelfUpdateRunsThatFails_ChecksStableWhenItStops()
+    {
+        var check = new HeldReleaseCheck();
+        var updater = new SteppingSelfUpdater(SelfUpdateFailure.Download);
+        using var harness = await ViewModelHarness.CreateAsync(
+            services => services.AppPreferences.SaveAsync(AppPreferences.Empty.WithUpdateChannel(BoreaUpdateChannel.Dev), MainViewModel.BundledThemeNames),
+            releaseCheck: check,
+            selfUpdater: updater);
+        var viewModel = harness.ViewModel;
+        check.Answer(0, ReleaseOf("999.0.0-dev.1"), ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+        var update = viewModel.SelfUpdateCommand.ExecuteAsync(null);
+        var task = Assert.Single(viewModel.Tasks.Running);
+        await ViewModelHarness.WaitUntilAsync(() => task.Progress == 40);
+
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Stable);
+        check.Answer(1, ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+        Assert.Equal("999.0.0-dev.1", viewModel.AvailableUpdateVersion);
+        updater.Next();
+        await update;
+        check.Answer(2, ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+
+        Assert.Equal(TaskState.Failed, task.State);
+        Assert.Equal([BoreaUpdateChannel.Dev, BoreaUpdateChannel.Stable, BoreaUpdateChannel.Stable], check.Channels);
+        Assert.False(viewModel.HasAvailableUpdate);
+        Assert.False(viewModel.ShowReleaseBanner);
+        Assert.Null(viewModel.SelfUpdateActionText);
+    }
+
+    [Fact]
+    public async Task ChooseChannel_WhenTheCheckFails_KeepsOnlyTheReleasesTheNewChannelOffers()
+    {
+        var check = new HeldReleaseCheck();
+        using var harness = await ViewModelHarness.CreateAsync(
+            services => services.AppPreferences.SaveAsync(AppPreferences.Empty.WithUpdateChannel(BoreaUpdateChannel.Dev), MainViewModel.BundledThemeNames),
+            releaseCheck: check);
+        var viewModel = harness.ViewModel;
+        check.Answer(0, ReleaseOf("999.0.0-dev.1"), ReleaseOf("998.0.0"), ReleaseOf(MainViewModel.BoreaVersion));
+        await viewModel.WhenUpdateCheckedAsync();
+        Assert.Equal("999.0.0-dev.1", viewModel.AvailableUpdateVersion);
+
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Stable);
+        check.Answer(1);
+        await viewModel.WhenUpdateCheckedAsync();
+
+        Assert.Equal("998.0.0", viewModel.AvailableUpdateVersion);
+        Assert.True(viewModel.ShowReleaseBanner);
+        viewModel.OpenReleaseNotesCommand.Execute(null);
+        Assert.Equal(["998.0.0", MainViewModel.BoreaVersion], viewModel.ReleaseNotes.Select(item => item.Version));
+    }
+
+    [Fact]
+    public async Task ChooseChannel_AfterTheBuildWasNotPutBack_KeepsTheRepairInstruction()
+    {
+        var check = new HeldReleaseCheck();
+        var updater = new WaitingSelfUpdater(Task.FromException(new SelfUpdateFailedException(SelfUpdateFailure.Restore, "The test fails the restore.")));
+        using var harness = await ViewModelHarness.CreateAsync(releaseCheck: check, selfUpdater: updater);
+        var viewModel = harness.ViewModel;
+        check.Answer(0, ReleaseOf("999.0.0"));
+        await viewModel.WhenUpdateCheckedAsync();
+        await viewModel.SelfUpdateCommand.ExecuteAsync(null);
+        var repair = harness.Localization.FormatSelfUpdateRestoreFailed("borea.exe.old", "borea.exe");
+        Assert.Equal(repair, viewModel.ReleaseBannerText);
+
+        viewModel.SelectedUpdateChannel = Channel(viewModel, BoreaUpdateChannel.Dev);
+        check.Answer(1, ReleaseOf("999.1.0-dev.1"));
+        await viewModel.WhenUpdateCheckedAsync();
+
+        Assert.Equal(repair, viewModel.ReleaseBannerText);
+        Assert.Equal("999.0.0", viewModel.AvailableUpdateVersion);
+        Assert.True(viewModel.ShowReleaseBanner);
     }
 
     [Fact]
@@ -439,6 +663,37 @@ public sealed class UpdateNoticeViewModelTests
         var folder = Path.Combine(Path.GetTempPath(), "BoreaSelfUpdateTest");
         var program = Path.Combine(folder, "borea.exe");
         return new StagedSelfUpdate(release.Version, folder, program, program + ".old", install, () => { });
+    }
+
+    /// <summary>Holds every release check until the test answers it, so the test decides the order of the answers.</summary>
+    private sealed class HeldReleaseCheck : IBoreaReleaseCheck
+    {
+        private readonly List<(BoreaUpdateChannel Channel, TaskCompletionSource<IReadOnlyList<BoreaRelease>> Answer)> _requests = [];
+
+        /// <summary>The channel of each check, in the order they were asked.</summary>
+        public IReadOnlyList<BoreaUpdateChannel> Channels
+        {
+            get
+            {
+                lock (_requests)
+                    return _requests.Select(request => request.Channel).ToList();
+            }
+        }
+
+        public Task<IReadOnlyList<BoreaRelease>> GetReleasesAsync(BoreaUpdateChannel channel = BoreaUpdateChannel.Stable, CancellationToken cancellationToken = default)
+        {
+            var answer = new TaskCompletionSource<IReadOnlyList<BoreaRelease>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_requests)
+                _requests.Add((channel, answer));
+            return answer.Task;
+        }
+
+        /// <summary>Answers the check with the number <paramref name="request"/>, counted from 0, with <paramref name="releases"/>, newest first.</summary>
+        public void Answer(int request, params BoreaRelease[] releases)
+        {
+            lock (_requests)
+                _requests[request].Answer.SetResult(releases);
+        }
     }
 
     /// <summary>Holds the update in the step where the new build takes the place of the running one.</summary>

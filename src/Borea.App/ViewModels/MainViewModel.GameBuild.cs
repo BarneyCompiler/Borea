@@ -93,7 +93,7 @@ public partial class MainViewModel
     private void StartGameBuildCheck()
     {
         if (LatestGameBuild is not null || _services is not { } services || ReferenceEquals(services, _gameBuildCheckServices)
-            || !_appPreferences.CheckForUpdatesAtStart || !GameVersion.TryParse(InstalledVersionText, out _))
+            || !CheckForUpdatesAtStart || !GameVersion.TryParse(InstalledVersionText, out _))
             return;
 
         _gameBuildCheckServices = services;

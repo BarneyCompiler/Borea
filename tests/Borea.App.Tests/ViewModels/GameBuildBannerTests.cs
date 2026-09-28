@@ -195,6 +195,27 @@ public sealed class GameBuildBannerTests
     }
 
     [Fact]
+    public async Task TurnUpdateCheckOn_AsksTheMasterServerAtOnce_BeforeTheSwitchIsSaved()
+    {
+        var preferences = AppPreferences.Empty.WithCheckForUpdatesAtStart(false);
+        using var harness = await CreateAsync(MasterServer("2026.9.10.5438"), preferences);
+
+        // This view model has no preferences repository, so the switch is never saved and the check reads the switch itself.
+        var viewModel = harness.NewViewModel(appPreferences: preferences, services: harness.Services);
+        await viewModel.LoadAsync();
+        await viewModel.WhenGameBuildCheckedAsync();
+        Assert.False(viewModel.ShowGameBuildBanner);
+        Assert.DoesNotContain(harness.Requests, uri => uri.Host == MasterServerHost);
+
+        viewModel.CheckForUpdatesAtStart = true;
+        await viewModel.WhenGameBuildCheckedAsync();
+
+        Assert.True(viewModel.ShowGameBuildBanner);
+        Assert.Equal("A newer KSA build is available: 2026.9.10.5438", viewModel.GameBuildBannerText);
+        Assert.Single(harness.Requests, uri => uri.Host == MasterServerHost);
+    }
+
+    [Fact]
     public async Task GameUpdatedWhileOpen_HidesTheBanner()
     {
         using var harness = await CreateAsync(MasterServer(InstalledBuild), fillGame: game =>

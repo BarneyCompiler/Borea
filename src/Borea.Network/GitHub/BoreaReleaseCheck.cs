@@ -7,7 +7,8 @@ namespace Borea.Network.GitHub;
 
 /// <summary>
 /// IBoreaReleaseCheck against the GitHub releases list, which allows 60 unauthenticated
-/// requests an hour, so callers ask once. Each check sends one request.
+/// requests an hour, so callers ask once per start and again only when the player changes the
+/// update channel or turns the check on. Each check sends one request.
 /// </summary>
 public sealed class BoreaReleaseCheck : IBoreaReleaseCheck
 {

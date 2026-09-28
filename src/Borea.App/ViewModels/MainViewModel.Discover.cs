@@ -146,19 +146,33 @@ public partial class MainViewModel
     {
         get
         {
-            var (shown, total) = IsModpacksTab
-                ? (DiscoverPacks.Count, _packs.Count)
-                : (DiscoverItems.Count, _listings.Count(item => item.Type == DiscoverType));
+            if (DiscoverTotalText is not { } totalText)
+                return null;
+
+            var shown = IsModpacksTab ? DiscoverPacks.Count : DiscoverItems.Count;
+            return HasDiscoverFilters || !string.IsNullOrWhiteSpace(SearchText) ? Localization.FormatDiscoverCountShown(shown, totalText) : totalText;
+        }
+    }
+
+    /// <summary>The placeholder of the search field, which names what the tab holds once the listings are loaded.</summary>
+    public string DiscoverSearchPlaceholderText
+        => DiscoverTotalText is { } totalText ? Localization.FormatDiscoverSearchCount(totalText) : Localization.DiscoverSearchPlaceholder;
+
+    /// <summary>How many entries the tab holds, such as "3 mods", or null when it holds none.</summary>
+    private string? DiscoverTotalText
+    {
+        get
+        {
+            var total = IsModpacksTab ? _packs.Count : _listings.Count(item => item.Type == DiscoverType);
             if (total == 0)
                 return null;
 
-            var totalText = DiscoverType switch
+            return DiscoverType switch
             {
                 ContentType.ModLoader => Localization.FormatDiscoverLoaderCount(total),
                 ContentType.ModPack => Localization.FormatDiscoverPackCount(total),
                 _ => Localization.FormatDiscoverModCount(total),
             };
-            return HasDiscoverFilters || !string.IsNullOrWhiteSpace(SearchText) ? Localization.FormatDiscoverCountShown(shown, totalText) : totalText;
         }
     }
 
@@ -280,6 +294,7 @@ public partial class MainViewModel
         ApplyPackFilters(query);
         OnPropertyChanged(nameof(HasDiscoverItems));
         OnPropertyChanged(nameof(DiscoverCountText));
+        OnPropertyChanged(nameof(DiscoverSearchPlaceholderText));
     }
 
     /// <summary>The state whose chip a row of the list leaves out, or null when every row shows its chip.</summary>

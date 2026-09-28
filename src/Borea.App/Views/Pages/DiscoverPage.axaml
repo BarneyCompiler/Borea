@@ -205,7 +205,7 @@
                 </Border>
                 <ScrollViewer>
                     <StackPanel Spacing="16" Margin="24">
-                        <TextBox Classes="field search" Text="{Binding SearchText}" PlaceholderText="{Binding Localization.DiscoverSearchPlaceholder}" AutomationProperties.Name="{Binding Localization.DiscoverSearchPlaceholder}">
+                        <TextBox Classes="field search" Text="{Binding SearchText}" PlaceholderText="{Binding DiscoverSearchPlaceholderText}" AutomationProperties.Name="{Binding DiscoverSearchPlaceholderText}">
                             <TextBox.InnerLeftContent>
                                 <Path Classes="icon size-16" Data="{StaticResource Icon.Search}" Margin="10,0,0,0" />
                             </TextBox.InnerLeftContent>

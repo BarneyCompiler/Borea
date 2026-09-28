@@ -1299,6 +1299,9 @@
   <data name="DiscoverSearchPlaceholder" xml:space="preserve">
     <value>Be on the lookout fer barrels o' fun...</value>
   </data>
+  <data name="DiscoverSearchCountFormat" xml:space="preserve">
+    <value>Scour {0} fer treasure</value>
+  </data>
   <data name="DiscoverHideInstalled" xml:space="preserve">
     <value>Stow already hauled onboard</value>
   </data>

@@ -1935,6 +1935,9 @@
   <data name="DiscoverSearchPlaceholder" xml:space="preserve">
     <value>Search mods...</value>
   </data>
+  <data name="DiscoverSearchCountFormat" xml:space="preserve">
+    <value>Search {0}</value>
+  </data>
   <data name="DiscoverHideInstalled" xml:space="preserve">
     <value>Hide already installed</value>
   </data>

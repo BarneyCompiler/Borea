@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Borea.Core.Game;
 using Borea.Core.Launch;
 using Borea.Core.Paths;
+using Borea.Storage.Game;
 
 namespace Borea.Storage.Launch;
 
@@ -16,6 +17,7 @@ public sealed class SharedProfileLauncher : ISharedProfileLauncher
     private readonly IGamePathProvider _pathProvider;
     private readonly IProcessStarter _starter;
     private readonly OsPlatform? _platform;
+    private readonly IWinePrefixProbe _wine;
 
     public SharedProfileLauncher(IGamePathProvider pathProvider, IProcessStarter starter)
         : this(pathProvider, starter, CurrentPlatform())
@@ -31,11 +33,16 @@ public sealed class SharedProfileLauncher : ISharedProfileLauncher
         _pathProvider = pathProvider ?? throw new ArgumentNullException(nameof(pathProvider));
         _starter = starter ?? throw new ArgumentNullException(nameof(starter));
         _platform = platform;
+        _wine = new WinePrefixProbe(platform);
     }
 
     public SharedProfileLaunchResult Launch(IReadOnlyList<string>? arguments = null)
     {
-        // The platform comes first, because no directory setting can fix an unknown executable.
+        var gameDirectory = _pathProvider.GetGameDirectoryPath();
+        if (WindowsBuildOnHost.Refusal(_platform, gameDirectory, _wine) is { } refusal)
+            return SharedProfileLaunchResult.Failed(SharedProfileLaunchOutcome.WindowsBuild, refusal.Message, wine: refusal.Wine);
+
+        // The platform comes before the directory, because no directory setting can fix an unknown executable.
         var fileName = _platform is { } platform ? GameExecutable.FileName(platform) : null;
         if (fileName is null)
         {
@@ -44,7 +51,6 @@ public sealed class SharedProfileLauncher : ISharedProfileLauncher
                 $"Borea does not know the name of the game's executable on {PlatformName(_platform)}, so it starts nothing.");
         }
 
-        var gameDirectory = _pathProvider.GetGameDirectoryPath();
         if (string.IsNullOrWhiteSpace(gameDirectory))
         {
             return SharedProfileLaunchResult.Failed(

@@ -442,7 +442,7 @@ public sealed class BoreaServices : IDisposable
         var fileInstances = new FileInstanceRepository(paths, modStore);
         var instances = new LoggingInstanceRepository(fileInstances, paths, log);
         var loaderAdopter = new FileLoaderAdopter(settingsRepository, loaderConfiguration);
-        installCandidates ??= OperatingSystem.IsWindows() ? new WindowsInstallCandidateSource() : new NoInstallCandidates();
+        installCandidates ??= HostInstallCandidates();
 
         var installedVersion = new InstalledGameVersionProvider(paths);
         var gameShape = new GameShapeCheck(paths, installedVersion);
@@ -599,6 +599,15 @@ public sealed class BoreaServices : IDisposable
         public Task<ContentIndexSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default) =>
             reader.ReadAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// The registry on Windows and the wrapper apps on macOS. Linux has no
+    /// place where installers record the game, so it offers no candidates.
+    /// </summary>
+    internal static IInstallCandidateSource HostInstallCandidates() =>
+        OperatingSystem.IsWindows() ? new WindowsInstallCandidateSource()
+            : OperatingSystem.IsMacOS() ? new WrapperInstallCandidateSource()
+            : new NoInstallCandidates();
 
     private sealed class NoInstallCandidates : IInstallCandidateSource
     {

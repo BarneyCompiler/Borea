@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Borea.Core.Game;
 using Borea.Core.Launch;
 using Borea.Storage.Launch;
+using Borea.Storage.Tests.Game;
 using Borea.Storage.Tests.Paths;
 
 namespace Borea.Storage.Tests.Launch;
@@ -97,12 +98,39 @@ public sealed class SharedProfileLauncherTests : IDisposable
         Assert.Equal(Path.GetFullPath(GameDirectory), plan.WorkingDirectory);
     }
 
+    [Fact]
+    public void Launch_WindowsBuildInAWinePrefixOnMacOs_StartsNothing()
+    {
+        WineFixtures.Prefix(_tempRoot);
+        PlaceGame();
+
+        var result = Launcher(OsPlatform.MacOs).Launch();
+
+        Assert.Equal(SharedProfileLaunchOutcome.WindowsBuild, result.Outcome);
+        Assert.Contains("Wine prefix", result.Message);
+        Assert.Equal(Path.GetFileName(_tempRoot), Path.GetFileName(result.Wine?.PrefixRoot));
+        Assert.Empty(_starter.Plans);
+    }
+
+    [Fact]
+    public void Launch_WindowsBuildWithoutAPrefixOnLinux_StartsNothing()
+    {
+        PlaceGame();
+
+        var result = Launcher(OsPlatform.Linux).Launch();
+
+        Assert.Equal(SharedProfileLaunchOutcome.WindowsBuild, result.Outcome);
+        Assert.Contains("found no Wine prefix", result.Message);
+        Assert.Null(result.Wine);
+        Assert.Empty(_starter.Plans);
+    }
+
     [Theory]
     [InlineData(OsPlatform.MacOs, "on macOS")]
     [InlineData(null, "on this operating system")]
     public void Launch_PlatformWithoutAKnownExecutable_StartsNothing(OsPlatform? platform, string name)
     {
-        PlaceGame();
+        Directory.CreateDirectory(GameDirectory);
 
         var result = new SharedProfileLauncher(_paths, _starter, platform).Launch();
 

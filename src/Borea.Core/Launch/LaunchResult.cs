@@ -1,3 +1,5 @@
+using Borea.Core.Game;
+
 namespace Borea.Core.Launch;
 
 public sealed class LaunchResult
@@ -32,6 +34,9 @@ public sealed class LaunchResult
 
     /// <summary>The runtime or key of the loader's start entry that Borea does not know, when that stopped the launch.</summary>
     public string? UnknownName { get; private init; }
+
+    /// <summary>The Wine prefix around a Windows build that stopped the launch, or null when Borea found none.</summary>
+    public WineInstall? Wine { get; private init; }
 
     private LaunchResult(LaunchOutcome outcome, string message, LaunchPlan? plan, int? processId)
     {
@@ -80,11 +85,11 @@ public sealed class LaunchResult
         };
     }
 
-    public static LaunchResult Failed(LaunchOutcome outcome, string message, LaunchPlan? plan = null, string? unknownName = null)
+    public static LaunchResult Failed(LaunchOutcome outcome, string message, LaunchPlan? plan = null, string? unknownName = null, WineInstall? wine = null)
     {
         if (outcome == LaunchOutcome.Started)
             throw new ArgumentException("A started launch is a success, not a failure.", nameof(outcome));
 
-        return new LaunchResult(outcome, message, plan, processId: null) { UnknownName = unknownName };
+        return new LaunchResult(outcome, message, plan, processId: null) { UnknownName = unknownName, Wine = wine };
     }
 }

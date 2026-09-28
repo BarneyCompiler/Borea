@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Borea.Core.Dependencies;
+using Borea.Core.Game;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
 using Borea.Core.Settings;
 using Borea.Storage.ModLoaders;
 using Borea.Storage.Settings;
+using Borea.Storage.Tests.Game;
 using Borea.Storage.Tests.Mods;
 using Borea.Storage.Tests.Paths;
 
@@ -136,6 +138,23 @@ public sealed class FileLoaderAdopterTests : IDisposable
         Assert.True(result.GameDirectoryMatches is false);
         Assert.Contains(result.Warnings, warning => warning.Contains("was not changed", StringComparison.Ordinal));
         Assert.Equal(before, await File.ReadAllBytesAsync(configPath));
+    }
+
+    [Fact]
+    public async Task InspectAsync_WindowsPathOfTheGameInAWinePrefix_MatchesTheGameDirectory()
+    {
+        var prefix = Path.Combine(_tempRoot, "prefix");
+        var game = Path.Combine(prefix, "drive_c", "Program Files", "Kitten Space Agency");
+        await _settings.SaveAsync(new BoreaSettings(game));
+        PlaceStarMap(@"C:\Program Files\Kitten Space Agency");
+        var drives = WineFixtures.Drives(new Dictionary<char, string> { ['c'] = Path.Combine(prefix, "drive_c") });
+        var adopter = new FileLoaderAdopter(_settings, new LoaderConfigurator(new FakeWineProbe(new WineInstall(prefix, drives, Wrapper: null))));
+
+        var result = await adopter.InspectAsync(StarMap(), new[] { StarMapRelease() }, LoaderDirectory);
+
+        Assert.Equal(game, result.ConfiguredGameDirectory);
+        Assert.True(result.GameDirectoryMatches is true);
+        Assert.Empty(result.Warnings);
     }
 
     [Fact]

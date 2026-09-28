@@ -1,10 +1,12 @@
 using System.Text.Json.Nodes;
+using Borea.Core.Game;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
 using Borea.Core.Settings;
 using Borea.Storage.ModLoaders;
 using Borea.Storage.Paths;
 using Borea.Storage.Settings;
+using Borea.Storage.Tests.Game;
 
 namespace Borea.Storage.Tests.Settings;
 
@@ -140,6 +142,34 @@ public sealed class GameDirectoryChangerTests : IDisposable
         Assert.Equal(2, exception.InnerExceptions.Count);
         Assert.Equal(original, await File.ReadAllTextAsync(configPath));
         Assert.Equal(newGame, settings.Current.GameDirectoryPath);
+    }
+
+    [Fact]
+    public async Task ChangeAsync_GameInAPrefixThatNoDriveHolds_ThrowsAndWritesNothing()
+    {
+        var oldGame = Path.Combine(_tempRoot, "OldGame");
+        var prefix = Path.Combine(_tempRoot, "prefix");
+        var newGame = Path.Combine(prefix, "games", "Kitten Space Agency");
+        var loaderDirectory = Path.Combine(_tempRoot, "Loaders", "StarMap");
+        var configPath = Path.Combine(loaderDirectory, "loader.json");
+        const string original = "{ \"GameLocation\": \"old\" }";
+        Directory.CreateDirectory(loaderDirectory);
+        await File.WriteAllTextAsync(configPath, original);
+        var written = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(configPath, written);
+
+        var settings = SettingsRepository();
+        await settings.SaveAsync(new BoreaSettings(oldGame, Installations(("StarMap", loaderDirectory))));
+        var drives = WineFixtures.Drives(new Dictionary<char, string> { ['c'] = Path.Combine(prefix, "drive_c") });
+        var configurator = new LoaderConfigurator(new FakeWineProbe(new WineInstall(prefix, drives, Wrapper: null)));
+        var changer = new GameDirectoryChanger(settings, new FakeModRepository(Loader("StarMap")), configurator);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => changer.ChangeAsync(newGame));
+
+        Assert.Contains("no drive of that prefix holds it", error.Message);
+        Assert.Equal(original, await File.ReadAllTextAsync(configPath));
+        Assert.Equal(written, File.GetLastWriteTimeUtc(configPath));
+        Assert.Equal(oldGame, (await settings.GetAsync())!.GameDirectoryPath);
     }
 
     private FileBoreaSettingsRepository SettingsRepository() =>

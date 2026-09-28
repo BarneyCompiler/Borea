@@ -1,7 +1,10 @@
 using System.Text.Json.Nodes;
+using Borea.Core.Game;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
 using Borea.Storage.ModLoaders;
+using Borea.Storage.Tests.Game;
+using Borea.Storage.Tests.Launch;
 using Tomlyn;
 using Tomlyn.Model;
 
@@ -18,6 +21,7 @@ public sealed class LoaderConfiguratorTests : IDisposable
     private readonly string _loaderDirectory;
     private readonly string _gameDirectory;
     private readonly LoaderConfigurator _configurator = new();
+    private readonly List<string> _links = [];
 
     public LoaderConfiguratorTests()
     {
@@ -27,11 +31,7 @@ public sealed class LoaderConfiguratorTests : IDisposable
         Directory.CreateDirectory(_loaderDirectory);
     }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_tempRoot))
-            Directory.Delete(_tempRoot, recursive: true);
-    }
+    public void Dispose() => WineFixtures.Delete(_tempRoot, _links);
 
     private string ConfigPath(string file = "StarMapConfig.json") =>
         Path.Combine(_loaderDirectory, file.Replace('/', Path.DirectorySeparatorChar));
@@ -320,6 +320,117 @@ public sealed class LoaderConfiguratorTests : IDisposable
 
         Assert.Contains(ConfigPath("loader.toml"), ex.Message);
         Assert.Equal(original, await File.ReadAllTextAsync(ConfigPath("loader.toml")));
+    }
+
+    #endregion
+
+    #region Wine prefix
+
+    private string Prefix => Path.Combine(_tempRoot, "prefix");
+
+    private string GameInPrefix => Path.Combine(Prefix, "drive_c", "Program Files", "Kitten Space Agency");
+
+    /// <summary>A configurator whose probe finds the prefix with c: on drive_c and, unless left out, z: on the root of the host.</summary>
+    private LoaderConfigurator WineConfigurator(bool withZ = true)
+    {
+        var drives = new Dictionary<char, string> { ['c'] = Path.Combine(Prefix, "drive_c") };
+        if (withZ)
+            drives['z'] = Path.GetPathRoot(_tempRoot)!;
+
+        return new LoaderConfigurator(new FakeWineProbe(new WineInstall(Prefix, WineFixtures.Drives(drives), Wrapper: null)));
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_GameInAWinePrefix_WritesTheWindowsPathAndReadsTheGameDirectoryBack()
+    {
+        var configurator = WineConfigurator();
+
+        await configurator.ConfigureAsync(Loader(Json()), _loaderDirectory, GameInPrefix);
+
+        Assert.Equal(@"C:\Program Files\Kitten Space Agency", (string?)(await ReadJsonAsync())["GameLocation"]);
+        Assert.Equal(GameInPrefix, await configurator.ReadConfiguredGamePathAsync(Loader(Json()), _loaderDirectory, GameInPrefix));
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_GameInAPrefixThatNoDriveHolds_ThrowsAndWritesNothing()
+    {
+        var game = Path.Combine(Prefix, "games", "Kitten Space Agency");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => WineConfigurator(withZ: false).ConfigureAsync(Loader(Json()), _loaderDirectory, game));
+
+        Assert.Contains("no drive of that prefix holds it", error.Message);
+        Assert.False(File.Exists(ConfigPath()));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConfigureAsync_NativeLinuxBuildInAWinePrefix_WritesTheHostPath(bool withWindowsBuild)
+    {
+        Directory.CreateDirectory(GameInPrefix);
+        File.WriteAllText(Path.Combine(GameInPrefix, "KSA"), "app host");
+        if (withWindowsBuild)
+            File.WriteAllText(Path.Combine(GameInPrefix, "KSA.exe"), "game");
+
+        await WineConfigurator().ConfigureAsync(Loader(Json()), _loaderDirectory, GameInPrefix);
+
+        Assert.Equal(GameInPrefix, (string?)(await ReadJsonAsync())["GameLocation"]);
+    }
+
+    [Fact]
+    public async Task ReadConfiguredGamePathAsync_AnotherWindowsPath_MapsItThroughThePrefixOfTheGame()
+    {
+        await WriteConfigAsync("""{ "GameLocation": "C:\\Games\\Old KSA\\" }""");
+
+        var configured = await WineConfigurator().ReadConfiguredGamePathAsync(Loader(Json()), _loaderDirectory, GameInPrefix);
+
+        Assert.Equal(Path.Combine(Prefix, "drive_c", "Games", "Old KSA"), configured);
+    }
+
+    [Fact]
+    public async Task ReadConfiguredGamePathAsync_NoGameDirectory_MapsThroughThePrefixOfTheLoader()
+    {
+        var loaderInPrefix = Directory.CreateDirectory(Path.Combine(Prefix, "drive_c", "Program Files", "StarMap")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(loaderInPrefix, "StarMapConfig.json"), """{ "GameLocation": "C:\\Program Files\\Kitten Space Agency" }""");
+
+        var configured = await WineConfigurator().ReadConfiguredGamePathAsync(Loader(Json()), loaderInPrefix);
+
+        Assert.Equal(GameInPrefix, configured);
+    }
+
+    [Fact]
+    public async Task ReadConfiguredGamePathAsync_WindowsPathOutsideEveryPrefix_StaysAsItIs()
+    {
+        await WriteConfigAsync("""{ "GameLocation": "C:\\Program Files\\Kitten Space Agency" }""");
+
+        var configured = await WineConfigurator().ReadConfiguredGamePathAsync(Loader(Json()), _loaderDirectory, _gameDirectory);
+
+        Assert.Equal(@"C:\Program Files\Kitten Space Agency", configured);
+    }
+
+    [UnixFact("On Windows a host path starts with a drive letter too, so only a Linux or macOS host can tell it from a Windows path.")]
+    public async Task ReadConfiguredGamePathAsync_HostPathAnOlderBoreaWrote_KeepsIt()
+    {
+        await WriteConfigAsync(new JsonObject { ["GameLocation"] = GameInPrefix }.ToJsonString());
+
+        var configured = await WineConfigurator().ReadConfiguredGamePathAsync(Loader(Json()), _loaderDirectory, GameInPrefix);
+
+        Assert.Equal(GameInPrefix, configured);
+    }
+
+    [UnixFact("Windows cannot name a file 'c:', so the drive links exist only on Linux and macOS.")]
+    public async Task ConfigureAsync_GameInARealPrefix_WritesTheWindowsPathAndReadsTheGameDirectoryBack()
+    {
+        WineFixtures.Prefix(Prefix);
+        _links.Add(WineFixtures.LinkDrive(Prefix, 'c', "../drive_c"));
+        _links.Add(WineFixtures.LinkDrive(Prefix, 'z', "/"));
+        Directory.CreateDirectory(GameInPrefix);
+
+        await _configurator.ConfigureAsync(Loader(Json()), _loaderDirectory, GameInPrefix);
+
+        Assert.Equal(@"C:\Program Files\Kitten Space Agency", (string?)(await ReadJsonAsync())["GameLocation"]);
+        Assert.Equal(GameInPrefix, await _configurator.ReadConfiguredGamePathAsync(Loader(Json()), _loaderDirectory, GameInPrefix));
     }
 
     #endregion

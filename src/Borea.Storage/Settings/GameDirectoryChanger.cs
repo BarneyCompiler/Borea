@@ -42,6 +42,9 @@ public sealed class GameDirectoryChanger : IGameDirectoryChanger
 
         var listings = await _mods.GetAvailableModsAsync(cancellationToken).ConfigureAwait(false);
         var changes = FindChanges(previousSettings, listings);
+        if (changes.Count > 0)
+            _ = _configurator.GamePathValue(fullGameDirectory);
+
         var snapshots = await SnapshotAsync(changes, cancellationToken).ConfigureAwait(false);
         var settingsSaveStarted = false;
 

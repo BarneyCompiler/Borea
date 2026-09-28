@@ -61,6 +61,10 @@ public sealed class FileLoaderInstaller : ILoaderInstaller
         if (configure?.GamePath is not null && gameDirectory is null)
             throw new InvalidOperationException($"Borea does not know where the game is installed, so it cannot configure {loader.Name}. Set the game directory first.");
 
+        // A game path the loader could not open stops the install before the download.
+        if (configure?.GamePath is not null)
+            _ = _configurator.GamePathValue(gameDirectory!);
+
         var configurationPath = configure is null
             ? null
             : Path.GetFullPath(Path.Combine(destination, configure.File.Replace('/', Path.DirectorySeparatorChar)));

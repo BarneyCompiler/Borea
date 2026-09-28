@@ -1,3 +1,5 @@
+using Borea.Core.Game;
+
 namespace Borea.Core.Launch;
 
 public sealed class SharedProfileLaunchResult
@@ -14,6 +16,9 @@ public sealed class SharedProfileLaunchResult
     public int? ProcessId { get; }
 
     public bool Started => Outcome == SharedProfileLaunchOutcome.Started;
+
+    /// <summary>The Wine prefix around a Windows build that stopped the launch, or null when Borea found none.</summary>
+    public WineInstall? Wine { get; private init; }
 
     private SharedProfileLaunchResult(SharedProfileLaunchOutcome outcome, string message, LaunchPlan? plan, int? processId)
     {
@@ -34,11 +39,11 @@ public sealed class SharedProfileLaunchResult
         return new SharedProfileLaunchResult(SharedProfileLaunchOutcome.Started, message, plan, processId);
     }
 
-    public static SharedProfileLaunchResult Failed(SharedProfileLaunchOutcome outcome, string message, LaunchPlan? plan = null)
+    public static SharedProfileLaunchResult Failed(SharedProfileLaunchOutcome outcome, string message, LaunchPlan? plan = null, WineInstall? wine = null)
     {
         if (outcome == SharedProfileLaunchOutcome.Started)
             throw new ArgumentException("A started launch is a success, not a failure.", nameof(outcome));
 
-        return new SharedProfileLaunchResult(outcome, message, plan, processId: null);
+        return new SharedProfileLaunchResult(outcome, message, plan, processId: null) { Wine = wine };
     }
 }

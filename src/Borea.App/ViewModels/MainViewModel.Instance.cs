@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Borea.App.Localization;
 using Borea.Composition;
 using Borea.Core.Dependencies;
+using Borea.Core.Game;
 using Borea.Core.History;
 using Borea.Core.Instances;
 using Borea.Core.Launch;
@@ -637,7 +638,7 @@ public partial class MainViewModel
         try
         {
             var result = _services.SharedProfileLauncher.Launch();
-            LaunchMessage = result.Message;
+            LaunchMessage = result.Outcome == SharedProfileLaunchOutcome.WindowsBuild ? WindowsBuildText(result.Wine) : result.Message;
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or System.Net.Http.HttpRequestException)
         {
@@ -738,7 +739,15 @@ public partial class MainViewModel
         LaunchOutcome.UnknownRuntime => Localization.FormatLaunchUnknownRuntime(loader.Name, result.UnknownName!),
         LaunchOutcome.DotnetMissing => Localization.FormatLaunchDotnetMissing(loader.Name),
         LaunchOutcome.LaunchTargetMissing when result.Plan is { } plan => Localization.FormatLaunchTargetMissing(plan.Executable, loader.Name),
+        LaunchOutcome.WindowsBuild => WindowsBuildText(result.Wine),
         _ => result.Message,
+    };
+
+    private string WindowsBuildText(WineInstall? wine) => wine switch
+    {
+        { Wrapper: { } wrapper } => Localization.FormatLaunchWindowsBuildInWrapper(wrapper.BundlePath),
+        { } prefix => Localization.FormatLaunchWindowsBuildInPrefix(prefix.PrefixRoot),
+        null => Localization.LaunchWindowsBuildWithoutWine,
     };
 
     private string LaunchLoaderFailureText(LaunchLoaderChoice choice) => choice.Failure switch

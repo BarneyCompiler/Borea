@@ -16,4 +16,7 @@ public enum SharedProfileLaunchOutcome
 
     /// <summary>The operating system refused to start the process.</summary>
     StartFailed = 4,
+
+    /// <summary>The game folder holds the Windows build, which Borea cannot start on this system.</summary>
+    WindowsBuild = 5,
 }

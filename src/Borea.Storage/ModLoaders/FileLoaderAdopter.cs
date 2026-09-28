@@ -84,7 +84,7 @@ public sealed class FileLoaderAdopter : ILoaderAdopter
         try
         {
             configuredGameDirectory = await _configuration
-                .ReadConfiguredGamePathAsync(loader, loaderDirectory, cancellationToken)
+                .ReadConfiguredGamePathAsync(loader, loaderDirectory, settings.GameDirectoryPath, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException

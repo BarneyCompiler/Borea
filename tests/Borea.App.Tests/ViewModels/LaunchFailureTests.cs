@@ -4,6 +4,7 @@ using Borea.Core.Instances;
 using Borea.Core.Launch;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
+using Borea.Storage.Game;
 using Borea.Storage.Launch;
 
 namespace Borea.App.Tests.ViewModels;
@@ -306,6 +307,53 @@ public sealed class LaunchFailureTests
 
         var entryFile = Path.Combine(Path.GetDirectoryName(harness.Services.Paths.GetBoreaSettingsPath())!, "Loaders", "StarMap", "StarMap.dll");
         Assert.Equal(harness.Localization.FormatLaunchTargetMissing(entryFile, "StarMap"), harness.ViewModel.LaunchMessage);
+        Assert.Empty(starter.Plans);
+    }
+
+    /// <summary>A game folder that holds only KSA.exe, inside a Wine prefix when asked.</summary>
+    private static Task<ViewModelHarness> CreateWithWindowsBuildAsync(IProcessStarter starter, bool inPrefix) =>
+        ViewModelHarness.CreateAsync(
+            services =>
+            {
+                var root = Path.GetDirectoryName(services.Paths.GetBoreaSettingsPath())!;
+                if (inPrefix)
+                {
+                    Directory.CreateDirectory(Path.Combine(root, "dosdevices"));
+                    File.WriteAllText(Path.Combine(root, "system.reg"), "WINE REGISTRY Version 2\n");
+                }
+
+                var game = Directory.CreateDirectory(Path.Combine(root, "Game")).FullName;
+                File.WriteAllBytes(Path.Combine(game, "KSA.exe"), []);
+                var settings = services.Settings.WithGameDirectory(game).WithLoaderInstallation("StarMap", CreateLoader(services, "StarMap"));
+                return services.SettingsRepository.SaveAsync(settings);
+            },
+            processStarter: starter);
+
+    [UnixFact("Windows runs the Windows build.")]
+    public async Task PlayActiveInstance_WindowsBuildWithoutWine_StartsNothingAndSaysWhy()
+    {
+        var starter = new RunningStarter();
+        using var harness = await CreateWithWindowsBuildAsync(starter, inPrefix: false);
+        harness.Localization.TrySetCulture("de");
+
+        await PlayActiveInstanceAsync(harness);
+
+        Assert.Equal(harness.Localization.LaunchWindowsBuildWithoutWine, harness.ViewModel.LaunchMessage);
+        Assert.Empty(starter.Plans);
+    }
+
+    [UnixFact("Windows runs the Windows build.")]
+    public async Task PlayWithoutModLoader_WindowsBuildInAWinePrefix_StartsNothingAndNamesThePrefix()
+    {
+        var starter = new RunningStarter();
+        using var harness = await CreateWithWindowsBuildAsync(starter, inPrefix: true);
+        harness.Localization.TrySetCulture("de");
+        await harness.ViewModel.LoadAsync();
+
+        await harness.ViewModel.PlayWithoutModLoaderCommand.ExecuteAsync(null);
+
+        var prefix = new WinePrefixProbe().Find(harness.Services.Settings.GameDirectoryPath!)!.PrefixRoot;
+        Assert.Equal(harness.Localization.FormatLaunchWindowsBuildInPrefix(prefix), harness.ViewModel.LaunchMessage);
         Assert.Empty(starter.Plans);
     }
 

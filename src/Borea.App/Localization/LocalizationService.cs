@@ -2922,6 +2922,14 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatLaunchTargetMissing(string file, string loader)
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchTargetMissingFormat, file, loader);
 
+    public string LaunchWindowsBuildWithoutWine => Resources.LaunchWindowsBuildWithoutWine;
+
+    public string FormatLaunchWindowsBuildInPrefix(string prefix)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWindowsBuildInPrefixFormat, prefix);
+
+    public string FormatLaunchWindowsBuildInWrapper(string wrapper)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWindowsBuildInWrapperFormat, wrapper);
+
     public string FormatLaunchDisableMod(string mod)
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchDisableModFormat, mod);
 

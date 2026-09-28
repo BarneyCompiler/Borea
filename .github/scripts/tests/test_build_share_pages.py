@@ -220,7 +220,13 @@ class Build(unittest.TestCase):
         header = self.page("mod", "AdvancedFlightComputer").split('<div class="listing-body">')[0]
 
         self.assertIn('<li class="chip">Gameplay</li>\n          <li class="chip">User Interface</li>\n'
-                      '          <li class="chip">navigation</li>', header)
+                      '          <li class="chip">Navigation</li>', header)
+
+    def test_a_free_form_tag_shows_as_words_with_a_capital_first_letter(self):
+        snapshot = share.Snapshot({"tags": {"mod": [{"tag": "gameplay", "name": "Gameplay"}]}})
+
+        self.assertEqual(["Gameplay", "Weapons", "Space Station", "X2 Engine"],
+                         snapshot.display_tags(["weapons", "Gameplay", "space-station", "x2-engine"]))
 
     def test_the_description_is_markdown(self):
         self.build()

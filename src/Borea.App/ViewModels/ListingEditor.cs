@@ -12,6 +12,7 @@ using Borea.Composition;
 using Borea.Core.Index;
 using Borea.Core.Listings;
 using Borea.Core.Mods;
+using Borea.Core.Tags;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -48,6 +49,7 @@ public sealed partial class ListingEditor : ObservableObject
     private Task _opening = Task.CompletedTask;
     private CancellationTokenSource? _busy;
     private CancellationTokenSource? _tagProposal;
+    private readonly HashSet<string> _curatedFromFreeTags = new(StringComparer.Ordinal);
 
     public ListingEditor(MainViewModel owner)
     {
@@ -201,6 +203,10 @@ public sealed partial class ListingEditor : ObservableObject
 
     [ObservableProperty]
     private string _freeTags = string.Empty;
+
+    /// <summary>The free-form tags of the field in their stored form, or null while it gives none.</summary>
+    [ObservableProperty]
+    private string? _freeTagsStoredText;
 
     [ObservableProperty]
     private bool _isDeprecated;
@@ -634,6 +640,7 @@ public sealed partial class ListingEditor : ObservableObject
             Changelog = draft.Changelog ?? string.Empty;
             FillMembers(draft.Mods);
             FillCuratedTags(draft.Tags);
+            _curatedFromFreeTags.Clear();
             var curated = CuratedTags.Select(chip => chip.Tag).ToHashSet(StringComparer.Ordinal);
             FreeTags = string.Join(", ", draft.Tags.Where(tag => !curated.Contains(tag)));
 
@@ -666,6 +673,37 @@ public sealed partial class ListingEditor : ObservableObject
         foreach (var tag in vocabulary)
             CuratedTags.Add(new ListingTagChip(this, tag.Tag, _owner.CategoryName(tag.Tag, tag.Name), tag.Meaning, chosen.Contains(tag.Tag)));
     }
+
+    /// <summary>
+    /// An entry that names a curated tag in any case selects its chip. The chip is deselected again when the entry goes,
+    /// unless the author changed the chip since.
+    /// </summary>
+    private void SelectTypedCuratedTags(string before, string now)
+    {
+        var typedBefore = FreeTagEntries(before).Select(TagText.Normalize).ToHashSet(StringComparer.Ordinal);
+        var typed = FreeTagEntries(now).Select(TagText.Normalize).ToHashSet(StringComparer.Ordinal);
+        foreach (var chip in CuratedTags)
+        {
+            if (typed.Contains(chip.Tag) && !typedBefore.Contains(chip.Tag) && !chip.IsSelected)
+            {
+                _curatedFromFreeTags.Add(chip.Tag);
+                chip.IsSelected = true;
+            }
+            else if (!typed.Contains(chip.Tag) && _curatedFromFreeTags.Remove(chip.Tag))
+            {
+                chip.IsSelected = false;
+            }
+        }
+    }
+
+    internal void TagChipChanged(string tag, bool isSelected)
+    {
+        if (!isSelected)
+            _curatedFromFreeTags.Remove(tag);
+        Refresh();
+    }
+
+    private static string[] FreeTagEntries(string text) => text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>Builds the draft from the fields, writes the file and runs the checks.</summary>
     internal void Refresh()
@@ -756,8 +794,19 @@ public sealed partial class ListingEditor : ObservableObject
             ? new ListingReleases(Empty(ReleasesGitHub), spaceDock, NeedsAuthority ? ReleasesAuthority : null, Empty(ReleasesSince))
             : null;
 
-        var free = FreeTags.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var tags = CuratedTags.Where(chip => chip.IsSelected).Select(chip => chip.Tag).Concat(free).Distinct(StringComparer.Ordinal).ToList();
+        // a curated tag comes from its chip only, so a deselected chip is not stored again through the free field
+        var free = new List<string>();
+        foreach (var entry in FreeTagEntries(FreeTags))
+        {
+            var tag = TagText.Normalize(entry);
+            if (!TagText.IsValid(tag))
+                pageIssues.Add(new ListingIssue(ListingIssueSeverity.Error, "tags", Localization.FormatListingTagInvalid(entry)));
+            else if (!free.Contains(tag, StringComparer.Ordinal) && !CuratedTags.Any(chip => chip.Tag == tag))
+                free.Add(tag);
+        }
+
+        FreeTagsStoredText = free.Count > 0 ? Localization.FormatListingMoreTagsStored(string.Join(", ", free)) : null;
+        var tags = CuratedTags.Where(chip => chip.IsSelected).Select(chip => chip.Tag).Concat(free).ToList();
 
         var mods = Members.Select(row => row.ToMember()).ToList();
         if (IsPack)
@@ -892,7 +941,12 @@ public sealed partial class ListingEditor : ObservableObject
 
     partial void OnLoaderMaxChanged(string value) => Refresh();
 
-    partial void OnFreeTagsChanged(string value) => Refresh();
+    partial void OnFreeTagsChanged(string? oldValue, string newValue)
+    {
+        if (!_loading)
+            SelectTypedCuratedTags(oldValue ?? string.Empty, newValue);
+        Refresh();
+    }
 
     partial void OnIsDeprecatedChanged(bool value) => Refresh();
 

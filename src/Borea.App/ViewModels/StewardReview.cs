@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Borea.Core.Listings;
+using Borea.Core.Mods;
 using Borea.Core.Stewardship;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -311,7 +312,10 @@ public sealed partial class StewardReviewDocument
 
     public string? Description => _draft?.Description is { Length: > 0 } text ? text : null;
 
-    public IReadOnlyList<string> Tags => _draft?.Tags ?? [];
+    /// <summary>The tags as the content page shows them, so the preview reads like the page players will see.</summary>
+    public IReadOnlyList<string> Tags => _draft is { } draft
+        ? DiscoverItem.DisplayTags(_owner, Document.Kind == StewardQueueKind.Pack ? ContentType.ModPack : ContentType.Mod, draft.Tags)
+        : [];
 
     public string? License => _draft?.License is { Length: > 0 } license ? license : null;
 

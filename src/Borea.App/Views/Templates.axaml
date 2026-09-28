@@ -379,20 +379,7 @@
                                     <TextBlock Text="{Binding CompatibilityText}" />
                                 </StackPanel>
                             </Border>
-                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Tags}" VerticalAlignment="Center" ClipToBounds="True">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="4" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="x:String">
-                                        <Border Classes="chip">
-                                            <TextBlock Text="{Binding}" />
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <views:TagChipRow Grid.Column="1" Tags="{Binding AllTags}" VerticalAlignment="Center" Margin="0,0,24,0" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center" Margin="8,0,0,0">
                                 <!-- c/meta: the size, the downloads and the age of the newest release, when the index reports them -->
                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" IsVisible="{Binding DownloadSizeText, Converter={x:Static ObjectConverters.IsNotNull}}" ToolTip.Tip="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentDownloadSize}">
@@ -492,20 +479,7 @@
                                     <TextBlock Text="{Binding CompatibilityText}" />
                                 </StackPanel>
                             </Border>
-                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Tags}" VerticalAlignment="Center" ClipToBounds="True">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="4" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="x:String">
-                                        <Border Classes="chip">
-                                            <TextBlock Text="{Binding}" />
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <views:TagChipRow Grid.Column="1" Tags="{Binding AllTags}" VerticalAlignment="Center" Margin="0,0,24,0" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center" Margin="8,0,0,0">
                                 <TextBlock Classes="label-md" Text="{Binding ModCountText}" VerticalAlignment="Center" />
                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" ToolTip.Tip="{Binding ReleasedDateText}">

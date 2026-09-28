@@ -231,6 +231,102 @@ public sealed class ListingEditorTests
     }
 
     [Fact]
+    public async Task FreeTags_TypedWithCapitalsAndSpaces_AreStoredLowercaseAndSplitOnCommasOnly()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, _, _) = await ValidNewListingAsync(harness);
+
+        editor.FreeTags = "Physics, Space Station,  RCS , physics";
+
+        Assert.Equal(["physics", "space-station", "rcs"], editor.Draft.Tags);
+        Assert.Contains("tags = [\"physics\", \"space-station\", \"rcs\"]\n", editor.DocumentText, StringComparison.Ordinal);
+        Assert.Equal(harness.Localization.FormatListingMoreTagsStored("physics, space-station, rcs"), editor.FreeTagsStoredText);
+        Assert.Equal(["Physics", "Space Station", "Rcs"], editor.PreviewTags);
+        Assert.False(editor.HasErrors, string.Join("\n", editor.Errors));
+        Assert.True(editor.CanOpenPullRequest);
+
+        editor.FreeTags = " , ";
+
+        Assert.Empty(editor.Draft.Tags);
+        Assert.Null(editor.FreeTagsStoredText);
+    }
+
+    [Fact]
+    public async Task FreeTags_EntryThatCannotBeATag_IsAnErrorThatNamesIt_AndOpensNoPullRequest()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, opened, _) = await ValidNewListingAsync(harness);
+
+        editor.FreeTags = "physics, C++";
+
+        var error = Assert.Single(editor.Errors);
+        Assert.Equal("tags", error.Location);
+        Assert.Equal(harness.Localization.FormatListingTagInvalid("C++"), error.Message);
+        Assert.Contains("'C++'", error.Message, StringComparison.Ordinal);
+        Assert.Contains(harness.Localization.ListingTags + ": " + error.Message, editor.VisibleErrors);
+        Assert.Equal(["physics"], editor.Draft.Tags);
+        Assert.False(editor.CanOpenPullRequest);
+
+        await editor.OpenPullRequestCommand.ExecuteAsync(null);
+
+        Assert.Empty(opened);
+        Assert.Equal(harness.Localization.ListingFixErrors, editor.OutputMessage);
+    }
+
+    [Fact]
+    public async Task FreeTags_CuratedTagInAnotherCase_SelectsTheChipAndAddsNoFreeTag()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithGameplayPrefix);
+        harness.ViewModel.ListingEditor.ForumsDelay = TimeSpan.Zero;
+        var (editor, _, _) = await ValidNewListingAsync(harness);
+        await editor.TagProposal;
+        var gameplay = editor.CuratedTags.Single(chip => chip.Tag == "gameplay");
+
+        editor.FreeTags = "Gameplay";
+
+        Assert.True(gameplay.IsSelected);
+        Assert.Equal(["gameplay"], editor.Draft.Tags);
+        Assert.Null(editor.FreeTagsStoredText);
+        Assert.Equal(["Gameplay"], editor.PreviewTags);
+
+        editor.FreeTags = "Gameplays";
+
+        Assert.False(gameplay.IsSelected);
+        Assert.Equal(["gameplays"], editor.Draft.Tags);
+
+        // a chip that the author deselects is not stored again through the free field
+        editor.FreeTags = "Gameplay";
+        gameplay.IsSelected = false;
+        editor.FreeTags = "Gameplay, physics";
+
+        Assert.False(gameplay.IsSelected);
+        Assert.Equal(["physics"], editor.Draft.Tags);
+
+        gameplay.IsSelected = true;
+        editor.FreeTags = "physics";
+
+        Assert.True(gameplay.IsSelected);
+        Assert.Equal(["gameplay", "physics"], editor.Draft.Tags);
+    }
+
+    [Fact]
+    public async Task FreeTags_CuratedTagTheAuthorChose_StaysSelectedWhenTheEntryGoes()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithGameplayPrefix);
+        harness.ViewModel.ListingEditor.ForumsDelay = TimeSpan.Zero;
+        var (editor, _, _) = await ValidNewListingAsync(harness);
+        await editor.TagProposal;
+        var library = editor.CuratedTags.Single(chip => chip.Tag == "library");
+        library.IsSelected = true;
+
+        editor.FreeTags = "Library";
+        editor.FreeTags = string.Empty;
+
+        Assert.True(library.IsSelected);
+        Assert.Equal(["library"], editor.Draft.Tags);
+    }
+
+    [Fact]
     public async Task Overview_NewForm_ListsWhatIsMissingInsteadOfErrors()
     {
         using var harness = await ViewModelHarness.CreateAsync();

@@ -2494,7 +2494,13 @@
     <value>Weitere Tags</value>
   </data>
   <data name="ListingMoreTagsHint" xml:space="preserve">
-    <value>Kleingeschriebene Wörter, mit - verbunden und durch Kommas getrennt.</value>
+    <value>Trenne die Tags mit Kommas. Borea speichert alle Tags kleingeschrieben, mit - zwischen den Wörtern.</value>
+  </data>
+  <data name="ListingMoreTagsStoredFormat" xml:space="preserve">
+    <value>Gespeichert als: {0}</value>
+  </data>
+  <data name="ListingTagInvalidFormat" xml:space="preserve">
+    <value>'{0}' ist als Tag nicht möglich. Tags bestehen aus Kleinbuchstaben und Ziffern in Wörtern, die mit - verbunden sind, zum Beispiel space-station.</value>
   </data>
   <data name="ListingIcon" xml:space="preserve">
     <value>Icon</value>

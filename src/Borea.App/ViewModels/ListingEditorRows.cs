@@ -34,7 +34,7 @@ public sealed partial class ListingTagChip : ObservableObject
     [RelayCommand]
     private void Toggle() => IsSelected = !IsSelected;
 
-    partial void OnIsSelectedChanged(bool value) => _owner.Refresh();
+    partial void OnIsSelectedChanged(bool value) => _owner.TagChipChanged(Tag, value);
 }
 
 /// <summary>One [[dependencies]] entry. An entry the page cannot edit, such as one with any_of, is shown and kept as it is.</summary>

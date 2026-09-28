@@ -360,6 +360,37 @@ public sealed class DiscoverViewModelTests
     }
 
     [Fact]
+    public async Task SearchPlaceholder_NamesWhatTheTabHolds_AlsoWhileAFilterNarrowsIt()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        var changed = new List<string?>();
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        Assert.Equal("Search 3 mods", viewModel.DiscoverSearchPlaceholderText);
+
+        viewModel.SelectLicenseCommand.Execute("GPL-3.0");
+        Assert.Equal("Search 3 mods", viewModel.DiscoverSearchPlaceholderText);
+
+        viewModel.ShowDiscoverLoadersCommand.Execute(null);
+        Assert.Contains(nameof(MainViewModel.DiscoverSearchPlaceholderText), changed);
+        Assert.Equal("Search 1 mod loader", viewModel.DiscoverSearchPlaceholderText);
+
+        harness.Localization.TrySetCulture("de");
+        Assert.Equal("1 Mod-Loader durchsuchen", viewModel.DiscoverSearchPlaceholderText);
+    }
+
+    [Fact]
+    public async Task SearchPlaceholder_WhenTheIndexIsUnreachable_SaysSearchMods()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(indexOffline: true);
+        await harness.ViewModel.EnsureDiscoverLoadedAsync();
+
+        Assert.Equal(harness.Localization.DiscoverSearchPlaceholder, harness.ViewModel.DiscoverSearchPlaceholderText);
+    }
+
+    [Fact]
     public async Task Count_WithAFilterOrASearch_NamesTheShownAndTheTotal()
     {
         using var harness = await ViewModelHarness.CreateAsync();

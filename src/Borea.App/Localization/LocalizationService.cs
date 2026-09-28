@@ -1393,6 +1393,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string DiscoverSearchPlaceholder => Resources.DiscoverSearchPlaceholder;
 
+    public string FormatDiscoverSearchCount(string count)
+        => string.Format(CultureInfo.CurrentCulture, Resources.DiscoverSearchCountFormat, count);
+
     public string DiscoverHideInstalled => Resources.DiscoverHideInstalled;
 
     public string DiscoverHideIncompatible => Resources.DiscoverHideIncompatible;

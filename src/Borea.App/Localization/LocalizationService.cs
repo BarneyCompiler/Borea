@@ -1455,6 +1455,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string DiscoverRefresh => Resources.DiscoverRefresh;
 
+    public string DiscoverBackToTop => Resources.DiscoverBackToTop;
+
     public string DiscoverAdd => Resources.DiscoverAdd;
 
     public string DiscoverInstalled => Resources.DiscoverInstalled;

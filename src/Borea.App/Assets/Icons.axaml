@@ -56,6 +56,8 @@
 
     <StreamGeometry x:Key="Icon.ArrowLeft">M 20.25 12 H 3.75 M 10.5 18.75 L 3.75 12 L 10.5 5.25</StreamGeometry>
 
+    <StreamGeometry x:Key="Icon.ArrowUp">M 12 20.25 V 3.75 M 5.25 10.5 L 12 3.75 L 18.75 10.5</StreamGeometry>
+
     <StreamGeometry x:Key="Icon.ArrowsLeftRight">M 16.5 13.5 L 19.5 16.5 L 16.5 19.5 M 4.5 16.5 H 19.5 M 7.5 10.5 L 4.5 7.5 L 7.5 4.5 M 19.5 7.5 H 4.5</StreamGeometry>
 
     <StreamGeometry x:Key="Icon.ArrowClockwise">M 17.25 9.75 H 21 V 6 M 17.663 18 A 8.25 8.25 0 1 1 17.834 6.166 L 21 9.75</StreamGeometry>

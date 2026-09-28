@@ -81,7 +81,13 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
+      # The share page scripts run in Node, from the Python tests and from their own.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
       - name: Test the Python scripts
         run: python3 -m unittest discover --start-directory .github/scripts/tests --pattern 'test_*.py' --verbose
+      - name: Test the share page scripts
+        run: node --test tests/site/*.test.js
       - name: Test the Discord release post
         run: bash .github/scripts/tests/test-release-announcement.sh

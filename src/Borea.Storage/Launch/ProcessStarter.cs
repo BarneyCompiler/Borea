@@ -61,13 +61,15 @@ public sealed class ProcessStarter : IProcessStarter
         private readonly Process _process;
         private readonly Queue<string> _output = new();
         private readonly object _outputGate = new();
+        private bool _outputClosed;
+        private bool _errorClosed;
         private bool _disposed;
 
         public StartedProcess(Process process)
         {
             _process = process;
-            _process.OutputDataReceived += (_, e) => Keep(e.Data);
-            _process.ErrorDataReceived += (_, e) => Keep(e.Data);
+            _process.OutputDataReceived += (_, e) => Keep(e.Data, error: false);
+            _process.ErrorDataReceived += (_, e) => Keep(e.Data, error: true);
             _process.BeginOutputReadLine();
             _process.BeginErrorReadLine();
         }
@@ -75,6 +77,18 @@ public sealed class ProcessStarter : IProcessStarter
         public int Id => _process.Id;
 
         public bool HasExited => _process.HasExited;
+
+        public bool HasEnded
+        {
+            get
+            {
+                if (!_process.HasExited)
+                    return false;
+
+                lock (_outputGate)
+                    return _outputClosed && _errorClosed;
+            }
+        }
 
         public int? ExitCode => _process.HasExited ? _process.ExitCode : null;
 
@@ -93,7 +107,7 @@ public sealed class ProcessStarter : IProcessStarter
             window.CancelAfter(timeout);
             try
             {
-                // also waits for the output of an exited process to be read to its end
+                // also waits for the output to be read to its end, which a process that took over the streams delays
                 await _process.WaitForExitAsync(window.Token).ConfigureAwait(false);
                 return true;
             }
@@ -103,13 +117,20 @@ public sealed class ProcessStarter : IProcessStarter
             }
         }
 
-        private void Keep(string? line)
+        private void Keep(string? line, bool error)
         {
-            if (line is null)
-                return;
-
             lock (_outputGate)
             {
+                // the reader reports the end of a stream as a null line
+                if (line is null)
+                {
+                    if (error)
+                        _errorClosed = true;
+                    else
+                        _outputClosed = true;
+                    return;
+                }
+
                 _output.Enqueue(line);
                 while (_output.Count > OutputLines)
                     _output.Dequeue();

@@ -26,8 +26,9 @@ public interface ILauncher
 
     /// <summary>
     /// Whether a launch this launcher started for the instance is still
-    /// running. A launch from an earlier session, a game started by hand, and
-    /// the new process a loader starts when it restarts itself are not seen.
+    /// running. A loader that restarts itself keeps its launch running while
+    /// the new process runs. A launch from an earlier session and a game
+    /// started by hand are not seen.
     /// </summary>
     bool IsRunning(Guid instanceId);
 }

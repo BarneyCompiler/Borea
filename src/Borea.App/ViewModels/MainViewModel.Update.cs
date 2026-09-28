@@ -14,10 +14,24 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Borea.App.ViewModels;
 
-/// <summary>The notice that a newer Borea release exists, checked once per start, and its release notes.</summary>
+/// <summary>
+/// The notice that a newer Borea release exists, and its release notes. The release check runs at start,
+/// and again when the update channel changes or the check is turned on.
+/// </summary>
 public partial class MainViewModel
 {
-    private Task? _updateCheck;
+    private Task _updateCheck = Task.CompletedTask;
+
+    private int _updateCheckGeneration;
+
+    /// <summary>Set when the latest check answered while a self-update ran, so a stopped update checks again.</summary>
+    private bool _checkAfterSelfUpdate;
+
+    /// <summary>
+    /// Set when a stopped self-update could not put this build back. The banner then keeps the only
+    /// instruction that repairs the folder, so later checks do not change it.
+    /// </summary>
+    private bool _selfUpdateRestoreFailed;
 
     private bool? _checkForUpdatesAtStart;
 
@@ -101,7 +115,7 @@ public partial class MainViewModel
     [ObservableProperty]
     private IReadOnlyList<BoreaReleaseNotesItem> _releaseNotes = [];
 
-    /// <summary>The switch in the General settings. A change takes effect at the next start.</summary>
+    /// <summary>The switch in the General settings. Turning it on checks for a Borea release and a newer game build at once.</summary>
     public bool CheckForUpdatesAtStart
     {
         get => _checkForUpdatesAtStart ?? _appPreferences.CheckForUpdatesAtStart;
@@ -113,16 +127,23 @@ public partial class MainViewModel
             _checkForUpdatesAtStart = value;
             OnPropertyChanged();
             QueuePreferenceSave(preferences => preferences.WithCheckForUpdatesAtStart(value));
+            if (!value)
+                return;
+
+            CheckForUpdateAgain();
+            StartGameBuildCheck();
         }
     }
 
     public IReadOnlyList<BoreaUpdateChannelOption> UpdateChannelOptions
         => _updateChannelOptions ??= Enum.GetValues<BoreaUpdateChannel>().Select(channel => new BoreaUpdateChannelOption(Localization, channel)).ToArray();
 
-    /// <summary>The update channel in the General settings. A change takes effect at the next start.</summary>
+    private BoreaUpdateChannel UpdateChannel => _updateChannel ?? _appPreferences.UpdateChannel;
+
+    /// <summary>The update channel in the General settings. A change checks the releases of the new channel at once.</summary>
     public BoreaUpdateChannelOption SelectedUpdateChannel
     {
-        get => UpdateChannelOptions.First(option => option.Channel == (_updateChannel ?? _appPreferences.UpdateChannel));
+        get => UpdateChannelOptions.First(option => option.Channel == UpdateChannel);
         set
         {
             if (value is null || value == SelectedUpdateChannel)
@@ -131,32 +152,67 @@ public partial class MainViewModel
             _updateChannel = value.Channel;
             OnPropertyChanged();
             QueuePreferenceSave(preferences => preferences.WithUpdateChannel(value.Channel));
+            CheckForUpdateAgain();
         }
     }
 
-    /// <summary>Starts the release check once, in the background.</summary>
-    private void StartUpdateCheck() => _updateCheck ??= CheckForUpdateAsync();
-
-    /// <summary>Completes when the release check has finished.</summary>
-    internal Task WhenUpdateCheckedAsync() => _updateCheck ?? Task.CompletedTask;
-
-    private async Task CheckForUpdateAsync()
+    /// <summary>Starts the release check once per start, in the background.</summary>
+    private void StartUpdateCheck()
     {
-        if (_services is null || !_appPreferences.CheckForUpdatesAtStart)
+        if (_updateCheckGeneration == 0)
+            CheckForUpdateAgain();
+    }
+
+    /// <summary>Starts a release check in the background. Only the answer of the latest check is shown, whichever answers last.</summary>
+    private void CheckForUpdateAgain()
+    {
+        var previous = _updateCheck;
+        var check = CheckForUpdateAsync(++_updateCheckGeneration);
+        _updateCheck = previous.IsCompleted ? check : Task.WhenAll(previous, check);
+    }
+
+    /// <summary>Completes when the release checks have finished.</summary>
+    internal Task WhenUpdateCheckedAsync() => _updateCheck;
+
+    private async Task CheckForUpdateAsync(int generation)
+    {
+        if (_services is not { } services || !CheckForUpdatesAtStart)
             return;
 
         try
         {
-            _releases = await _services.ReleaseCheck.GetReleasesAsync(_appPreferences.UpdateChannel);
-            if (_releases.FirstOrDefault() is { } newest && newest.IsNewerThan(BoreaInformationalVersion))
-            {
-                AvailableUpdate = newest;
+            var channel = UpdateChannel;
+            var releases = await services.ReleaseCheck.GetReleasesAsync(channel);
 
-                // The readiness reads files, so it is read here and not in the getters the banner binds to.
-                _selfUpdateReadiness = await Task.Run(_services.SelfUpdater.GetReadiness);
-                OnPropertyChanged(nameof(SelfUpdateActionText));
-                OnPropertyChanged(nameof(ReleaseBannerText));
+            // A failed check answers with no release, so the releases of the last answer that this channel offers stay.
+            if (releases.Count == 0)
+                releases = _releases.Where(release => channel.Includes(release.Version)).ToList();
+
+            var newest = releases.FirstOrDefault() is { } first && first.IsNewerThan(BoreaInformationalVersion) ? first : null;
+            SelfUpdateReadiness? readiness = null;
+
+            // The readiness reads files, so it is read here and not in the getters the banner binds to.
+            if (newest is not null && _selfUpdateReadiness is null)
+                readiness = await Task.Run(services.SelfUpdater.GetReadiness);
+
+            if (generation != _updateCheckGeneration || _selfUpdateRestoreFailed)
+                return;
+
+            // A running self-update keeps the release it replaces this build with in the banner, and it checks again when it stops.
+            if (IsSelfUpdating)
+            {
+                _checkAfterSelfUpdate = true;
+                return;
             }
+
+            _selfUpdateReadiness ??= readiness;
+            _releases = releases;
+            if (AvailableUpdate?.Version != newest?.Version)
+                SelfUpdateStatus = null;
+
+            AvailableUpdate = newest;
+            OnPropertyChanged(nameof(SelfUpdateActionText));
+            OnPropertyChanged(nameof(ReleaseBannerText));
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or ObjectDisposedException)
         {
@@ -183,6 +239,7 @@ public partial class MainViewModel
         }
 
         IsSelfUpdating = true;
+        _selfUpdateRestoreFailed = false;
         var task = StartTask(TaskKind.BoreaUpdate, version: release.Version.ToString());
         var downloadText = new InstallProgressText(Localization);
         ReportSelfUpdate(task, downloadText, release.Version, new SelfUpdateProgress(SelfUpdatePhase.Downloading));
@@ -222,19 +279,35 @@ public partial class MainViewModel
             _services.Log.Write("The self-update stopped.", exception);
             SelfUpdateStatus = FailureText(exception, staged);
             Tasks.End(task, TaskState.Failed, SelfUpdateStatus);
+            _selfUpdateRestoreFailed = exception.Reason == SelfUpdateFailure.Restore;
             IsSelfUpdating = false;
+            CheckForUpdateAfterSelfUpdate();
         }
         catch (OperationCanceledException)
         {
             SelfUpdateStatus = null;
             Tasks.End(task, TaskState.Stopped);
             IsSelfUpdating = false;
+            CheckForUpdateAfterSelfUpdate();
         }
         finally
         {
             Tasks.Discard(task);
             EndSelfUpdateInstall();
         }
+    }
+
+    /// <summary>
+    /// Checks again after a stopped self-update when the latest check answered while it ran, because that
+    /// answer was not shown and the channel may have changed since the update started.
+    /// </summary>
+    private void CheckForUpdateAfterSelfUpdate()
+    {
+        if (!_checkAfterSelfUpdate || _selfUpdateRestoreFailed)
+            return;
+
+        _checkAfterSelfUpdate = false;
+        CheckForUpdateAgain();
     }
 
     /// <summary>Shows a step in the banner and in the task. The download shows in the task like the download of an install.</summary>

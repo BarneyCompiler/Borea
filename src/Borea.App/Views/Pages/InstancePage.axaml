@@ -272,7 +272,7 @@
                                 <Button Classes="text" Content="{Binding UpdateAll.Run.StopText}" Command="{Binding UpdateAll.Run.StopCommand}" />
                             </StackPanel>
                             <!-- c/button-cta -->
-                            <Button Classes="cta" Command="{Binding PlayCommand}" IsEnabled="{Binding !IsLaunching}">
+                            <Button Classes="cta with-icon" Command="{Binding PlayCommand}" IsEnabled="{Binding !IsLaunching}">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <Path Classes="icon-filled size-16" Fill="{StaticResource Brush.SurfaceHeader}" Data="{StaticResource Icon.Play}" VerticalAlignment="Center" />
                                     <TextBlock Classes="action-lg" Text="{Binding Localization.InstancePlay}" VerticalAlignment="Center" />

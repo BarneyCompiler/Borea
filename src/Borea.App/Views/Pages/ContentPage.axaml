@@ -135,7 +135,7 @@
                                 <StackPanel Classes="content-actions" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
                                     <!-- Add and Remove act on the active instance, so a page from another instance does not offer them -->
                                     <Panel VerticalAlignment="Center" IsVisible="{Binding CanActOnSelectedContent}">
-                                        <Button Classes="cta" Command="{Binding SelectedContent.InstallCommand}" IsVisible="{Binding SelectedContent.CanInstall}" ToolTip.Tip="{Binding AddToText}" AutomationProperties.Name="{Binding AddToText}">
+                                        <Button Classes="cta with-icon" Command="{Binding SelectedContent.InstallCommand}" IsVisible="{Binding SelectedContent.CanInstall}" ToolTip.Tip="{Binding AddToText}" AutomationProperties.Name="{Binding AddToText}">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Path Classes="icon size-16" Data="{StaticResource Icon.Plus}" Stroke="{StaticResource Brush.SurfaceHeader}" StrokeThickness="2" VerticalAlignment="Center" />
                                                 <TextBlock Classes="action-lg" Text="{Binding Localization.ContentAdd}" VerticalAlignment="Center" />

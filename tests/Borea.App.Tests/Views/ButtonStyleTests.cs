@@ -1,6 +1,9 @@
+using System.Xml;
+using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Layout;
 using Avalonia.VisualTree;
 using Borea.App.Tests.ViewModels;
 using Borea.App.Views;
@@ -119,6 +122,72 @@ public sealed class ButtonStyleTests
 
         Assert.NotEmpty(heights);
         Assert.All(heights, height => Assert.Equal(ctaHeight, height));
+    }
+
+    [Fact]
+    public async Task TextOnlyCta_CentersItsText()
+    {
+        var (left, right) = await HeadlessApp.RunAsync(() =>
+        {
+            var text = new TextBlock { Classes = { "action-lg" }, Text = "Use it" };
+            var cta = new Button { Classes = { "cta" }, Content = text, HorizontalAlignment = HorizontalAlignment.Left };
+            var window = new Window { Width = 400, Height = 300, Content = new StackPanel { Children = { cta } } };
+            window.Show();
+            window.UpdateLayout();
+            var start = text.TranslatePoint(new Point(0, 0), cta)!.Value.X;
+            var result = (start, cta.Bounds.Width - start - text.Bounds.Width);
+            window.Close();
+            return Task.FromResult(result);
+        });
+
+        Assert.InRange(right - left, -1, 1);
+    }
+
+    [Fact]
+    public async Task CtaWithAnIcon_KeepsLessRoomOnTheLeft()
+    {
+        var padding = await HeadlessApp.RunAsync(() =>
+        {
+            var cta = new Button { Classes = { "cta", "with-icon" }, Content = "Play" };
+            var window = new Window { Width = 400, Height = 300, Content = new StackPanel { Children = { cta } } };
+            window.Show();
+            window.UpdateLayout();
+            var result = cta.Padding;
+            window.Close();
+            return Task.FromResult(result);
+        });
+
+        Assert.Equal(new Thickness(20, 0, 24, 0), padding);
+    }
+
+    [Fact]
+    public void EveryCtaThatStartsWithAnIcon_CarriesWithIcon_AndNoOtherCtaDoes()
+    {
+        var app = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Borea.App"));
+        var ctas = Directory.EnumerateFiles(app, "*.axaml", SearchOption.AllDirectories)
+            .Where(path => !Path.GetRelativePath(app, path).Split(Path.DirectorySeparatorChar).Any(part => part is "bin" or "obj"))
+            .SelectMany(path => XDocument.Load(path, LoadOptions.SetLineInfo).Descendants()
+                .Where(element => element.Name.LocalName == "Button" && ClassesOf(element).Contains("cta"))
+                .Select(button => (Where: $"{Path.GetFileName(path)} line {((IXmlLineInfo)button).LineNumber}", Button: button)))
+            .ToList();
+
+        Assert.NotEmpty(ctas);
+        Assert.All(ctas, cta => Assert.True(StartsWithAnIcon(cta.Button) == ClassesOf(cta.Button).Contains("with-icon"), cta.Where));
+    }
+
+    private static string[] ClassesOf(XElement element)
+        => ((string?)element.Attribute("Classes") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+    // A property element such as Button.IsVisible is not content.
+    private static XElement? FirstContent(XElement element)
+        => element.Elements().FirstOrDefault(child => !child.Name.LocalName.Contains('.'));
+
+    private static bool StartsWithAnIcon(XElement button)
+    {
+        var content = FirstContent(button);
+        if (content?.Name.LocalName == "StackPanel")
+            content = FirstContent(content);
+        return content?.Name.LocalName is "Path" or "PathIcon";
     }
 
     private static Point Center(Visual target, Window window)

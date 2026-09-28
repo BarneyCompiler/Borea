@@ -51,7 +51,7 @@
                     <Grid Grid.Column="2" Grid.Row="0" ColumnDefinitions="*,16,Auto">
                         <TextBlock Classes="heading-md" Text="{Binding Name}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <Button Classes="cta" Command="{Binding PlayCommand}" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).EnableActiveInstance}" VerticalAlignment="Center">
+                            <Button Classes="cta with-icon" Command="{Binding PlayCommand}" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).EnableActiveInstance}" VerticalAlignment="Center">
                                 <Button.IsVisible>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <Binding Path="IsActive" />

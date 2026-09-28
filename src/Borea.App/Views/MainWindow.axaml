@@ -23,6 +23,9 @@
 
     <!-- Every page and modal is its own control under Pages/ and Settings/; the rows they share are in Templates.axaml. -->
     <Panel>
+    <!-- takes the focus from a text box on a click beside it, and sits first in the tree so that Tab goes on from the top -->
+    <Control x:Name="FocusSink" Focusable="True" IsTabStop="False" IsHitTestVisible="False" />
+
     <Grid ColumnDefinitions="80,*">
 
         <!-- c/nav-bar -->

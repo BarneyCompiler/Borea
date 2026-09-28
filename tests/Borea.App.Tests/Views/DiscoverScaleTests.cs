@@ -26,8 +26,11 @@ public sealed class DiscoverScaleTests
 {
     private const int Listings = 300;
 
-    /// <summary>The window shows about five rows and the list keeps one window more above and below, so this ceiling does not grow with the list.</summary>
-    private const int MaxRealizedRows = 30;
+    /// <summary>A list short enough that the list keeps all of its rows alive.</summary>
+    private const int ShortListings = 20;
+
+    /// <summary>The window shows about six rows and the list keeps two windows more above and below, so this ceiling does not grow with the list.</summary>
+    private const int MaxRealizedRows = 45;
 
     /// <summary>The decoded pixels that the rows and the bitmap shelf hold together, whatever the length of the list.</summary>
     private const long MaxDecodedBytes = 10L * 1024 * 1024;
@@ -228,11 +231,40 @@ public sealed class DiscoverScaleTests
         Assert.InRange(scrolled.allocated / scrolled.styled, 1, MaxBytesPerShownRow);
     }
 
-    private static (MainViewModel ViewModel, DiscoverPage Page, Window Window, ScrollViewer Scroller) ShowLongList()
+    [Fact]
+    public async Task ShortList_ScrolledToTheEndAndBack_KeepsEveryRow()
+    {
+        var recycled = await HeadlessApp.RunAsync(() =>
+        {
+            var (_, page, window, scroller) = ShowLongList(ShortListings);
+            var list = page.GetVisualDescendants().OfType<ItemsControl>().First(control => control.Classes.Contains("rows"));
+            window.UpdateLayout();
+            var cleared = 0;
+            list.ContainerClearing += (_, _) => cleared++;
+            while (scroller.Offset.Y + scroller.Viewport.Height < scroller.Extent.Height - 1)
+            {
+                scroller.Offset = scroller.Offset.WithY(scroller.Offset.Y + scroller.Viewport.Height);
+                window.UpdateLayout();
+            }
+
+            while (scroller.Offset.Y > 0)
+            {
+                scroller.Offset = scroller.Offset.WithY(Math.Max(0, scroller.Offset.Y - scroller.Viewport.Height));
+                window.UpdateLayout();
+            }
+
+            window.Close();
+            return Task.FromResult(cleared);
+        });
+
+        Assert.Equal(0, recycled);
+    }
+
+    private static (MainViewModel ViewModel, DiscoverPage Page, Window Window, ScrollViewer Scroller) ShowLongList(int listings = Listings)
     {
         var viewModel = new MainViewModel();
         var png = IconPng();
-        for (var number = 0; number < Listings; number++)
+        for (var number = 0; number < listings; number++)
         {
             var row = Row(viewModel, number, png);
             row.Icon!.Bytes = [.. png];

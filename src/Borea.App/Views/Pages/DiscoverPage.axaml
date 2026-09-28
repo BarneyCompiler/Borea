@@ -174,14 +174,14 @@
                     <views:RowList Classes="rows" ItemsSource="{Binding DiscoverItems}" ItemTemplate="{StaticResource DiscoverRow}" Margin="0,4,0,0" IsVisible="{Binding !IsModpacksTab}">
                         <views:RowList.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <VirtualizingStackPanel CacheLength="1" />
+                                <VirtualizingStackPanel CacheLength="2" />
                             </ItemsPanelTemplate>
                         </views:RowList.ItemsPanel>
                     </views:RowList>
                     <views:RowList Classes="rows" ItemsSource="{Binding DiscoverPacks}" ItemTemplate="{StaticResource PackRow}" Margin="0,4,0,0" IsVisible="{Binding IsModpacksTab}">
                         <views:RowList.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <VirtualizingStackPanel CacheLength="1" />
+                                <VirtualizingStackPanel CacheLength="2" />
                             </ItemsPanelTemplate>
                         </views:RowList.ItemsPanel>
                     </views:RowList>

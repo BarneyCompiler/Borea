@@ -24,4 +24,7 @@ public sealed class CuratedTagDto
 
     [JsonPropertyName("forum_prefix")]
     public string? ForumPrefix { get; set; }
+
+    [JsonPropertyName("forum_prefix_id")]
+    public int? ForumPrefixId { get; set; }
 }

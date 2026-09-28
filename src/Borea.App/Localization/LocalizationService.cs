@@ -2942,6 +2942,19 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatLaunchWrapperRuntime(string loader, string wrapper)
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWrapperRuntimeFormat, loader, wrapper);
 
+    public string LaunchRuntimeTitle => Resources.LaunchRuntimeTitle;
+
+    public string FormatLaunchRuntimeMissing(string loader, string version, string wrapper, string channel)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchRuntimeMissingFormat, loader, version, wrapper, channel);
+
+    public string FormatLaunchRuntimeStillMissing(string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchRuntimeStillMissingFormat, version);
+
+    public string FormatLaunchRuntimeDownload(string channel)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchRuntimeDownloadFormat, channel);
+
+    public string LaunchRuntimeCheckAgain => Resources.LaunchRuntimeCheckAgain;
+
     public string FormatLaunchWrapperStopped(string wrapper, string loader)
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchWrapperStoppedFormat, wrapper, loader);
 

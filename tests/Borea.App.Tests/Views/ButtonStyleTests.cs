@@ -90,6 +90,7 @@ public sealed class ButtonStyleTests
 
     [Theory]
     [InlineData(typeof(LoaderPromptModal))]
+    [InlineData(typeof(RuntimePromptModal))]
     [InlineData(typeof(FoundGameModal))]
     [InlineData(typeof(CloseNowModal))]
     [InlineData(typeof(GitHubSignInModal))]

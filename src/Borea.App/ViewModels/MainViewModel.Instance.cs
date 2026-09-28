@@ -603,6 +603,13 @@ public partial class MainViewModel
             }
 
             var result = services.Launcher.Launch(instance, loader);
+            if (result.Outcome == LaunchOutcome.WrapperRuntimeMissing)
+            {
+                OpenRuntimePrompt(instanceId, result, loader);
+                return;
+            }
+
+            PromptedRuntime = null;
             if (result.Started)
             {
                 // the loader can still stop while it loads the mods, so the start is watched before it counts

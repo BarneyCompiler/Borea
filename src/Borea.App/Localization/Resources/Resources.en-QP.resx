@@ -2277,6 +2277,21 @@
   <data name="LaunchWrapperRuntimeFormat" xml:space="preserve">
     <value>The start entry for Windows in the listing o' {0} needs a runtime, and the Wine wrapper '{1}' fires only the file itself. The Borea fires nothin'.</value>
   </data>
+  <data name="LaunchRuntimeTitle" xml:space="preserve">
+    <value>Stow the .NET runtime aboard</value>
+  </data>
+  <data name="LaunchRuntimeMissingFormat" xml:space="preserve">
+    <value>{0} needs the .NET runtime {1} for Windows x64, and the Wine wrapper '{2}' don't have it. The Borea fires nothin'. Fetch the .NET {3} runtime installer for Windows x64 from Microsoft and stow it inside the wrapper, in Sikarugir through its Install Software action. Then hit Spy again.</value>
+  </data>
+  <data name="LaunchRuntimeStillMissingFormat" xml:space="preserve">
+    <value>The Borea still spies no .NET runtime {0} in the wrapper.</value>
+  </data>
+  <data name="LaunchRuntimeDownloadFormat" xml:space="preserve">
+    <value>Open Microsoft's .NET {0} treasure map</value>
+  </data>
+  <data name="LaunchRuntimeCheckAgain" xml:space="preserve">
+    <value>Spy again</value>
+  </data>
   <data name="LaunchWrapperStoppedFormat" xml:space="preserve">
     <value>The Wine wrapper '{0}' keeled over before {1} fired the game. The d'tails show what it scribbled down.</value>
   </data>

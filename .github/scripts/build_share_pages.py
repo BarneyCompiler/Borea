@@ -91,15 +91,19 @@ IMAGE_PLACEHOLDER = "Image"
 DESKTOP_HINT = "Open in Borea and Install with Borea need Borea on this computer."
 HANDHELD_HINT = "Borea runs on Windows, Linux and macOS. To install this with Borea, open this page on a computer."
 # RFC 0058 asks a client to offer a reader a way to load no image from the host of an author. A share page goes
-# further and loads none until the reader asks, because a reader arrives here from a link and never chose to
-# tell a host their address. The page carries the switch, so that it stands in its place from the first paint,
-# and the style sheet shows it only when the script that drives it runs. The script reads the answer of the
-# reader and sets the box.
+# further and loads none from another host than GitHub until the reader asks, because a reader arrives here from
+# a link and never chose to tell a host their address. GitHub serves the page and already sees that address, so
+# an image on one of its hosts loads at once. The page carries the switch when it has an image on another host,
+# so that the switch stands in its place from the first paint, and the style sheet shows it only when the
+# script that drives it runs. The script reads the answer of the reader and sets the box.
 IMAGE_SWITCH = """        <p class="image-switch">
-          <label><input type="checkbox"> Show images from author hosts</label>
-          <span class="meta">Every image comes from the host of its author, which then learns your address.</span>
+          <label><input type="checkbox"> Show images from other hosts</label>
+          <span class="meta">Images on GitHub show at once. An image on another host comes from the server of its author, which then sees your IP address, as every website does.</span>
         </p>
 """
+# The exact host names of GitHub that answer the CORS request of the page, compared on the parsed address, so a
+# name that only ends in one of them is another host. site/description-images.js and site/share.js hold the same.
+GITHUB_HOSTS = ("raw.githubusercontent.com",)
 
 
 @dataclass
@@ -171,6 +175,14 @@ def https_url(value) -> str | None:
     """`value` when it is an absolute https URL, else None. An image and its source are https only."""
     url = web_url(value)
     return url if url is not None and url.split(":", 1)[0].lower() == "https" else None
+
+
+def on_github(url: str) -> bool:
+    """Whether an image is on a host of GitHub, which loads it without the switch of the share page."""
+    try:
+        return urllib.parse.urlsplit(url).hostname in GITHUB_HOSTS
+    except ValueError:
+        return False
 
 
 def count(value) -> int | None:
@@ -412,7 +424,9 @@ def figure_html(block: dict, record: dict | None, indent: str) -> list[str]:
     tag = "a" if block["href"] else "div"
     link = f' href="{escape(block["href"])}" rel="nofollow noopener" tabindex="-1" aria-hidden="true"' if block["href"] else ""
     body = caption + figure_credit(record)
-    lines = [f'{indent}<figure data-image="{escape(record["url"])}" data-sha256="{record["sha256"]}" '
+    # The mark opens the room of an image that loads without the switch, from the first paint.
+    github = ' class="github"' if on_github(record["url"]) else ""
+    lines = [f'{indent}<figure{github} data-image="{escape(record["url"])}" data-sha256="{record["sha256"]}" '
              f'data-width="{record["width"]}" data-height="{record["height"]}" data-size="{record["size"]}">',
              f'{indent}  <{tag} class="frame" style="{escape(figure_style(record))}"{link}></{tag}>']
     if body:
@@ -868,6 +882,7 @@ def render(page: Page, site_url: str = SITE_URL) -> str:
             else '          <p class="meta">No description provided.</p>\n')
     members = members_html(page)
     main_open, main_close = ('      <div class="listing-main">\n', "      </div>\n") if members else ("", "")
+    # A figure on GitHub names its class before its address, so this finds a figure on another host.
     switch = IMAGE_SWITCH if '<figure data-image="' in body else ""
     authors = f'        <p class="meta by">by {escape(", ".join(page.authors))}</p>\n' if page.authors else ""
     abstract = f'        <p class="tagline">{escape(page.abstract)}</p>\n' if page.abstract else ""

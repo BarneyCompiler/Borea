@@ -49,6 +49,8 @@
   var IMAGE_CAP = 1024 * 1024;
   // What an image with no words of its own is called, so that a reader always sees a line where an image is.
   var IMAGE_PLACEHOLDER = "Image";
+  // The GitHub hosts of the generator, kept the same by its test.
+  var GITHUB_HOSTS = ["raw.githubusercontent.com"];
 
   function isObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -89,6 +91,11 @@
   function httpsUrl(value) {
     var url = webUrl(value);
     return url && url.protocol === "https:" ? value : null;
+  }
+
+  function onGitHub(value) {
+    var url = webUrl(value);
+    return Boolean(url) && GITHUB_HOSTS.indexOf(url.hostname) >= 0;
   }
 
   function count(value) {
@@ -639,7 +646,8 @@
       line.appendChild(caption || document.createTextNode(IMAGE_PLACEHOLDER));
       return line;
     }
-    var figure = element("figure");
+    // The mark opens the room of an image that loads without the switch, as on the pages of the generator.
+    var figure = element("figure", onGitHub(record.url) ? "github" : null);
     figure.setAttribute("data-image", record.url);
     figure.setAttribute("data-sha256", record.sha256);
     figure.setAttribute("data-width", String(record.width));
@@ -675,18 +683,19 @@
   }
 
   // RFC 0058 asks a client to offer a reader a way to load no image from the host of an author. A share page
-  // goes further and loads none until the reader asks, because a reader arrives here from a link and never
-  // chose to tell a host their address. The page carries the switch and description-images.js drives it.
+  // goes further and loads none from another host than GitHub until the reader asks, because a reader arrives
+  // here from a link and never chose to tell a host their address. GitHub serves the page and already sees that
+  // address. The page carries the switch and description-images.js drives it.
   function imageSwitch() {
     var line = element("p", "image-switch");
     var label = element("label");
     var box = element("input");
     box.setAttribute("type", "checkbox");
     label.appendChild(box);
-    label.appendChild(document.createTextNode(" Show images from author hosts"));
+    label.appendChild(document.createTextNode(" Show images from other hosts"));
     line.appendChild(label);
-    line.appendChild(element("span", "meta",
-      "Every image comes from the host of its author, which then learns your address."));
+    line.appendChild(element("span", "meta", "Images on GitHub show at once. An image on another host comes from " +
+      "the server of its author, which then sees your IP address, as every website does."));
     return line;
   }
 
@@ -794,7 +803,7 @@
     description.appendChild(element("h2", null, "Description"));
     var prose = element("div", "prose");
     prose.appendChild(view.description ? markdownNodes(view.description, view.images) : element("p", "meta", "No description provided."));
-    if (prose.querySelector("figure[data-image]")) {
+    if (prose.querySelector("figure[data-image]:not(.github)")) {
       description.appendChild(imageSwitch());
     }
     description.appendChild(prose);

@@ -313,10 +313,40 @@ class Build(unittest.TestCase):
         page = self.page("mod", "AdvancedFlightComputer")
 
         self.assertIn('<p class="image-switch">\n'
-                      '          <label><input type="checkbox"> Show images from author hosts</label>',
+                      '          <label><input type="checkbox"> Show images from other hosts</label>\n'
+                      '          <span class="meta">Images on GitHub show at once. An image on another host comes from '
+                      'the server of its author, which then sees your IP address, as every website does.</span>',
                       page)
         self.assertLess(page.index('class="image-switch"'), page.index('<div class="prose">'))
         self.assertNotIn("image-switch", self.page("mod", "NoRelease"))
+
+    def test_an_image_on_github_is_marked_and_a_page_with_only_such_images_has_no_switch(self):
+        document = snapshot()
+        for record in document["listings"][1]["authored"]["images"]["description"]:
+            record["url"] = record["url"].replace("https://example.org/", "https://raw.githubusercontent.com/")
+        self.build(document)
+        page = self.page("mod", "AdvancedFlightComputer")
+
+        self.assertIn('<figure class="github" data-image="https://raw.githubusercontent.com/afc/planner.png" ', page)
+        self.assertNotIn("<figure data-image", page)
+        self.assertNotIn("image-switch", page)
+
+    def test_only_the_exact_github_host_names_count(self):
+        for url, expected in (("https://raw.githubusercontent.com/a/b/c.png", True),
+                              ("https://RAW.GitHubUserContent.com/a/b/c.png", True),
+                              ("https://raw.githubusercontent.com.evil.example/c.png", False),
+                              ("https://images.raw.githubusercontent.com/c.png", False),
+                              ("https://evilraw.githubusercontent.com/c.png", False),
+                              ("https://example.org/raw.githubusercontent.com/c.png", False)):
+            with self.subTest(url=url):
+                self.assertEqual(expected, share.on_github(url))
+
+    def test_the_scripts_of_the_page_name_the_same_github_hosts(self):
+        for name in ("description-images.js", "share.js"):
+            with self.subTest(script=name):
+                found = re.search(r"var GITHUB_HOSTS = (\[[^\]]*\]);", (SITE / name).read_text(encoding="utf-8"))
+                self.assertIsNotNone(found)
+                self.assertEqual(list(share.GITHUB_HOSTS), json.loads(found.group(1)))
 
     def test_the_switch_is_off_until_the_reader_asks(self):
         self.build()
@@ -651,6 +681,7 @@ MARKDOWN_SAMPLES = [
     "[![Watch the demo](ksa-image:demo)](https://example.org/v) and ![](ksa-image:none)",
     "![A shot](ksa-image:plain)\n\n![](ksa-image:demo)\n\n# [![in a heading](ksa-image:plain)](https://example.org/h)",
     "![](ksa-image:plain)\n\nan image with nothing to say",
+    "![On GitHub](ksa-image:github) and ![](ksa-image:plain)",
 ]
 
 MARKDOWN_IMAGES = {
@@ -658,6 +689,8 @@ MARKDOWN_IMAGES = {
              "size": 1000, "attribution": "Artwork by an artist", "source": "https://example.org/source"},
     "plain": {"id": "plain", "url": "https://example.org/plain.png", "sha256": "3" * 64, "width": 1200, "height": 900,
               "size": 2000, "attribution": None, "source": None},
+    "github": {"id": "github", "url": "https://raw.githubusercontent.com/author/mod/0123abc/shot.png",
+               "sha256": "4" * 64, "width": 640, "height": 480, "size": 3000, "attribution": None, "source": None},
 }
 
 

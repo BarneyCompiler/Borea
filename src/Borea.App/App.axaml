@@ -158,6 +158,11 @@
         <Style Selector="ScrollViewer">
             <Setter Property="views:MiddleClickScroll.IsEnabled" Value="True" />
         </Style>
+        <!-- Without these the scrollbar waits half a second before it expands under the pointer and two seconds before it shrinks -->
+        <Style Selector="ScrollViewer /template/ ScrollBar">
+            <Setter Property="ShowDelay" Value="0:0:0" />
+            <Setter Property="HideDelay" Value="0:0:0" />
+        </Style>
 
         <!-- Type scale from the Figma file: label-* are IBM Plex Mono, heading-*/action-* IBM Plex Sans SemiBold -->
         <Style Selector="TextBlock.label-sm">

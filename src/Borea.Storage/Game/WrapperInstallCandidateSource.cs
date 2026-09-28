@@ -4,8 +4,10 @@ using Borea.Core.Game;
 namespace Borea.Storage.Game;
 
 /// <summary>
-/// Finds the game and StarMap in the Wine prefixes of macOS wrapper apps, one
-/// level below the application folders. It reads the uninstall entries that
+/// Finds the game and StarMap in the Wine prefixes of macOS wrapper apps in
+/// the application folders and in their direct subfolders, such as
+/// ~/Applications/Sikarugir, where wrapper tools save their apps. It looks no
+/// deeper and never inside an app. It reads the uninstall entries that
 /// <see cref="WindowsInstallCandidateSource"/> reads on Windows from the
 /// registry files of each prefix, maps their folders to the host, and writes
 /// nothing.
@@ -84,23 +86,31 @@ public sealed class WrapperInstallCandidateSource : IInstallCandidateSource
     {
         foreach (var folder in _applicationFolders)
         {
-            string[] apps;
-            try
+            foreach (var entry in Subfolders(folder))
             {
-                apps = Directory.Exists(folder) ? Directory.GetDirectories(folder, "*.app") : [];
+                var apps = IsApp(entry) ? [entry] : Subfolders(entry).Where(IsApp);
+                foreach (var app in apps)
+                {
+                    var prefix = Path.Combine(app, "Contents", "SharedSupport", "prefix");
+                    if (File.Exists(Path.Combine(prefix, "system.reg")))
+                        yield return prefix;
+                }
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SecurityException)
-            {
-                // an application folder Borea may not read offers no candidates
-                continue;
-            }
+        }
+    }
 
-            foreach (var app in apps)
-            {
-                var prefix = Path.Combine(app, "Contents", "SharedSupport", "prefix");
-                if (File.Exists(Path.Combine(prefix, "system.reg")))
-                    yield return prefix;
-            }
+    private static bool IsApp(string folder) => folder.EndsWith(".app", StringComparison.OrdinalIgnoreCase);
+
+    private static string[] Subfolders(string folder)
+    {
+        try
+        {
+            return Directory.Exists(folder) ? Directory.GetDirectories(folder) : [];
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            // a folder Borea may not read offers no candidates
+            return [];
         }
     }
 }

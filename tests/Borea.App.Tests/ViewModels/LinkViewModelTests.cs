@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
-using Borea.App.Formatting;
 using Borea.App.Links;
 using Borea.App.Tests.Links;
 using Borea.App.ViewModels;
@@ -387,10 +386,7 @@ public sealed class LinkViewModelTests
     }
 
     private static MainViewModel NewViewModel(ViewModelHarness harness, AppPreferences preferences, FakeRegistrar registrar, Func<string, bool>? writeLauncher = null)
-        => new(harness.Localization, new RegionalFormatService(harness.Localization), harness.Services.AppPreferences, preferences)
-        {
-            LinkHandler = new LinkHandler(registrar, "/opt/Borea/borea", writeLauncher),
-        };
+        => harness.NewViewModel(harness.Services.AppPreferences, preferences, linkHandler: new LinkHandler(registrar, "/opt/Borea/borea", writeLauncher));
 
     /// <summary>A harness whose game folder holds a game of version 2026.8.3.5117.</summary>
     private static Task<ViewModelHarness> CreateWithGameAsync(Func<string, string> editSnapshot) =>

@@ -1,4 +1,3 @@
-using Borea.App.Formatting;
 using Borea.App.ViewModels;
 using Borea.Composition;
 using Borea.Core.ModLoaders;
@@ -126,7 +125,7 @@ public sealed class SettingsViewModelTests
         using var harness = await ViewModelHarness.CreateAsync();
         var installation = new LoaderInstallation(Path.Combine(harness.Root, "StarMap"), ModVersion.Parse(recorded), recorded, isAdopted: false);
         using var services = await ServicesWithLoaderAsync(harness, installation);
-        var viewModel = new MainViewModel(harness.Localization, new RegionalFormatService(harness.Localization), null, AppPreferences.Empty, services);
+        var viewModel = harness.NewViewModel(services: services);
 
         await viewModel.ShowGameSettingsCommand.ExecuteAsync(null);
 
@@ -141,7 +140,7 @@ public sealed class SettingsViewModelTests
         using var harness = await ViewModelHarness.CreateAsync();
         var installation = new LoaderInstallation(Path.Combine(harness.Root, "StarMap"), ModVersion.Parse("0.5.0-dev.1"), "0.5.0-dev.1", isAdopted: false);
         using var services = await ServicesWithLoaderAsync(harness, installation);
-        var viewModel = new MainViewModel(harness.Localization, new RegionalFormatService(harness.Localization), null, AppPreferences.Empty, services);
+        var viewModel = harness.NewViewModel(services: services);
 
         await viewModel.ShowGameSettingsCommand.ExecuteAsync(null);
 

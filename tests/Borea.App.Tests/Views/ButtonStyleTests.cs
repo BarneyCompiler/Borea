@@ -125,6 +125,25 @@ public sealed class ButtonStyleTests
     }
 
     [Fact]
+    public async Task TextOnlyCta_CentersItsText()
+    {
+        var (left, right) = await HeadlessApp.RunAsync(() =>
+        {
+            var text = new TextBlock { Classes = { "action-lg" }, Text = "Use it" };
+            var cta = new Button { Classes = { "cta" }, Content = text, HorizontalAlignment = HorizontalAlignment.Left };
+            var window = new Window { Width = 400, Height = 300, Content = new StackPanel { Children = { cta } } };
+            window.Show();
+            window.UpdateLayout();
+            var start = text.TranslatePoint(new Point(0, 0), cta)!.Value.X;
+            var result = (start, cta.Bounds.Width - start - text.Bounds.Width);
+            window.Close();
+            return Task.FromResult(result);
+        });
+
+        Assert.InRange(right - left, -1, 1);
+    }
+
+    [Fact]
     public async Task CtaWithAnIcon_KeepsLessRoomOnTheLeft()
     {
         var padding = await HeadlessApp.RunAsync(() =>

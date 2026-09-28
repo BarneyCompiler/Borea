@@ -431,7 +431,7 @@
         <!-- c/button-cta: purple pill, 38px tall -->
         <Style Selector="Button.cta">
             <Setter Property="Height" Value="38" />
-            <Setter Property="Padding" Value="20,0,24,0" />
+            <Setter Property="Padding" Value="22,0" />
             <Setter Property="CornerRadius" Value="100" />
             <Setter Property="Background" Value="{StaticResource Brush.Accent}" />
             <Setter Property="BorderThickness" Value="0" />

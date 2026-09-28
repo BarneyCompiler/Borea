@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -178,6 +179,47 @@ public sealed class DiscoverScaleTests
         Assert.Equal(kept.before.Y, kept.after.Y);
         Assert.NotEmpty(kept.before.Rows);
         Assert.Equal(kept.before.Rows, kept.after.Rows);
+    }
+
+    [Fact]
+    public async Task LongList_ScrolledFromTheEndToTheTop_ReusesTheRowsItBuilt()
+    {
+        var scrolled = await HeadlessApp.RunAsync(() =>
+        {
+            var (_, page, window, scroller) = ShowLongList();
+            var list = page.GetVisualDescendants().OfType<ItemsControl>().First(control => control.Classes.Contains("rows"));
+            window.UpdateLayout();
+
+            // the list learns its height while it scrolls, so the end moves until the last row is in view
+            while (scroller.Offset.Y + scroller.Viewport.Height < scroller.Extent.Height - 1)
+            {
+                scroller.Offset = scroller.Offset.WithY(scroller.Extent.Height);
+                window.UpdateLayout();
+            }
+
+            int built = 0, styled = 0;
+            using var builds = TemplatedControl.TemplateAppliedEvent.AddClassHandler<Button>((button, _) =>
+            {
+                if (button.Classes.Contains("card-button"))
+                    built++;
+            });
+
+            // a row takes the styles of the page again each time the list shows it
+            list.ContainerPrepared += (_, _) => styled++;
+            while (scroller.Offset.Y > 0)
+            {
+                scroller.Offset = scroller.Offset.WithY(Math.Max(0, scroller.Offset.Y - scroller.Viewport.Height));
+                window.UpdateLayout();
+            }
+
+            var top = RowsInView(page, scroller).FirstOrDefault();
+            window.Close();
+            return Task.FromResult((built, styled, top));
+        });
+
+        Assert.Equal("Mod 000", scrolled.top);
+        Assert.InRange(scrolled.built, 0, MaxRealizedRows);
+        Assert.InRange(scrolled.styled, Listings - MaxRealizedRows, Listings);
     }
 
     private static (MainViewModel ViewModel, DiscoverPage Page, Window Window, ScrollViewer Scroller) ShowLongList()

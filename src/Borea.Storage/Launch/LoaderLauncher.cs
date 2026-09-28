@@ -251,6 +251,16 @@ public sealed class LoaderLauncher : ILauncher, IDisposable
                 if (unmapped is not null)
                     return LaunchResult.Failed(LaunchOutcome.PathOutsidePrefix, WindowsBuildOnHost.OutsidePrefix(wrapped, unmapped), plan, wine: wrapped, unmappedPath: unmapped);
 
+                if (WineDotnetRuntime.Missing(wrapped, plan.Executable) is { } runtime)
+                {
+                    return LaunchResult.Failed(
+                        LaunchOutcome.WrapperRuntimeMissing,
+                        $"{loader.Name} needs the .NET runtime {runtime.Version} for Windows x64, and the Wine wrapper '{bundle}' does not have it. Borea starts nothing. Download the .NET {runtime.Channel} runtime installer for Windows x64 from {runtime.DownloadPage} and install it inside the wrapper, in Sikarugir through its Install Software action. Then start the game again.",
+                        plan,
+                        wine: wrapped,
+                        missingRuntime: runtime);
+                }
+
                 plan = plan.ThroughWrapper(wrapped.Wrapper!.LauncherPath, new Dictionary<string, string> { [handover.Variable!] = windowsRoot! });
             }
 

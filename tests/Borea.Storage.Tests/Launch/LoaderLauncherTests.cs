@@ -391,6 +391,159 @@ public sealed class LoaderLauncherTests : IDisposable
         Assert.False(launcher.IsRunning(_instance.InstanceId));
     }
 
+    private const string NeedsDotnet10 = """
+        {
+          "runtimeOptions": {
+            "tfm": "net10.0",
+            "framework": { "name": "Microsoft.NETCore.App", "version": "10.0.0" }
+          }
+        }
+        """;
+
+    /// <summary>The runtimeconfig.json of StarMap.exe.</summary>
+    private void PlaceRuntimeConfig(string text = NeedsDotnet10) =>
+        File.WriteAllText(Path.Combine(StarMapDirectory, "StarMap.runtimeconfig.json"), text);
+
+    /// <summary>A shared framework folder below a dotnet folder of drive c: of the prefix at the temp root.</summary>
+    private void PlaceRuntime(string version, string dotnet = @"Program Files\dotnet", string framework = "Microsoft.NETCore.App") =>
+        Directory.CreateDirectory(Path.Combine([_tempRoot, "drive_c", .. dotnet.Split('\\'), "shared", framework, version]));
+
+    [Theory]
+    [InlineData(null, "Microsoft.NETCore.App")]
+    [InlineData("9.0.8", "Microsoft.NETCore.App")]
+    [InlineData("10.1.0-rc.1.25451.107", "Microsoft.NETCore.App")]
+    [InlineData("10.0.12", "Microsoft.WindowsDesktop.App")]
+    public void Launch_WrapperWhosePrefixLacksTheRuntimeOfTheLoader_StartsNothingAndSaysHowToInstallIt(string? installed, string framework)
+    {
+        PlaceStarMap();
+        PlaceRuntimeConfig();
+        using var launcher = WrapperLauncher(PlaceWrapper());
+        if (installed is not null)
+            PlaceRuntime(installed, framework: framework);
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.Equal(LaunchOutcome.WrapperRuntimeMissing, result.Outcome);
+        Assert.Equal("10.0.0", result.MissingRuntime?.Version.ToString());
+        Assert.Equal("https://dotnet.microsoft.com/download/dotnet/10.0", result.MissingRuntime?.DownloadPage.AbsoluteUri);
+        Assert.NotNull(result.Wine?.Wrapper);
+        Assert.Contains(".NET runtime 10.0.0 for Windows x64", result.Message);
+        Assert.Contains("Kitten Space Agency.app", result.Message);
+        Assert.Contains("Install Software", result.Message);
+        Assert.Contains("https://dotnet.microsoft.com/download/dotnet/10.0", result.Message);
+        Assert.Empty(_starter.Plans);
+        Assert.False(launcher.IsRunning(_instance.InstanceId));
+    }
+
+    [Theory]
+    [InlineData("10.0.0")]
+    [InlineData("10.0.12")]
+    [InlineData("10.3.1")]
+    public void Launch_WrapperWithAFittingRuntimeInProgramFiles_StartsTheLoader(string installed)
+    {
+        var executable = PlaceStarMap();
+        PlaceRuntimeConfig();
+        using var launcher = WrapperLauncher(PlaceWrapper());
+        PlaceRuntime("9.0.8");
+        PlaceRuntime(installed);
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.True(result.Started);
+        Assert.Equal([executable], Assert.Single(_starter.Plans).Arguments);
+    }
+
+    [Theory]
+    [InlineData(@"Software\\dotnet\\Setup\\InstalledVersions\\x64")]
+    [InlineData(@"Software\\Wow6432Node\\dotnet\\Setup\\InstalledVersions\\x64")]
+    public void Launch_WrapperWithARuntimeThatOnlySystemRegNames_StartsTheLoader(string key)
+    {
+        PlaceStarMap();
+        PlaceRuntimeConfig();
+        using var launcher = WrapperLauncher(PlaceWrapper());
+        PlaceRuntime("10.0.3", dotnet: "dotnet-x64");
+        File.WriteAllText(
+            Path.Combine(_tempRoot, "system.reg"),
+            $"WINE REGISTRY Version 2\n;; All keys relative to \\\\Machine\n\n#arch=win64\n\n[{key}] 1727000000\n#time=1db0f6a1c2d3e4f\n\"InstallLocation\"=\"C:\\\\dotnet-x64\\\\\"\n");
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.True(result.Started);
+        Assert.Single(_starter.Plans);
+    }
+
+    [Fact]
+    public void Launch_WrapperWithARuntimeForAnotherArchitectureInSystemReg_StartsNothing()
+    {
+        PlaceStarMap();
+        PlaceRuntimeConfig();
+        using var launcher = WrapperLauncher(PlaceWrapper());
+        PlaceRuntime("10.0.3", dotnet: "dotnet-arm64");
+        File.WriteAllText(
+            Path.Combine(_tempRoot, "system.reg"),
+            "WINE REGISTRY Version 2\n\n[Software\\\\dotnet\\\\Setup\\\\InstalledVersions\\\\arm64] 1727000000\n\"InstallLocation\"=\"C:\\\\dotnet-arm64\\\\\"\n");
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.Equal(LaunchOutcome.WrapperRuntimeMissing, result.Outcome);
+        Assert.Empty(_starter.Plans);
+    }
+
+    [Fact]
+    public void Launch_AgainAfterThePlayerInstalledTheRuntime_StartsTheLoader()
+    {
+        PlaceStarMap();
+        PlaceRuntimeConfig();
+        using var launcher = WrapperLauncher(PlaceWrapper());
+        var listing = LoaderListing(provides: StarMapProvides());
+        Assert.Equal(LaunchOutcome.WrapperRuntimeMissing, launcher.Launch(_instance, listing).Outcome);
+
+        PlaceRuntime("10.0.12");
+        var again = launcher.Launch(_instance, listing);
+
+        Assert.True(again.Started);
+        Assert.Single(_starter.Plans);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("""{ "runtimeOptions": { "tfm": "net10.0", "includedFrameworks": [ { "name": "Microsoft.NETCore.App", "version": "10.0.10" } ] } }""")]
+    [InlineData("""{ "runtimeOptions": { "framework": """)]
+    public void Launch_WrapperAndALoaderThatNamesNoSharedRuntime_StartsTheLoader(string? runtimeConfig)
+    {
+        PlaceStarMap();
+        if (runtimeConfig is not null)
+            PlaceRuntimeConfig(runtimeConfig);
+        using var launcher = WrapperLauncher(PlaceWrapper());
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.True(result.Started);
+        Assert.Single(_starter.Plans);
+    }
+
+    [Theory]
+    [InlineData(OsPlatform.Windows, false)]
+    [InlineData(OsPlatform.Linux, true)]
+    public void Launch_HostThatRunsTheGameItself_StartsTheSamePlanWithoutLookingForARuntime(OsPlatform platform, bool linuxAppHost)
+    {
+        var executable = PlaceStarMap();
+        PlaceRuntimeConfig();
+        WineFixtures.Prefix(_tempRoot);
+        PlaceWindowsBuild(_paths, linuxAppHost);
+        var instanceRoot = Path.GetFullPath(_paths.GetInstanceRoot(_instance.InstanceId));
+        using var launcher = new LoaderLauncher(_paths, _starter, platform, NoDotnetNeeded, LoaderLauncher.DefaultStartupWindow, wine: PlaceWrapper());
+
+        var result = launcher.Launch(_instance, LoaderListing(provides: StarMapProvides()));
+
+        Assert.True(result.Started);
+        var plan = Assert.Single(_starter.Plans);
+        Assert.Equal(executable, plan.Executable);
+        Assert.Equal(["-InstancePath", instanceRoot], plan.Arguments);
+        Assert.Equal(instanceRoot, Assert.Single(plan.EnvironmentVariables).Value);
+        Assert.Equal(Path.GetFullPath(StarMapDirectory), plan.WorkingDirectory);
+    }
+
     [Fact]
     public void Launch_SecondInstanceThroughTheSameWrapperWhileTheFirstRuns_IsRefused()
     {

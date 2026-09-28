@@ -89,6 +89,15 @@ public sealed class LaunchPlan
         return new LaunchPlan(host, new[] { target }.Concat(Arguments).ToArray(), WorkingDirectory, EnvironmentVariables);
     }
 
+    /// <summary>
+    /// The same file started through the launcher of a Wine wrapper app. The
+    /// launcher takes the host path of the file to open as its only argument
+    /// and passes the environment on, but no other argument, so the start has
+    /// only the variables in <paramref name="environmentVariables"/>.
+    /// </summary>
+    public LaunchPlan ThroughWrapper(string launcher, IReadOnlyDictionary<string, string> environmentVariables) =>
+        new(launcher, [Executable], WorkingDirectory, environmentVariables);
+
     private static string Absolute(string path, string paramName)
     {
         if (string.IsNullOrWhiteSpace(path))

@@ -43,4 +43,19 @@ public enum LaunchOutcome
 
     /// <summary>The game folder holds the Windows build, which Borea cannot start on this system.</summary>
     WindowsBuild = 13,
+
+    /// <summary>The loader takes the instance only through a flag, and the Wine wrapper that starts it passes no arguments.</summary>
+    WrapperNeedsVariable = 14,
+
+    /// <summary>The launch has arguments, and the Wine wrapper that starts the loader passes none.</summary>
+    WrapperArguments = 15,
+
+    /// <summary>The loader's start entry for Windows needs a runtime, and the Wine wrapper starts only the file itself.</summary>
+    WrapperRuntime = 16,
+
+    /// <summary>A path that the loader in the Wine prefix needs is on no drive of the prefix.</summary>
+    PathOutsidePrefix = 17,
+
+    /// <summary>A launch this launcher started through the same Wine wrapper is still running.</summary>
+    WrapperBusy = 18,
 }

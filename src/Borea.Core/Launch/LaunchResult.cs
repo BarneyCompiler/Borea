@@ -35,8 +35,15 @@ public sealed class LaunchResult
     /// <summary>The runtime or key of the loader's start entry that Borea does not know, when that stopped the launch.</summary>
     public string? UnknownName { get; private init; }
 
-    /// <summary>The Wine prefix around a Windows build that stopped the launch, or null when Borea found none.</summary>
+    /// <summary>
+    /// The Wine prefix around a Windows build that stopped the launch, or the
+    /// wrapper install of a launch through a Wine wrapper that did not go on.
+    /// Null when Borea found none.
+    /// </summary>
     public WineInstall? Wine { get; private init; }
+
+    /// <summary>The host path that no drive of the Wine prefix holds, when that stopped the launch.</summary>
+    public string? UnmappedPath { get; private init; }
 
     private LaunchResult(LaunchOutcome outcome, string message, LaunchPlan? plan, int? processId)
     {
@@ -57,8 +64,12 @@ public sealed class LaunchResult
         return new LaunchResult(LaunchOutcome.Started, message, plan, processId);
     }
 
-    /// <summary>A loader that stopped with an error before the game came up.</summary>
-    public static LaunchResult ExitedEarly(LaunchPlan plan, int exitCode, IReadOnlyList<string> output, string? blamedModId, string message, LoaderCrashCause crashCause = LoaderCrashCause.Unknown)
+    /// <summary>
+    /// A loader that stopped with an error before the game came up, or the
+    /// Wine wrapper of <paramref name="wine"/> that stopped before the game
+    /// wrote its log.
+    /// </summary>
+    public static LaunchResult ExitedEarly(LaunchPlan plan, int exitCode, IReadOnlyList<string> output, string? blamedModId, string message, LoaderCrashCause crashCause = LoaderCrashCause.Unknown, WineInstall? wine = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(output);
@@ -69,6 +80,7 @@ public sealed class LaunchResult
             Output = output.ToArray(),
             BlamedModId = blamedModId,
             CrashCause = crashCause,
+            Wine = wine,
         };
     }
 
@@ -85,11 +97,11 @@ public sealed class LaunchResult
         };
     }
 
-    public static LaunchResult Failed(LaunchOutcome outcome, string message, LaunchPlan? plan = null, string? unknownName = null, WineInstall? wine = null)
+    public static LaunchResult Failed(LaunchOutcome outcome, string message, LaunchPlan? plan = null, string? unknownName = null, WineInstall? wine = null, string? unmappedPath = null)
     {
         if (outcome == LaunchOutcome.Started)
             throw new ArgumentException("A started launch is a success, not a failure.", nameof(outcome));
 
-        return new LaunchResult(outcome, message, plan, processId: null) { UnknownName = unknownName, Wine = wine };
+        return new LaunchResult(outcome, message, plan, processId: null) { UnknownName = unknownName, Wine = wine, UnmappedPath = unmappedPath };
     }
 }

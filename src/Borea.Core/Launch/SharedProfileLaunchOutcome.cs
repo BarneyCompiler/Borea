@@ -19,4 +19,13 @@ public enum SharedProfileLaunchOutcome
 
     /// <summary>The game folder holds the Windows build, which Borea cannot start on this system.</summary>
     WindowsBuild = 5,
+
+    /// <summary>The launch has arguments, and the Wine wrapper that starts the game passes none.</summary>
+    WrapperArguments = 6,
+
+    /// <summary>The game's executable is on no drive of the Wine prefix.</summary>
+    PathOutsidePrefix = 7,
+
+    /// <summary>A game that Borea started through the same Wine wrapper is still running.</summary>
+    WrapperBusy = 8,
 }

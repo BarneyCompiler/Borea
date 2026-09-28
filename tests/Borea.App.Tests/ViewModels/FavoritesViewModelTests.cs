@@ -1,7 +1,5 @@
-using Borea.App.Formatting;
 using Borea.App.ViewModels;
 using Borea.Core.Instances;
-using Borea.Core.Preferences;
 
 namespace Borea.App.Tests.ViewModels;
 
@@ -42,7 +40,7 @@ public sealed class FavoritesViewModelTests
         await viewModel.Instances.Single(instance => instance.InstanceId == main.InstanceId).OpenCommand.ExecuteAsync(null);
         Assert.True(viewModel.ContentGroups.SelectMany(group => group.Items).Single().Page!.IsFavorite);
 
-        var restarted = new MainViewModel(harness.Localization, new RegionalFormatService(harness.Localization), appPreferencesRepository: null, AppPreferences.Empty, harness.Services);
+        var restarted = harness.NewViewModel(services: harness.Services);
         await restarted.EnsureDiscoverLoadedAsync();
 
         Assert.Equal([ModId], restarted.DiscoverItems.Where(item => item.IsFavorite).Select(item => item.ModId));

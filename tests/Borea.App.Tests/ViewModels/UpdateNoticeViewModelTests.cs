@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Borea.App.Formatting;
 using Borea.App.ViewModels;
 using Borea.Composition;
 using Borea.Core.History;
@@ -426,7 +425,7 @@ public sealed class UpdateNoticeViewModelTests
         Assert.Equal(localization.FormatToastSelfUpdateFailed("999.0.0"), Assert.Single(viewModel.Toasts.Items).Message);
 
         await viewModel.Tasks.WhenSavedAsync();
-        var restarted = new MainViewModel(localization, new RegionalFormatService(localization), appPreferencesRepository: null, AppPreferences.Empty, harness.Services);
+        var restarted = harness.NewViewModel(services: harness.Services, localization: localization);
         await restarted.Tasks.LoadAsync();
         var entry = Assert.Single(restarted.Tasks.History, item => item.Kind == TaskKind.BoreaUpdate);
         Assert.Equal(task.Title, entry.Title);

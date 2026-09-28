@@ -1,5 +1,4 @@
 using System.Globalization;
-using Borea.App.Formatting;
 using Borea.App.Localization;
 using Borea.App.ViewModels;
 using Borea.Core.Preferences;
@@ -40,7 +39,7 @@ public sealed class TranslationPreviewViewModelTests : IDisposable
     {
         using var harness = await ViewModelHarness.CreateAsync();
         var localization = new LocalizationService(CultureInfo.GetCultureInfo("de"));
-        var viewModel = new MainViewModel(localization, new RegionalFormatService(localization), harness.Services.AppPreferences, AppPreferences.Empty);
+        var viewModel = harness.NewViewModel(harness.Services.AppPreferences, localization: localization);
         var changed = new List<string?>();
         viewModel.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
 

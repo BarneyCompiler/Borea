@@ -2,12 +2,10 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
-using Borea.App.Formatting;
 using Borea.App.ViewModels;
 using Borea.Core.History;
 using Borea.Core.Instances;
 using Borea.Core.Mods;
-using Borea.Core.Preferences;
 
 namespace Borea.App.Tests.ViewModels;
 
@@ -326,7 +324,7 @@ public sealed class TasksViewModelTests
         using var harness = await ViewModelHarness.CreateAsync(indexOffline: true);
         await harness.ViewModel.Tasks.WhenSavedAsync();
 
-        var restarted = new MainViewModel(harness.Localization, new RegionalFormatService(harness.Localization), appPreferencesRepository: null, AppPreferences.Empty, harness.Services);
+        var restarted = harness.NewViewModel(services: harness.Services);
         await restarted.Tasks.LoadAsync();
 
         var entry = Assert.Single(restarted.Tasks.History);

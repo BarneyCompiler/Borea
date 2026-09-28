@@ -47,11 +47,14 @@ The list of changes of a stable release starts at the previous stable release, s
 
 ## Release scripts
 
-The `release scripts` job tests the scripts in `.github/scripts`. Locally they need Python 3, and bash with jq:
+The `release scripts` job tests the scripts in `.github/scripts` and the share page scripts in `site/`.
+Locally they need Python 3, bash with jq, and Node. CI uses Node 24.
+Without Node, the Python tests that run the share page scripts skip without a message, so install Node before you run these commands:
 
 ```sh
 python3 -m unittest discover --start-directory .github/scripts/tests --pattern "test_*.py"
 bash .github/scripts/tests/test-release-announcement.sh
+node --test tests/site/*.test.js
 ```
 
 ## Discord release post

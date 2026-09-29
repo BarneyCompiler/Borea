@@ -565,8 +565,8 @@ public partial class MainViewModel
         {
             var instance = await services.Instances.GetByIdAsync(instanceId)
                 ?? throw new InvalidOperationException(Localization.LaunchInstanceMissing);
-            var listings = await services.Mods.GetAvailableModsAsync();
-            var choice = LaunchLoaderChoice.Choose(instance, services.Settings.LoaderInstallations, listings);
+            // only the index lists mod loaders, so SpaceDock cannot change the choice and is not asked
+            var (choice, listings) = await LaunchLoaderChoice.ChooseAsync(instance, services.Settings.LoaderInstallations, services.OfflineContentIndex, services.ContentIndex);
             if (!choice.Succeeded)
             {
                 var loaderIds = choice.LoaderIds.Count == 0 ? "" : ": " + string.Join(", ", choice.LoaderIds);

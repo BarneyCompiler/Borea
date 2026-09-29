@@ -250,6 +250,64 @@ public sealed class LaunchFailureTests
         Assert.Equal(["-InstancePath", root, "-windowed", "a b"], Assert.Single(starter.Plans).Arguments.TakeLast(4));
     }
 
+    /// <summary>An active instance without mods, whose start <paramref name="starter"/> answers like a game that started.</summary>
+    private static async Task<Instance> CreateActiveInstanceAsync(ViewModelHarness harness, RunningStarter starter)
+    {
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        await harness.Services.Instances.SetActiveInstanceAsync(instance.InstanceId);
+        starter.GameLog = harness.Services.Paths.GetInstanceGameLogPath(instance.InstanceId);
+        await harness.ViewModel.LoadAsync();
+        await harness.WhenIdleAsync();
+        return instance;
+    }
+
+    [Fact]
+    public async Task PlayActiveInstance_NoCachedIndexAndSpaceDockNeverAnswers_StartsFromTheFetchedIndex()
+    {
+        var starter = new RunningStarter();
+        using var harness = await ViewModelHarness.CreateAsync(
+            services => services.SettingsRepository.SaveAsync(services.Settings.WithLoaderInstallation("StarMap", CreateLoader(services, "StarMap"))),
+            indexOffline: true,
+            processStarter: starter);
+        var instance = await CreateActiveInstanceAsync(harness, starter);
+        harness.IndexOffline = false;
+        harness.SpaceDock.Browse = () => new TaskCompletionSource().Task;
+
+        await harness.ViewModel.PlayActiveInstanceCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.True(harness.Services.Launcher.IsRunning(instance.InstanceId));
+        Assert.Equal(0, harness.SpaceDock.Browses);
+    }
+
+    [Fact]
+    public async Task PlayActiveInstance_CachedIndexListsTheLoader_StartsWithoutARequest()
+    {
+        var starter = new RunningStarter();
+        using var harness = await CreateAsync(starter);
+        var instance = await CreateActiveInstanceAsync(harness, starter);
+        var requests = harness.Requests.Count;
+
+        await harness.ViewModel.PlayActiveInstanceCommand.ExecuteAsync(null);
+
+        Assert.True(harness.Services.Launcher.IsRunning(instance.InstanceId));
+        Assert.Equal(0, harness.SpaceDock.Browses);
+        Assert.Equal(requests, harness.Requests.Count);
+    }
+
+    [Fact]
+    public async Task PlayActiveInstance_SourceNeverAnswers_StartsFromTheCachedIndex()
+    {
+        var starter = new RunningStarter();
+        using var harness = await CreateAsync(starter);
+        var instance = await CreateActiveInstanceAsync(harness, starter);
+        harness.SpaceDock.Browse = () => new TaskCompletionSource().Task;
+
+        await harness.ViewModel.PlayActiveInstanceCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.True(harness.Services.Launcher.IsRunning(instance.InstanceId));
+        Assert.False(harness.ViewModel.IsLaunching);
+    }
+
     /// <summary>A harness whose StarMap listing has <paramref name="entry"/> for every platform.</summary>
     private static Task<ViewModelHarness> CreateWithPlatformEntryAsync(IProcessStarter starter, JsonObject entry) =>
         ViewModelHarness.CreateAsync(

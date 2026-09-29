@@ -33,10 +33,16 @@ public static class ModalBackdrop
         if (sender is not Panel backdrop || args.Source != backdrop || !args.GetCurrentPoint(backdrop).Properties.IsLeftButtonPressed)
             return;
 
+        args.Handled = TryClose(backdrop);
+    }
+
+    /// <summary>Runs the close button of the modal, as a click on its backdrop does. False when it may not close now.</summary>
+    internal static bool TryClose(Panel backdrop)
+    {
         if (GetCloseButton(backdrop) is not { IsEffectivelyEnabled: true, Command: { } command } closeButton || !command.CanExecute(closeButton.CommandParameter))
-            return;
+            return false;
 
         command.Execute(closeButton.CommandParameter);
-        args.Handled = true;
+        return true;
     }
 }

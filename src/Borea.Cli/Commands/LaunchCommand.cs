@@ -24,8 +24,9 @@ internal static class LaunchCommand
                 .ResolveAsync(cli.Instances, parseResult.GetRequiredValue(instance))
                 .ConfigureAwait(false);
             var givenLoaderId = parseResult.GetValue(loaderId);
-            var listings = await cli.Mods.GetAvailableModsAsync(ct).ConfigureAwait(false);
-            var choice = LaunchLoaderChoice.Choose(target, cli.Settings.LoaderInstallations, listings, givenLoaderId);
+            var (choice, listings) = await LaunchLoaderChoice
+                .ChooseAsync(target, cli.Settings.LoaderInstallations, cli.OfflineContentIndex, cli.Mods, givenLoaderId, ct)
+                .ConfigureAwait(false);
             if (!choice.Succeeded)
             {
                 // an id that names no mod loader gets that answer, not advice to install it

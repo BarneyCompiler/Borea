@@ -3831,6 +3831,9 @@
   <data name="LaunchLoaderNotListedFormat" xml:space="preserve">
     <value>No source has a listing for {0}. Borea needs the listing of an installed mod loader to know how to start it.</value>
   </data>
+  <data name="LaunchListingsFailedFormat" xml:space="preserve">
+    <value>Borea could not load the mod loader listings, so KSA did not start: {0}</value>
+  </data>
   <data name="LaunchNoLoaderTakesInstanceFormat" xml:space="preserve">
     <value>No mod in this instance needs a mod loader, and no installed mod loader can start an instance. To start KSA without a loader, use "{0}" on Home. It uses the shared profile, not this instance.</value>
   </data>

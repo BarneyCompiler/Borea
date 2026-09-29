@@ -9,6 +9,7 @@ using Borea.Composition;
 using Borea.Core.Dependencies;
 using Borea.Core.Game;
 using Borea.Core.History;
+using Borea.Core.Index;
 using Borea.Core.Instances;
 using Borea.Core.Launch;
 using Borea.Core.ModPacks;
@@ -565,8 +566,22 @@ public partial class MainViewModel
         {
             var instance = await services.Instances.GetByIdAsync(instanceId)
                 ?? throw new InvalidOperationException(Localization.LaunchInstanceMissing);
-            var listings = await services.Mods.GetAvailableModsAsync();
-            var choice = LaunchLoaderChoice.Choose(instance, services.Settings.LoaderInstallations, listings);
+            LaunchLoaderChoice choice;
+            IReadOnlyList<ModMetadata> listings;
+            try
+            {
+                // only the index lists mod loaders, so SpaceDock cannot change the choice and is not asked
+                (choice, listings) = await LaunchLoaderChoice.ChooseAsync(instance, services.Settings.LoaderInstallations, services.OfflineContentIndex, services.ContentIndex);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or IOException)
+            {
+                // a failed fetch leaves no index to read, and its reason tells the user more than the missing file does
+                var reason = services.IndexRefresh.Status is { Outcome: ContentIndexRefreshOutcome.Failed, FailureReason: { } fetchFailure } ? fetchFailure : exception.Message;
+                services.Log.Write($"Launch of instance {instance.InstanceId} did not start, the listings did not load: {reason}", exception);
+                LaunchMessage = Localization.FormatLaunchListingsFailed(reason);
+                return;
+            }
+
             if (!choice.Succeeded)
             {
                 var loaderIds = choice.LoaderIds.Count == 0 ? "" : ": " + string.Join(", ", choice.LoaderIds);

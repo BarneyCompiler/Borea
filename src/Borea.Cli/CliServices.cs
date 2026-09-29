@@ -76,6 +76,9 @@ internal sealed class CliServices : IDisposable
 
     public required IModRepository ReadOnlyMods { get; init; }
 
+    /// <summary>The content index that Borea holds, read without a request.</summary>
+    public required IModRepository OfflineContentIndex { get; init; }
+
     public required IInstallPlanner InstallPlanner { get; init; }
 
     public required IInstallSpaceCheck SpaceCheck { get; init; }
@@ -149,6 +152,7 @@ internal sealed class CliServices : IDisposable
         IContentIndexSnapshotProvider? indexSnapshots = null,
         IModRepository? mods = null,
         IModRepository? readOnlyMods = null,
+        IModRepository? offlineContentIndex = null,
         IInstallPlanner? installPlanner = null,
         IInstallSpaceCheck? spaceCheck = null,
         IModInstaller? installer = null,
@@ -204,6 +208,7 @@ internal sealed class CliServices : IDisposable
             Log = services.Log,
             Mods = mods ?? services.Mods,
             ReadOnlyMods = readOnlyMods ?? services.ReadOnlyMods,
+            OfflineContentIndex = offlineContentIndex ?? services.OfflineContentIndex,
             InstallPlanner = installPlanner ?? services.InstallPlanner,
             SpaceCheck = spaceCheck ?? services.SpaceCheck,
             Installer = installer ?? services.Installer,

@@ -153,6 +153,7 @@ internal sealed class CliHost : IDisposable
             indexSnapshots: IndexSnapshots ?? new ReaderSnapshotProvider(IndexReader),
             mods: ModRepository ?? Mods,
             readOnlyMods: ModRepository ?? Mods,
+            offlineContentIndex: new ContentIndexModRepository(IndexSnapshots ?? new ReaderSnapshotProvider(IndexReader)),
             spaceCheck: SpaceCheck,
             installer: InstallerFactory?.Invoke(graph),
             replacer: ReplacerFactory?.Invoke(graph),

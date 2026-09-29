@@ -477,6 +477,12 @@ internal sealed class ViewModelHarness : IDisposable
 
         public Func<string, Task>? VersionLookup { get; set; }
 
+        /// <summary>Runs before the catalog is answered, so that a test can hold or fail it.</summary>
+        public Func<Task>? Browse { get; set; }
+
+        /// <summary>How often the catalog was read.</summary>
+        public int Browses { get; private set; }
+
         private static ModMetadata Listing(string id, string name, string? description) => new(
             specVersion: 1,
             modId: id,
@@ -492,12 +498,18 @@ internal sealed class ViewModelHarness : IDisposable
         private IEnumerable<ModVersionMetadata> ReleasesOf(string modId) =>
             Releases.Where(release => ModIds.Equals(release.ModId, modId)).OrderByDescending(release => release.Version);
 
-        public Task<IReadOnlyList<ModMetadata>> GetAvailableModsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ModMetadata>>(
+        public async Task<IReadOnlyList<ModMetadata>> GetAvailableModsAsync(CancellationToken cancellationToken = default)
+        {
+            Browses++;
+            if (Browse is { } browse)
+                await browse();
+
+            return
             [
                 Listing(MirroredId, "AdvancedFlightComputer", null),
                 Listing(OwnId, "Aircraft HUD", null),
-            ]);
+            ];
+        }
 
         public Task<ModMetadata?> GetListingAsync(string modId, CancellationToken cancellationToken = default) =>
             Task.FromResult(modId == OwnId ? Listing(OwnId, "Aircraft HUD", OwnDescription) : null);

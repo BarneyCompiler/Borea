@@ -138,6 +138,58 @@ public sealed class LaunchLoaderChoiceTests
         Assert.Equal(["beta", "StarMap"], choice.LoaderIds);
     }
 
+    [Fact]
+    public void Choose_Fails_SaysWhetherTheListingsLackedALoaderTheChoiceNeeds()
+    {
+        var needsStarMap = InstanceWith(NeedsLoader("flight-tools", "StarMap"));
+        var needsNoLoader = InstanceWith();
+
+        Assert.False(LaunchLoaderChoice.Choose(needsStarMap, Recorded("StarMap"), [Listing("StarMap")]).LacksListing);
+        Assert.True(LaunchLoaderChoice.Choose(needsStarMap, Recorded("StarMap"), []).LacksListing);
+        Assert.False(LaunchLoaderChoice.Choose(needsStarMap, Recorded(), [Listing("StarMap")]).LacksListing);
+        Assert.True(LaunchLoaderChoice.Choose(needsStarMap, Recorded(), []).LacksListing);
+        Assert.False(LaunchLoaderChoice.Choose(needsNoLoader, Recorded(), [Listing("StarMap")], "StarMap").LacksListing);
+        Assert.True(LaunchLoaderChoice.Choose(needsNoLoader, Recorded(), [], "StarMap").LacksListing);
+        Assert.False(LaunchLoaderChoice.Choose(needsNoLoader, Recorded(), [Listing("StarMap")]).LacksListing);
+        Assert.True(LaunchLoaderChoice.Choose(needsNoLoader, Recorded(), [Listing("Alpha", takesInstance: false)]).LacksListing);
+        Assert.False(LaunchLoaderChoice.Choose(InstanceWith(NeedsLoader("flight-tools", "StarMap"), NeedsLoader("orbit-tools", "Alpha")), Recorded(), []).LacksListing);
+    }
+
+    [Fact]
+    public async Task ChooseAsync_HeldListingsHaveTheLoader_DoesNotReadTheSources()
+    {
+        var sources = new ListingsRepository(() => throw new HttpRequestException("SpaceDock is offline."));
+
+        var (choice, listings) = await LaunchLoaderChoice.ChooseAsync(InstanceWith(), Recorded("StarMap"), new ListingsRepository(() => [Listing("StarMap")]), sources);
+
+        Assert.Equal("StarMap", choice.Loader?.ModId);
+        Assert.Equal("StarMap", Assert.Single(listings).ModId);
+        Assert.Equal(0, sources.Reads);
+    }
+
+    [Fact]
+    public async Task ChooseAsync_HeldListingsLackTheLoader_ChoosesFromTheSources()
+    {
+        var sources = new ListingsRepository(() => [Listing("StarMap")]);
+
+        var (choice, _) = await LaunchLoaderChoice.ChooseAsync(InstanceWith(NeedsLoader("flight-tools", "StarMap")), Recorded(), new ListingsRepository(() => []), sources);
+
+        Assert.Equal(LaunchLoaderFailure.NeededLoaderNotInstalled, choice.Failure);
+        Assert.False(choice.LacksListing);
+        Assert.Equal(1, sources.Reads);
+    }
+
+    [Fact]
+    public async Task ChooseAsync_NoListingsHeld_ChoosesFromTheSources()
+    {
+        var sources = new ListingsRepository(() => [Listing("StarMap")]);
+
+        var (choice, _) = await LaunchLoaderChoice.ChooseAsync(InstanceWith(), Recorded("StarMap"), new ListingsRepository(() => throw new InvalidOperationException("Index does not exist.")), sources);
+
+        Assert.Equal("StarMap", choice.Loader?.ModId);
+        Assert.Equal(1, sources.Reads);
+    }
+
     private static Instance InstanceWith(params InstalledMod[] mods) => InstanceWith(mods, []);
 
     private static Instance InstanceWith(IReadOnlyList<InstalledMod> mods, IReadOnlyList<ForeignMod> foreignMods) =>
@@ -177,4 +229,24 @@ public sealed class LaunchLoaderChoiceTests
         provides: new LoaderProvides(
             launch: "StarMap.exe",
             instance: takesInstance ? new InstanceHandover("-InstancePath", "STARMAP_INSTANCE_PATH") : null));
+
+    /// <summary>Serves the catalog that <paramref name="read"/> gives and counts the reads. Nothing else is read in these tests.</summary>
+    private sealed class ListingsRepository(Func<IReadOnlyList<ModMetadata>> read) : IModRepository
+    {
+        public int Reads { get; private set; }
+
+        public Task<IReadOnlyList<ModMetadata>> GetAvailableModsAsync(CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return Task.FromResult(read());
+        }
+
+        public Task<ModVersionMetadata?> GetLatestReleaseAsync(string modId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ModVersionMetadata?> GetReleaseAsync(string modId, ModVersion version, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ModVersion>> GetAvailableVersionsAsync(string modId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ModMetadata>> SearchAsync(string query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
 }

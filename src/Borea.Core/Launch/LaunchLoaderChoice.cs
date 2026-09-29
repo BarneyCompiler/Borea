@@ -21,15 +21,22 @@ public sealed class LaunchLoaderChoice
     /// <summary>The loader ids the failure names, ordered by id. Empty on success.</summary>
     public IReadOnlyList<string> LoaderIds { get; }
 
+    /// <summary>
+    /// Whether the listings lacked a mod loader listing that the choice needs,
+    /// so that newer listings can give another choice. False on success.
+    /// </summary>
+    public bool LacksListing { get; }
+
     [MemberNotNullWhen(true, nameof(Loader))]
     public bool Succeeded => Failure == LaunchLoaderFailure.None;
 
-    private LaunchLoaderChoice(ModMetadata? loader, bool requiredByMods, LaunchLoaderFailure failure, IReadOnlyList<string> loaderIds)
+    private LaunchLoaderChoice(ModMetadata? loader, bool requiredByMods, LaunchLoaderFailure failure, IReadOnlyList<string> loaderIds, bool lacksListing)
     {
         Loader = loader;
         RequiredByMods = requiredByMods;
         Failure = failure;
         LoaderIds = loaderIds;
+        LacksListing = lacksListing;
     }
 
     /// <param name="listings">The live listings. Only mod loader listings count.</param>
@@ -55,7 +62,7 @@ public sealed class LaunchLoaderChoice
             return Installed(loaderId, needed.Contains(loaderId, ModIds.Comparer), LaunchLoaderFailure.GivenLoaderNotInstalled);
 
         if (needed.Count > 1)
-            return Failed(LaunchLoaderFailure.DifferentLoadersNeeded, needed);
+            return Failed(LaunchLoaderFailure.DifferentLoadersNeeded, needed, lacksListing: false);
 
         if (needed.Count == 1)
             return Installed(needed[0], requiredByMods: true, LaunchLoaderFailure.NeededLoaderNotInstalled);
@@ -65,27 +72,62 @@ public sealed class LaunchLoaderChoice
             .Select(Listing)
             .FirstOrDefault(listing => listing?.Provides?.Instance is not null);
         if (takesInstance is not null)
-            return new LaunchLoaderChoice(takesInstance, requiredByMods: false, LaunchLoaderFailure.None, []);
+            return new LaunchLoaderChoice(takesInstance, requiredByMods: false, LaunchLoaderFailure.None, [], lacksListing: false);
 
         var notListed = recorded.Where(id => Listing(id) is null).ToList();
         return notListed.Count > 0
-            ? Failed(LaunchLoaderFailure.LoaderNotListed, notListed)
-            : Failed(LaunchLoaderFailure.NoLoaderTakesInstance, []);
+            ? Failed(LaunchLoaderFailure.LoaderNotListed, notListed, lacksListing: true)
+            : Failed(LaunchLoaderFailure.NoLoaderTakesInstance, [], lacksListing: !listings.Any(listing => listing.Type == ContentType.ModLoader && listing.Provides?.Instance is not null));
 
         LaunchLoaderChoice Installed(string id, bool requiredByMods, LaunchLoaderFailure notInstalled)
         {
             if (!installations.Keys.Any(key => ModIds.Equals(key, id)))
-                return Failed(notInstalled, [id]);
+                return Failed(notInstalled, [id], lacksListing: Listing(id) is null);
 
             return Listing(id) is { } listing
-                ? new LaunchLoaderChoice(listing, requiredByMods, LaunchLoaderFailure.None, [])
-                : Failed(LaunchLoaderFailure.LoaderNotListed, [id]);
+                ? new LaunchLoaderChoice(listing, requiredByMods, LaunchLoaderFailure.None, [], lacksListing: false)
+                : Failed(LaunchLoaderFailure.LoaderNotListed, [id], lacksListing: true);
         }
 
         ModMetadata? Listing(string id) =>
             listings.FirstOrDefault(listing => listing.Type == ContentType.ModLoader && ModIds.Equals(listing.ModId, id));
     }
 
-    private static LaunchLoaderChoice Failed(LaunchLoaderFailure failure, IReadOnlyList<string> loaderIds) =>
-        new(loader: null, requiredByMods: false, failure, loaderIds);
+    /// <summary>
+    /// Chooses from the listings that <paramref name="held"/> serves without a request.
+    /// Only when it has none, or they lack a mod loader listing that the choice needs,
+    /// does it read <paramref name="sources"/>.
+    /// </summary>
+    /// <returns>The choice, and the listings it was made from.</returns>
+    public static async Task<(LaunchLoaderChoice Choice, IReadOnlyList<ModMetadata> Listings)> ChooseAsync(
+        Instance instance,
+        IReadOnlyDictionary<string, LoaderInstallation> installations,
+        IModRepository held,
+        IModRepository sources,
+        string? loaderId = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(held);
+        ArgumentNullException.ThrowIfNull(sources);
+
+        IReadOnlyList<ModMetadata>? heldListings;
+        try
+        {
+            heldListings = await held.GetAvailableModsAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or IOException)
+        {
+            // Borea holds no listings yet, or none it can read
+            heldListings = null;
+        }
+
+        if (heldListings is not null && Choose(instance, installations, heldListings, loaderId) is { LacksListing: false } choice)
+            return (choice, heldListings);
+
+        var listings = await sources.GetAvailableModsAsync(cancellationToken).ConfigureAwait(false);
+        return (Choose(instance, installations, listings, loaderId), listings);
+    }
+
+    private static LaunchLoaderChoice Failed(LaunchLoaderFailure failure, IReadOnlyList<string> loaderIds, bool lacksListing) =>
+        new(loader: null, requiredByMods: false, failure, loaderIds, lacksListing);
 }

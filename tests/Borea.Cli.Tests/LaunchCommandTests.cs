@@ -1,3 +1,4 @@
+using Borea.Core.Index;
 using Borea.Core.Instances;
 using Borea.Core.ModLoaders;
 using Borea.Core.Mods;
@@ -26,6 +27,22 @@ public sealed class LaunchCommandTests : IDisposable
         Assert.True(Path.IsPathFullyQualified(plan.Arguments[1]));
         Assert.Equal(plan.Arguments[1], plan.EnvironmentVariables["STARMAP_INSTANCE_PATH"]);
         Assert.Contains("Process id: 42", run.Output);
+    }
+
+    [Fact]
+    public async Task Launch_HeldIndexListsTheLoader_StartsWithoutAskingTheSources()
+    {
+        _host.Mods.Listings.Add(LoaderFixtures.Listing());
+        var loaderDirectory = LoaderCommandTests.CreateLoaderDirectory("StarMap", "not a program", _host.Root);
+        await _host.RunAsync("settings", "set", "loader", "StarMap", loaderDirectory);
+        await _host.RunAsync("instance", "create", "Flight Test");
+        _host.IndexReader.Snapshot = new ContentIndexSnapshot(1, [new ContentIndexListing("StarMap", LoaderFixtures.Listing(), [LoaderFixtures.Release()], null)], [], null, []);
+        _host.Mods.AvailableMods = _ => new TaskCompletionSource<IReadOnlyList<ModMetadata>>().Task;
+
+        var run = await _host.RunAsync("launch", "Flight Test").WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Single(_host.ProcessStarter.Plans);
     }
 
     [Fact]

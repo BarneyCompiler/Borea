@@ -29,6 +29,7 @@ public sealed class CliServicesTests : IDisposable
         Assert.Same(graph.Paths, services.Paths);
         Assert.Same(graph.Mods, services.Mods);
         Assert.Same(graph.ReadOnlyMods, services.ReadOnlyMods);
+        Assert.Same(graph.OfflineContentIndex, services.OfflineContentIndex);
         Assert.Same(graph.InstallPlanner, services.InstallPlanner);
         Assert.Same(graph.Installer, services.Installer);
         Assert.Same(graph.Replacer, services.Replacer);
@@ -97,6 +98,7 @@ public sealed class CliServicesTests : IDisposable
             Log = graph.Log,
             Mods = graph.Mods,
             ReadOnlyMods = graph.ReadOnlyMods,
+            OfflineContentIndex = graph.OfflineContentIndex,
             InstallPlanner = graph.InstallPlanner,
             SpaceCheck = graph.SpaceCheck,
             Installer = graph.Installer,

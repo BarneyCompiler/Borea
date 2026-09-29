@@ -161,6 +161,9 @@ public sealed class BoreaServices : IDisposable
     /// <summary>The mods of the content index that Borea holds, read without a request to any host.</summary>
     public required IModRepository OfflineMods { get; init; }
 
+    /// <summary>The content index that Borea holds, read without a request. A read fails while Borea holds no index.</summary>
+    public required IContentIndexRepository OfflineContentIndex { get; init; }
+
     public required IModPackRepository ModPacks { get; init; }
 
     public required IModPackRepository ReadOnlyModPacks { get; init; }
@@ -451,9 +454,10 @@ public sealed class BoreaServices : IDisposable
             [ContentIndexModRepository.SourceName] = readOnlyContentIndex,
             [SpaceDockModRepository.SourceName] = spaceDock,
         });
+        var offlineContentIndex = new ContentIndexModRepository(indexSnapshots.CachedOnly);
         var offlineMods = new CompositeModRepository(new Dictionary<string, IModRepository>
         {
-            [ContentIndexModRepository.SourceName] = new ContentIndexModRepository(indexSnapshots.CachedOnly),
+            [ContentIndexModRepository.SourceName] = offlineContentIndex,
             [SpaceDockModRepository.SourceName] = new OfflineSpaceDockModRepository(resolver),
         });
         var downloader = new HttpModDownloader(http);
@@ -529,6 +533,7 @@ public sealed class BoreaServices : IDisposable
             Mods = new ReleaseChannelModRepository(mods, settings.ReleaseChannel),
             ReadOnlyMods = new ReleaseChannelModRepository(readOnlyMods, settings.ReleaseChannel),
             OfflineMods = new ReleaseChannelModRepository(offlineMods, settings.ReleaseChannel),
+            OfflineContentIndex = offlineContentIndex,
             ModPacks = modPacks,
             ReadOnlyModPacks = new ContentIndexModPackRepository(new ReaderSnapshotProvider(indexReader)),
             ModPackInstaller = new LoggingModPackInstaller(new ModPackInstaller(instances, installPlanner, modInstaller, modReplacer, spaceCheck), log),

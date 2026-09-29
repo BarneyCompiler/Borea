@@ -2351,6 +2351,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatLaunchLoaderNotListed(string loaders)
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchLoaderNotListedFormat, loaders);
 
+    public string FormatLaunchListingsFailed(string reason)
+        => string.Format(CultureInfo.CurrentCulture, Resources.LaunchListingsFailedFormat, reason);
+
     public string LaunchNoLoaderTakesInstance
         => string.Format(CultureInfo.CurrentCulture, Resources.LaunchNoLoaderTakesInstanceFormat, Resources.LaunchWithoutModLoader);
 

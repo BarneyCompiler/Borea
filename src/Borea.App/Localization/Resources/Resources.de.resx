@@ -3831,6 +3831,9 @@
   <data name="LaunchLoaderNotListedFormat" xml:space="preserve">
     <value>Keine Quelle hat einen Eintrag für {0}. Borea braucht den Eintrag eines installierten Mod-Loaders, um ihn starten zu können.</value>
   </data>
+  <data name="LaunchListingsFailedFormat" xml:space="preserve">
+    <value>Borea konnte die Einträge der Mod-Loader nicht laden, darum wurde KSA nicht gestartet: {0}</value>
+  </data>
   <data name="LaunchNoLoaderTakesInstanceFormat" xml:space="preserve">
     <value>Keine Mod in dieser Instanz braucht einen Mod-Loader, und kein installierter Mod-Loader kann eine Instanz starten. Um KSA ohne Mod-Loader zu starten, nutze "{0}" auf der Startseite. Das startet mit dem gemeinsamen Profil, nicht mit dieser Instanz.</value>
   </data>

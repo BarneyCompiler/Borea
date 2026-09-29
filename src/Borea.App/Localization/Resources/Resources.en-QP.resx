@@ -2229,6 +2229,9 @@
   <data name="LaunchLoaderNotListedFormat" xml:space="preserve">
     <value>Nary an X marks the spot fer {0}. The Borea needs the listin' of a loader hauled onboard to know how to set it sailin'.</value>
   </data>
+  <data name="LaunchListingsFailedFormat" xml:space="preserve">
+    <value>The Borea couldn't haul in the listin's o' the loaders, so KSA never set sail: {0}</value>
+  </data>
   <data name="LaunchNoLoaderTakesInstanceFormat" xml:space="preserve">
     <value>Nary a barrel o' fun in this sea be needin' a loader, and no loader onboard can set a sea sailin'. To set sail with KSA without a loader, use "{0}" in Port. It be usin' the shared board, not this sea.</value>
   </data>

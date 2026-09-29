@@ -308,6 +308,27 @@ public sealed class LaunchFailureTests
         Assert.False(harness.ViewModel.IsLaunching);
     }
 
+    [Fact]
+    public async Task PlayActiveInstance_IndexTimesOutWithoutACachedIndex_SaysTheListingsDidNotLoad()
+    {
+        var starter = new RunningStarter();
+        using var harness = await ViewModelHarness.CreateAsync(
+            services => services.SettingsRepository.SaveAsync(services.Settings.WithLoaderInstallation("StarMap", CreateLoader(services, "StarMap"))),
+            indexOffline: true,
+            processStarter: starter);
+        await CreateActiveInstanceAsync(harness, starter);
+        var timeout = new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing.", new TimeoutException());
+        harness.IndexRequest = () => Task.FromException(timeout);
+
+        await harness.ViewModel.PlayActiveInstanceCommand.ExecuteAsync(null);
+
+        Assert.Equal(harness.Localization.FormatLaunchListingsFailed(timeout.Message), harness.ViewModel.LaunchMessage);
+        Assert.Null(harness.ViewModel.UnexpectedError);
+        Assert.False(harness.ViewModel.IsLaunching);
+        Assert.True(harness.ViewModel.EnableHomeLaunch);
+        Assert.Empty(starter.Plans);
+    }
+
     /// <summary>A harness whose StarMap listing has <paramref name="entry"/> for every platform.</summary>
     private static Task<ViewModelHarness> CreateWithPlatformEntryAsync(IProcessStarter starter, JsonObject entry) =>
         ViewModelHarness.CreateAsync(

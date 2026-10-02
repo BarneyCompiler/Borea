@@ -186,6 +186,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <Path Classes="icon size-16" Data="{StaticResource Icon.GitCommit}" />
                         <TextBlock Classes="label-md" Text="{Binding Version}" VerticalAlignment="Center" />
+                        <Path Classes="icon size-16" Data="{StaticResource Icon.PushPin}" IsVisible="{Binding IsPinned}" ToolTip.Tip="{Binding PinnedText}" AutomationProperties.Name="{Binding PinnedText}" />
                     </StackPanel>
                     <!-- one slot after the version: the lock of a dependency, or the update of any other row -->
                     <Panel VerticalAlignment="Center">
@@ -236,6 +237,8 @@
                                         <MenuItem Header="{Binding Page.FavoriteText}" Command="{Binding Page.ToggleFavoriteCommand}" IsVisible="{Binding CanOpen}" />
                                         <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentManage}" Command="{Binding BeginManageCommand}" IsVisible="{Binding CanManage}" />
                                         <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentInstallAgain}" Command="{Binding InstallAgainCommand}" IsVisible="{Binding IsMissing}" />
+                                        <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentPinVersion}" Command="{Binding PinCommand}" IsVisible="{Binding CanPin}" />
+                                        <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentUnpin}" Command="{Binding UnpinCommand}" IsVisible="{Binding IsPinned}" />
                                         <MenuItem Header="{Binding RemoveActionText}" Command="{Binding BeginRemoveCommand}" IsEnabled="{Binding CanRemove}" AutomationProperties.HelpText="{Binding RemoveBlockedText}" />
                                         <MenuItem IsEnabled="False" IsVisible="{Binding RemoveBlockedText, Converter={x:Static ObjectConverters.IsNotNull}}">
                                             <MenuItem.Header>

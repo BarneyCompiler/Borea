@@ -331,6 +331,7 @@ public sealed partial class PackUpdateItem : ObservableObject, IInstallRow
             ModPackChangeKind.Add => _owner.Localization.FormatPackUpdateAdd(name, change.To!.Value.ToString()),
             ModPackChangeKind.Change => _owner.Localization.FormatPackUpdateChange(name, change.From!.Value.ToString(), change.To!.Value.ToString()),
             ModPackChangeKind.Remove => _owner.Localization.FormatPackUpdateRemove(name, change.From!.Value.ToString()),
+            ModPackChangeKind.Pinned => _owner.Localization.FormatPackUpdatePinned(name, change.From!.Value.ToString()),
             _ when change.To != change.From => _owner.Localization.FormatPackUpdateKeepChange(name, change.From!.Value.ToString(), change.To!.Value.ToString()),
             _ => _owner.Localization.FormatPackUpdateKeep(name, change.From!.Value.ToString()),
         };

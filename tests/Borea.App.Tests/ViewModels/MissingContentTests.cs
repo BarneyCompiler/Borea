@@ -73,6 +73,28 @@ public sealed class MissingContentTests
     }
 
     [Fact]
+    public async Task InstallAgain_PinnedMod_KeepsThePin()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(respond: ServeArchive);
+        var instance = await SeedAsync(harness);
+        await harness.Services.Instances.UpdateAsync(instance.InstanceId, saved => saved.SetPinned("HudCore", pinned: true));
+        DeleteFolder(harness, instance.InstanceId, "HudCore");
+        var viewModel = harness.ViewModel;
+        await viewModel.LoadAsync();
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+
+        await Row(viewModel, "HudCore").InstallAgainCommand.ExecuteAsync(null);
+        await Row(viewModel, "HudCore").ConfirmUpdateCommand.ExecuteAsync(null);
+
+        Assert.Null(Row(viewModel, "HudCore").InstallError);
+        Assert.False(Row(viewModel, "HudCore").IsMissing);
+        var saved = await harness.Services.Instances.GetByIdAsync(instance.InstanceId);
+        Assert.True(saved!.Mods.Single(mod => mod.ModId == "HudCore").IsPinned);
+        Assert.False(saved.Mods.Single(mod => mod.ModId == "HudExtras").IsPinned);
+        Assert.True(Row(viewModel, "HudCore").IsPinned);
+    }
+
+    [Fact]
     public async Task InstallAgain_ReleaseWhoseDownloadIsGone_WarnsWithTheDate()
     {
         using var harness = await ViewModelHarness.CreateAsync(editSnapshot: ViewModelHarness.MarkGone("MeasureTools", "1.1.10"));

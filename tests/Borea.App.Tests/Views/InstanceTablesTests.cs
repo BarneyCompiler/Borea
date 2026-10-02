@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using Borea.App.Tests.ViewModels;
+using Borea.App.ViewModels;
 using Borea.App.Views;
 using Borea.App.Views.Pages;
 using Borea.Core.Instances;
@@ -228,6 +229,46 @@ public sealed class InstanceTablesTests
 
         Assert.Same(known.ConfirmInstallCommand, install);
         Assert.Same(known.CancelInstallCommand, cancelInstall);
+    }
+
+    [Fact]
+    public async Task ManagedMod_TheMenuOffersPinVersion_AndAPinnedRowShowsTheMarkAndOffersUnpin()
+    {
+        using var harness = await ManagedModAndFoldersAsync();
+        var viewModel = harness.ViewModel;
+        var localization = harness.Localization;
+        var row = viewModel.ContentGroups.SelectMany(group => group.Items).Single();
+
+        var (menu, marked, pinned, pinnedMenu, pinnedMarked) = await HeadlessApp.RunAsync(harness, async () =>
+        {
+            var page = new InstancePage();
+            var window = new Window { Width = 1280, Height = 900, DataContext = viewModel, Content = page };
+            window.Show();
+            try
+            {
+                page.UpdateLayout();
+                var before = (MenuOf(page, row), PinMarkShown(page, row));
+                await row.PinCommand.ExecuteAsync(null);
+                page.UpdateLayout();
+                var pinned = viewModel.ContentGroups.SelectMany(group => group.Items).Single();
+                return (before.Item1, before.Item2, pinned, MenuOf(page, pinned), PinMarkShown(page, pinned));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Contains((localization.ContentPinVersion, row.PinCommand), menu);
+        Assert.DoesNotContain(menu, item => item.Header == localization.ContentUnpin);
+        Assert.False(marked);
+        Assert.Contains((localization.ContentUnpin, pinned.UnpinCommand), pinnedMenu);
+        Assert.DoesNotContain(pinnedMenu, item => item.Header == localization.ContentPinVersion);
+        Assert.True(pinnedMarked);
+
+        static bool PinMarkShown(Control page, ContentItem item)
+            => page.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>()
+                .Any(path => path.IsEffectivelyVisible && path.DataContext == item && ToolTip.GetTip(path) as string == item.PinnedText && item.PinnedText is not null);
     }
 
     [Fact]

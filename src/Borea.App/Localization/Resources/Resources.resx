@@ -1824,6 +1824,30 @@
   <data name="ContentChangeVersion" xml:space="preserve">
     <value>Change version</value>
   </data>
+  <data name="ContentPinVersion" xml:space="preserve">
+    <value>Pin version</value>
+  </data>
+  <data name="ContentUnpin" xml:space="preserve">
+    <value>Unpin</value>
+  </data>
+  <data name="ContentPinnedFormat" xml:space="preserve">
+    <value>Pinned at {0}. Updates leave this mod at this version.</value>
+  </data>
+  <data name="ToastPinFailedFormat" xml:space="preserve">
+    <value>Could not pin {0}</value>
+  </data>
+  <data name="ToastUnpinFailedFormat" xml:space="preserve">
+    <value>Could not unpin {0}</value>
+  </data>
+  <data name="PackUpdatePinnedFormat" xml:space="preserve">
+    <value>Keeps {0} at {1}, because it is pinned</value>
+  </data>
+  <data name="InstallMessagePinnedFormat" xml:space="preserve">
+    <value>This mod is pinned at {0} in this instance. Unpin it to change it to {1}.</value>
+  </data>
+  <data name="InstallMessagePinnedDependencyFormat" xml:space="preserve">
+    <value>This release needs {0}, but {1} is pinned at {2} in this instance.</value>
+  </data>
   <data name="ContentRemove" xml:space="preserve">
     <value>Remove</value>
   </data>

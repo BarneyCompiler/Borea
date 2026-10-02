@@ -1824,6 +1824,30 @@
   <data name="ContentChangeVersion" xml:space="preserve">
     <value>Version wechseln</value>
   </data>
+  <data name="ContentPinVersion" xml:space="preserve">
+    <value>Version anheften</value>
+  </data>
+  <data name="ContentUnpin" xml:space="preserve">
+    <value>Anheften aufheben</value>
+  </data>
+  <data name="ContentPinnedFormat" xml:space="preserve">
+    <value>Bei {0} angeheftet. Updates lassen diese Mod bei dieser Version.</value>
+  </data>
+  <data name="ToastPinFailedFormat" xml:space="preserve">
+    <value>{0} konnte nicht angeheftet werden</value>
+  </data>
+  <data name="ToastUnpinFailedFormat" xml:space="preserve">
+    <value>Das Anheften von {0} konnte nicht aufgehoben werden</value>
+  </data>
+  <data name="PackUpdatePinnedFormat" xml:space="preserve">
+    <value>Lässt {0} bei {1}, weil es angeheftet ist</value>
+  </data>
+  <data name="InstallMessagePinnedFormat" xml:space="preserve">
+    <value>Diese Mod ist in dieser Instanz bei {0} angeheftet. Hebe das Anheften auf, um sie auf {1} zu ändern.</value>
+  </data>
+  <data name="InstallMessagePinnedDependencyFormat" xml:space="preserve">
+    <value>Diese Version braucht {0}, aber {1} ist in dieser Instanz bei {2} angeheftet.</value>
+  </data>
   <data name="ContentRemove" xml:space="preserve">
     <value>Entfernen</value>
   </data>

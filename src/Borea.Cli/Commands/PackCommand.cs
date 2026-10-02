@@ -12,18 +12,20 @@ namespace Borea.Cli.Commands;
 
 /// <summary>
 /// The pack command group. Search and show read mod packs from the content index,
-/// install gives one exact pack version to <see cref="IModPackInstaller"/>, and update moves
-/// an instance to the newest version of its pack through <see cref="IModPackUpdater"/>.
+/// install gives one exact pack version to <see cref="IModPackInstaller"/>, update moves
+/// an instance to the newest version of its pack through <see cref="IModPackUpdater"/>, and
+/// detach makes a mod of the pack one that pack updates leave alone.
 /// </summary>
 internal static class PackCommand
 {
     public static Command Build(Func<CancellationToken, Task<CliServices>> services)
     {
-        var pack = new Command("pack", "Find, inspect, install, and update mod packs.");
+        var pack = new Command("pack", "Find, inspect, install, and update mod packs, and detach a mod from its pack.");
         pack.Subcommands.Add(BuildSearch(services));
         pack.Subcommands.Add(BuildShow(services));
         pack.Subcommands.Add(BuildInstall(services));
         pack.Subcommands.Add(BuildUpdate(services));
+        pack.Subcommands.Add(BuildDetach(services));
         return pack;
     }
 
@@ -435,6 +437,32 @@ internal static class PackCommand
         }));
 
         return update;
+    }
+
+    private static Command BuildDetach(Func<CancellationToken, Task<CliServices>> services)
+    {
+        var modId = ArgumentRules.Text("mod-id", "The id of a mod that the mod pack of the instance installed.");
+        var instance = ArgumentRules.Instance();
+        var detach = new Command("detach", "Make a mod of the pack of an instance a mod you chose. Pack updates leave it at its version, and do not bring it back after you remove it.");
+        detach.Arguments.Add(modId);
+        detach.Options.Add(instance);
+
+        detach.SetAction((parseResult, cancellationToken) => CommandRunner.RunAsync(parseResult, services, cancellationToken, async (cli, output, _, ct) =>
+        {
+            var id = parseResult.GetRequiredValue(modId);
+            var target = await InstanceLookup.ResolveTargetAsync(cli.Instances, parseResult.GetValue(instance)).ConfigureAwait(false);
+            var (changed, detached, packId) = await cli.Instances.UpdateAsync(
+                target.InstanceId,
+                current => (current.DetachFromModPack(id), current.Mods.First(mod => ModIds.Equals(mod.ModId, id)).ModId, ((InstanceSource.FromModPack)current.Source).ModPackId),
+                ct).ConfigureAwait(false);
+
+            output.WriteLine(changed
+                ? $"Detached {detached} from pack {packId} in '{target.Name}'. Pack updates leave it alone."
+                : $"{detached} is detached from pack {packId} in '{target.Name}' already.");
+            return ExitCodes.Done;
+        }));
+
+        return detach;
     }
 
     private static Option<string[]> ProceedWithYankedOption()
@@ -874,6 +902,7 @@ internal static class PackCommand
                 "change" => $"Change {change.Id} from {change.From} to {change.To}.",
                 "remove" => $"Remove {change.Id} {change.From}.",
                 "pinned" => $"Keep {change.Id} {change.From}, because it is pinned in this instance.",
+                "detached" => $"Leave {change.Id} alone, because it is detached from the pack in this instance.",
                 _ when change.To != change.From => $"Keep {change.Id} as a mod of the instance and change it from {change.From} to {change.To}, because the pack no longer pins it.",
                 _ => $"Keep {change.Id} {change.From} as a mod of the instance, because the pack no longer pins it.",
             });

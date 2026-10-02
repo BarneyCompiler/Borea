@@ -964,6 +964,40 @@ public sealed class PackCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task PackUpdate_DetachedMod_StaysAtItsVersionAndTheOtherModIsAdded()
+    {
+        await CreateNavigationInstanceAsync();
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "2.1.0"));
+        var newer = ContentCommandFixtures.PackVersion(version: "1.1.0", mods: [new ModPackEntry("flight-tools", ModVersion.Parse("2.1.0")), new ModPackEntry("library", ModVersion.Parse("1.0.0"))]);
+        _host.IndexReader.Snapshot = Snapshot(Pack(ContentCommandFixtures.PackVersion(), newer));
+
+        var detach = await _host.RunAsync("pack", "detach", "FLIGHT-TOOLS", "--instance", "Navigation");
+        var again = await _host.RunAsync("pack", "detach", "flight-tools", "--instance", "Navigation");
+        var run = await _host.RunAsync("pack", "update", "Navigation");
+
+        Assert.Equal(0, detach.ExitCode);
+        Assert.Equal("Detached flight-tools from pack navigation-pack in 'Navigation'. Pack updates leave it alone.", detach.Output.Trim());
+        Assert.Equal("flight-tools is detached from pack navigation-pack in 'Navigation' already.", again.Output.Trim());
+        Assert.Equal(0, run.ExitCode);
+        Assert.Contains("Leave flight-tools alone, because it is detached from the pack in this instance.", run.Output);
+        Assert.Contains("Add library 1.0.0.", run.Output);
+        var instance = Assert.Single(await new FileInstanceRepository(_host.Paths).GetAllAsync());
+        Assert.Equal(new InstanceSource.FromModPack("navigation-pack", ModVersion.Parse("1.1.0")).WithDetached(["flight-tools"]), instance.Source);
+        Assert.Equal(["flight-tools 2.0.0 Manual", "library 1.0.0 ModPack"], instance.Mods.Select(mod => $"{mod.ModId} {mod.Version} {mod.Reason}").Order());
+    }
+
+    [Fact]
+    public async Task PackDetach_InstanceThatIsNotFromAPack_Fails()
+    {
+        await _host.RunAsync("instance", "create", "Alpha");
+
+        var run = await _host.RunAsync("pack", "detach", "flight-tools", "--instance", "Alpha");
+
+        Assert.NotEqual(0, run.ExitCode);
+        Assert.Contains("Instance 'Alpha' was not created from a mod pack.", run.Error);
+    }
+
+    [Fact]
     public async Task PackUpdate_RemovesTheDroppedModAddsTheNewOneAndNamesTheNewVersion()
     {
         await CreateNavigationInstanceAsync();

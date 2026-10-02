@@ -873,6 +873,7 @@ internal static class PackCommand
                 "add" => $"Add {change.Id} {change.To}.",
                 "change" => $"Change {change.Id} from {change.From} to {change.To}.",
                 "remove" => $"Remove {change.Id} {change.From}.",
+                "pinned" => $"Keep {change.Id} {change.From}, because it is pinned in this instance.",
                 _ when change.To != change.From => $"Keep {change.Id} as a mod of the instance and change it from {change.From} to {change.To}, because the pack no longer pins it.",
                 _ => $"Keep {change.Id} {change.From} as a mod of the instance, because the pack no longer pins it.",
             });

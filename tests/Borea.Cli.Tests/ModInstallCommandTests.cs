@@ -444,6 +444,74 @@ public sealed class ModInstallCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task Pin_UpdateOfEveryMod_LeavesThePinnedModAndUpdatesTheOther()
+    {
+        await SaveInstalledAsync(ContentCommandFixtures.Release(version: "1.0.0"), ContentCommandFixtures.Release("other-mod", "1.0.0"));
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "2.0.0"));
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release("other-mod", "2.0.0"));
+        RecordingReplacer? replacer = null;
+        _host.ReplacerFactory = graph => replacer = new RecordingReplacer(graph);
+
+        var pin = await _host.RunAsync("pin", "flight-tools", "--instance", "Alpha");
+        var update = await _host.RunAsync("update", "--instance", "Alpha");
+
+        Assert.Equal(0, pin.ExitCode);
+        Assert.Contains("Pinned flight-tools at 1.0.0 in 'Alpha'.", pin.Output);
+        Assert.Equal(0, update.ExitCode);
+        Assert.Contains("Keep flight-tools 1.0.0, because it is pinned.", update.Output);
+        Assert.Equal(["other-mod 2.0.0"], replacer!.Replacements.Select(release => $"{release.ModId} {release.Version}"));
+        var mods = (await new FileInstanceRepository(_host.Paths).GetAllAsync()).Single().Mods;
+        Assert.Equal((ModVersion.Parse("1.0.0"), true), mods.Where(mod => mod.ModId == "flight-tools").Select(mod => (mod.Version, mod.IsPinned)).Single());
+    }
+
+    [Fact]
+    public async Task Unpin_BringsTheUpdateBack()
+    {
+        await SaveInstalledAsync(ContentCommandFixtures.Release(version: "1.0.0"));
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "2.0.0"));
+        await _host.RunAsync("pin", "flight-tools", "--instance", "Alpha");
+        var pinned = await _host.RunAsync("update", "flight-tools", "--instance", "Alpha", "--dry-run");
+
+        var unpin = await _host.RunAsync("unpin", "flight-tools", "--instance", "Alpha");
+        var again = await _host.RunAsync("unpin", "flight-tools", "--instance", "Alpha");
+        var unpinned = await _host.RunAsync("update", "flight-tools", "--instance", "Alpha", "--dry-run");
+
+        Assert.Contains("Nothing to do.", pinned.Output);
+        Assert.Contains("Unpinned flight-tools in 'Alpha'.", unpin.Output);
+        Assert.Contains("flight-tools is not pinned in 'Alpha'.", again.Output);
+        Assert.Contains("flight-tools 2.0.0.", unpinned.Output);
+        Assert.DoesNotContain("pinned", unpinned.Output);
+    }
+
+    [Fact]
+    public async Task Install_AnotherVersionOfAPinnedMod_FailsAndNamesThePin()
+    {
+        await SaveInstalledAsync(ContentCommandFixtures.Release(version: "1.0.0"));
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "2.0.0"));
+        await _host.RunAsync("pin", "flight-tools", "--instance", "Alpha");
+
+        var run = await _host.RunAsync("install", "flight-tools", "--version", "2.0.0", "--instance", "Alpha");
+
+        Assert.Equal(1, run.ExitCode);
+        Assert.Contains("conflict: The mod is pinned at 1.0.0 in this instance, so Borea does not change it to 2.0.0.", run.Output);
+        Assert.Equal(ModVersion.Parse("1.0.0"), (await new FileInstanceRepository(_host.Paths).GetAllAsync()).Single().Mods.Single().Version);
+    }
+
+    [Theory]
+    [InlineData("other-mod", "Mod 'other-mod' is not installed in 'Alpha'.")]
+    [InlineData("flight-tools", "does not own")]
+    public async Task Pin_ModThatIsNotInstalledOrNotOwned_Fails(string modId, string reason)
+    {
+        await SaveInstalledAsync(ContentCommandFixtures.Release(version: "1.0.0"), ownership: ModInstallOwnership.Foreign);
+
+        var run = await _host.RunAsync("pin", modId, "--instance", "Alpha");
+
+        Assert.Equal(1, run.ExitCode);
+        Assert.Contains(reason, run.Error);
+        Assert.False((await new FileInstanceRepository(_host.Paths).GetAllAsync()).Single().Mods.Single().IsPinned);
+    }
+
+    [Fact]
     public async Task Update_ForeignOwnedRecord_FailsBeforePlanning()
     {
         await SaveInstalledAsync(ContentCommandFixtures.Release(), ownership: ModInstallOwnership.Foreign);

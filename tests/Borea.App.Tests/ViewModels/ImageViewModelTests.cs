@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using Borea.App.ViewModels;
 using Borea.Core.Index;
+using Borea.Core.Listings;
 using Borea.Core.Mods;
 
 namespace Borea.App.Tests.ViewModels;
@@ -113,6 +114,26 @@ public sealed class ImageViewModelTests
 
         Assert.True(icon.IsLoaded);
         Assert.Null(icon.Failure);
+        Assert.Equal([false, true], harness.Images.Requests.Select(request => request.LoadFromAuthorHosts));
+    }
+
+    [Fact]
+    public async Task TurningImagesFromAuthorHostsOn_LoadsTheListingPreviewImageItHeldBack()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        harness.Images.Respond = _ => ContentImageResult.Loaded(IconBytes);
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        editor.Load(new ListingDraft { DescriptionImages = [new ListingImageRecord("https://images.example/shot.png") { Id = "shot", Sha256 = Digest, Width = 1600, Height = 900, Size = 400_000 }] });
+        editor.IsDescriptionPreviewOn = true;
+        var image = editor.DescriptionPreviewImages.Find("shot")!;
+        harness.ViewModel.LoadImagesFromAuthorHosts = false;
+        await image.LoadAsync();
+
+        harness.ViewModel.LoadImagesFromAuthorHosts = true;
+        await image.LoadAsync();
+
+        Assert.True(image.IsLoaded);
         Assert.Equal([false, true], harness.Images.Requests.Select(request => request.LoadFromAuthorHosts));
     }
 
@@ -283,7 +304,7 @@ public sealed class ImageViewModelTests
             """;
     }
 
-    private static string Description(string id) =>
+    internal static string Description(string id) =>
         $$"""{ "id": "{{id}}", "url": "https://images.example/{{id}}.png", "sha256": "{{Digest}}", "width": 1600, "height": 900, "size": 400000 }""";
 
     internal static Func<string, string> WithImages(string listingId, string images) => json =>

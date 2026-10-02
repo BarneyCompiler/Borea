@@ -43,7 +43,8 @@ public partial class MainViewModel
             if (!value)
                 return;
 
-            foreach (var image in _icons.Values.Concat(ContentDescriptionImages.Images).Concat(PackDescriptionImages.Images))
+            var preview = _listingEditor?.DescriptionPreviewImages.Images ?? [];
+            foreach (var image in _icons.Values.Concat(ContentDescriptionImages.Images).Concat(PackDescriptionImages.Images).Concat(preview))
                 image.RetryIfTurnedOff();
         }
     }
@@ -118,7 +119,10 @@ public partial class MainViewModel
         if (TryOpenUrl(url) is not { } error)
             return;
 
-        if (CurrentWindowPack)
+        // The listing page shows no detail error, so its preview reports the failure as a toast.
+        if (CurrentWindowListing)
+            ShowOpenError(() => url, error);
+        else if (CurrentWindowPack)
             PackDetailError = error;
         else
             ContentDetailError = error;

@@ -2304,6 +2304,9 @@
   <data name="ListingDescriptionHint" xml:space="preserve">
     <value>Markdown. Ein Beschreibungsbild zeigst du mit ![Text](ksa-image:id).</value>
   </data>
+  <data name="ListingDescriptionPreview" xml:space="preserve">
+    <value>Vorschau der Beschreibung</value>
+  </data>
   <data name="ListingLicense" xml:space="preserve">
     <value>Lizenz</value>
   </data>

@@ -102,6 +102,24 @@ public sealed class MarkdownParserTests
     }
 
     [Fact]
+    public void ParseInline_TripleDelimiters_AreBoldItalic()
+    {
+        var spans = MarkdownParser.ParseInline("***both*** and ___both too___, **bold** *it*");
+
+        Assert.Equal(
+            [
+                new MarkdownSpan(MarkdownSpanKind.BoldItalic, "both"),
+                new MarkdownSpan(MarkdownSpanKind.Text, " and "),
+                new MarkdownSpan(MarkdownSpanKind.BoldItalic, "both too"),
+                new MarkdownSpan(MarkdownSpanKind.Text, ", "),
+                new MarkdownSpan(MarkdownSpanKind.Bold, "bold"),
+                new MarkdownSpan(MarkdownSpanKind.Text, " "),
+                new MarkdownSpan(MarkdownSpanKind.Italic, "it"),
+            ],
+            spans);
+    }
+
+    [Fact]
     public void ParseInline_PlainText_IsOneSpan()
     {
         Assert.Equal([new MarkdownSpan(MarkdownSpanKind.Text, "just text")], MarkdownParser.ParseInline("just text"));

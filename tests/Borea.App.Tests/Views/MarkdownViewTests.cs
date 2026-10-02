@@ -1,9 +1,14 @@
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Media.TextFormatting;
+using Avalonia.Threading;
 using Borea.App.ViewModels;
 using Borea.App.Views;
 using Borea.Core.Index;
 
 namespace Borea.App.Tests.Views;
 
+[Collection(HeadlessCollection.Name)]
 public sealed class MarkdownViewTests
 {
     private static DescriptionImages Images(params DescriptionImage[] records) =>
@@ -67,6 +72,49 @@ public sealed class MarkdownViewTests
 
         Assert.Equal("https://images.example/settings-window-v2.png", Assert.IsType<MarkdownImagePart>(parts[0]).Image.Record.Url);
         Assert.Equal(new MarkdownMissingImagePart("Old map"), parts[1]);
+    }
+
+    [Fact]
+    public async Task Description_DrawsEmphasisFromTheBundledFacesWithoutSimulation()
+    {
+        var faces = await HeadlessApp.RunAsync(() =>
+        {
+            var view = new MarkdownView { Markdown = "## Heading **bold** *italic*\n\nPlain **bold** *italic* ***bold italic***" };
+            var window = new Window { Width = 800, Height = 200, Content = view };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                Dispatcher.UIThread.RunJobs();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                using var frame = window.CaptureRenderedFrame()!;
+                var faces = view.Children.OfType<TextBlock>()
+                    .SelectMany(text => text.TextLayout.TextLines)
+                    .SelectMany(line => line.TextRuns)
+                    .OfType<ShapedTextRun>()
+                    .Where(run => !string.IsNullOrWhiteSpace(run.Text.ToString()))
+                    .Select(run => run.GlyphRun.GlyphTypeface)
+                    .Select(face => $"{face.FamilyName} {face.Weight} {face.Style} {face.FontSimulations}")
+                    .ToList();
+                return Task.FromResult(faces);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.Equal(
+            [
+                "IBM Plex Sans SmBld DemiBold Normal None",
+                "IBM Plex Sans Bold Normal None",
+                "IBM Plex Sans SmBld DemiBold Italic None",
+                "IBM Plex Sans Normal Normal None",
+                "IBM Plex Sans Bold Normal None",
+                "IBM Plex Sans Normal Italic None",
+                "IBM Plex Sans Bold Italic None",
+            ],
+            faces);
     }
 
     [Fact]

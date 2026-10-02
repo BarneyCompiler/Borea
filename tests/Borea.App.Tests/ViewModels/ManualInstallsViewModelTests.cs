@@ -77,6 +77,71 @@ public sealed class ManualInstallsViewModelTests
     }
 
     [Fact]
+    public async Task OpenInstanceAgain_KeepsTheRowThatIsBusyAndReadsTheOthersAgain()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        var replaced = WriteForeignMod(harness, instance, "KSArmory");
+        var idle = WriteForeignMod(harness, instance, "LocalOnly");
+        await OpenAsync(harness, "Main");
+        var busy = viewModel.ManualInstallItems.Single(item => item.FolderName == "KSArmory");
+        busy.IsInstalling = true;
+        // a replace moves the folder aside while it installs
+        Directory.Move(replaced, Path.Combine(harness.Services.Paths.GetInstanceRoot(instance.InstanceId), "KSArmory-aside"));
+        Directory.Delete(idle, recursive: true);
+        WriteForeignMod(harness, instance, "MeasureTools");
+
+        await viewModel.Instances.Single().OpenCommand.ExecuteAsync(null);
+
+        Assert.Equal(["KSArmory", "MeasureTools"], viewModel.ManualInstallItems.Select(item => item.FolderName));
+        Assert.Same(busy, viewModel.ManualInstallItems[0]);
+    }
+
+    [Fact]
+    public async Task OpenInstanceAgain_ARowThatTurnsBusyWhileTheRowsLoad_StaysOnThePage()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        WriteForeignMod(harness, instance, "KSArmory");
+        await OpenAsync(harness, "Main");
+        var row = viewModel.ManualInstallItems.Single();
+
+        // the held lock makes the scan wait, and the row starts its replace meanwhile
+        Task open;
+        using (var held = Locks(harness).TryHold([instance.InstanceId]))
+        {
+            Assert.NotNull(held);
+            open = viewModel.Instances.Single().OpenCommand.ExecuteAsync(null);
+            await Task.WhenAny(open, Task.Delay(TimeSpan.FromSeconds(1)));
+            Assert.False(open.IsCompleted);
+            row.IsInstalling = true;
+        }
+
+        await open;
+
+        Assert.Same(row, viewModel.ManualInstallItems.Single());
+    }
+
+    [Fact]
+    public async Task OpenAnotherInstance_ShowsOnlyItsOwnFolders()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var main = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        await harness.Services.Instances.CreateAsync("Second", InstanceSource.Custom.Value);
+        WriteForeignMod(harness, main, "KSArmory");
+        await OpenAsync(harness, "Main");
+        viewModel.ManualInstallItems.Single().IsInstalling = true;
+
+        await viewModel.Instances.Single(instance => instance.Name == "Second").OpenCommand.ExecuteAsync(null);
+
+        Assert.Empty(viewModel.ManualInstallItems);
+        Assert.False(viewModel.ShowManualInstalls);
+    }
+
+    [Fact]
     public async Task OpenInstance_WhileTheLibraryFolderMoves_OpensAtOnceWithTheRecordedFolders()
     {
         using var harness = await ViewModelHarness.CreateAsync();

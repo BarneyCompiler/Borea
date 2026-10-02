@@ -44,22 +44,30 @@ public partial class MainViewModel
         OpenCreatingFolder(() => folder, () => PathName(folder));
     }
 
+    /// <summary>
+    /// Every open of the instance page reads the rows again. A row of the same instance that checks or
+    /// replaces its folder stays, so its progress and its end reach the row on the page.
+    /// </summary>
     private async Task LoadManualInstallsAsync()
     {
-        ShowManualInstallRows([], null);
-        if (_services is null || SelectedInstance is null)
+        var instanceId = SelectedInstance?.InstanceId;
+        if (ManualInstallItems.Any(row => row.InstanceId != instanceId))
+            ShowManualInstallRows([], null);
+
+        if (_services is null || instanceId is not { } id)
             return;
 
         var services = _services;
-        var instanceId = SelectedInstance.InstanceId;
-        var items = new List<ManualInstallItem>();
+        // a row that is busy now stays, so its folder needs no index lookup
+        var busyAtStart = ManualInstallItems.Where(row => row.IsBusy).ToDictionary(row => row.FolderName, StringComparer.Ordinal);
+        var found = new List<(string FolderName, bool? InIndex)>();
         string? error = null;
         try
         {
-            foreach (var foreign in await ReadForeignModsAsync(services, instanceId))
+            foreach (var foreign in await ReadForeignModsAsync(services, id))
             {
                 bool? inIndex = null;
-                if (error is null)
+                if (error is null && !busyAtStart.ContainsKey(foreign.FolderName))
                 {
                     try
                     {
@@ -71,7 +79,7 @@ public partial class MainViewModel
                     }
                 }
 
-                items.Add(new ManualInstallItem(this, instanceId, foreign.FolderName, inIndex));
+                found.Add((foreign.FolderName, inIndex));
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -79,10 +87,23 @@ public partial class MainViewModel
             error = exception.Message;
         }
 
-        if (SelectedInstance?.InstanceId != instanceId)
+        if (SelectedInstance?.InstanceId != id)
             return;
 
-        ShowManualInstallRows(items, error);
+        // a row can start a replace while the load waits, so the rows to keep are read only now
+        var current = ManualInstallItems.Where(row => row.InstanceId == id).ToDictionary(row => row.FolderName, StringComparer.Ordinal);
+        var rows = new List<ManualInstallItem>();
+        foreach (var (folderName, inIndex) in found)
+        {
+            if (current.Remove(folderName, out var row) && (row.IsBusy || busyAtStart.ContainsKey(folderName)))
+                rows.Add(row);
+            else
+                rows.Add(busyAtStart.GetValueOrDefault(folderName) ?? new ManualInstallItem(this, id, folderName, inIndex));
+        }
+
+        // a replace moves the folder aside while it installs, so the scan can miss a busy row
+        rows.AddRange(current.Values.Where(row => row.IsBusy));
+        ShowManualInstallRows(rows.OrderBy(row => row.FolderName, ModIds.Comparer), error);
     }
 
     /// <summary>

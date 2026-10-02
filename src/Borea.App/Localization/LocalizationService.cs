@@ -1176,8 +1176,6 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string InstanceTabContent => Resources.InstanceTabContent;
 
-    public string InstanceTabManualInstalls => Resources.InstanceTabManualInstalls;
-
     public string InstanceTabGameData => Resources.InstanceTabGameData;
 
     public string InstanceTabLog => Resources.InstanceTabLog;
@@ -1196,6 +1194,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string InstanceGroupDependencies => Resources.InstanceGroupDependencies;
 
+    public string InstanceGroupNotManaged => Resources.InstanceGroupNotManaged;
+
     public string InstanceEmptyContent => Resources.InstanceEmptyContent;
 
     public string ContentInsideInstance => Resources.ContentInsideInstance;
@@ -1206,13 +1206,14 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string InstanceContentNotInIndex => Resources.InstanceContentNotInIndex;
 
-    public string ManualInstallsEmpty => Resources.ManualInstallsEmpty;
-
     public string ManualInstallsInfo => Resources.ManualInstallsInfo;
 
     public string ManualInstallsInIndex => Resources.ManualInstallsInIndex;
 
     public string ManualInstallsNotInIndex => Resources.ManualInstallsNotInIndex;
+
+    public string ManualInstallsNoUpdates => Resources.ManualInstallsNoUpdates;
+    public string ManualInstallsEmptyHint => Resources.ManualInstallsEmptyHint;
 
     public string ManualInstallsNoMatch => Resources.ManualInstallsNoMatch;
 

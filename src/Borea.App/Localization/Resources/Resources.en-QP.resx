@@ -951,9 +951,6 @@
   <data name="InstanceTabContent" xml:space="preserve">
     <value>Booty</value>
   </data>
-  <data name="InstanceTabManualInstalls" xml:space="preserve">
-    <value>Stuff on board ye hauled yerself</value>
-  </data>
   <data name="InstanceTabGameData" xml:space="preserve">
     <value>Data o' yer game</value>
   </data>
@@ -984,11 +981,11 @@
   <data name="InstanceGroupDependencies" xml:space="preserve">
     <value>Peg legs</value>
   </data>
-  <data name="InstanceEmptyContent" xml:space="preserve">
-    <value>The Borea ain't hauled a thing onboard this sea yet. Loot some booty from Chart a Course. Barrels o' fun ye hauled without The Borea be under Stuff on board ye hauled yerself.</value>
+  <data name="InstanceGroupNotManaged" xml:space="preserve">
+    <value>Stuff on board ye hauled yerself</value>
   </data>
-  <data name="ManualInstallsEmpty" xml:space="preserve">
-    <value>Nary a barrel o' fun treasure chest on this sea was hauled onboard without The Borea.</value>
+  <data name="InstanceEmptyContent" xml:space="preserve">
+    <value>The Borea ain't hauled a thing onboard this sea yet. Loot some booty from Chart a Course.</value>
   </data>
   <data name="ManualInstallsInfo" xml:space="preserve">
     <value>The Borea didn't haul the barrels o' fun on this list, but they be part o' this sea. When ye set sail on this sea from The Borea, the game takes along every one o' 'em that has its flag hoisted. When the game spies a new one, it asks ye to hoist its flag first. The Borea won't bring in the tide fer 'em.</value>
@@ -998,6 +995,12 @@
   </data>
   <data name="ManualInstallsNotInIndex" xml:space="preserve">
     <value>Ain't on the bulletin board</value>
+  </data>
+  <data name="ManualInstallsNoUpdates" xml:space="preserve">
+    <value>The Borea can't bring in the tide fer this one</value>
+  </data>
+  <data name="ManualInstallsEmptyHint" xml:space="preserve">
+    <value>Stow a mod chest in the mods hold o' this ship to sail with a mod that ain't on the bulletin board.</value>
   </data>
   <data name="ManualInstallsNoMatch" xml:space="preserve">
     <value>On the bulletin board, but the doubloons ain't match any bounty</value>

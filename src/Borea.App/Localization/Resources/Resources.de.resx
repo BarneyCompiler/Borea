@@ -1551,9 +1551,6 @@
   <data name="InstanceTabContent" xml:space="preserve">
     <value>Inhalt</value>
   </data>
-  <data name="InstanceTabManualInstalls" xml:space="preserve">
-    <value>Manuelle Installationen</value>
-  </data>
   <data name="InstanceTabGameData" xml:space="preserve">
     <value>Spieldaten</value>
   </data>
@@ -1584,11 +1581,11 @@
   <data name="InstanceGroupDependencies" xml:space="preserve">
     <value>Abhängigkeiten</value>
   </data>
-  <data name="InstanceEmptyContent" xml:space="preserve">
-    <value>Borea hat in dieser Instanz noch keine Inhalte installiert. Füge Inhalte über Entdecken hinzu. Mods, die du ohne Borea installiert hast, findest du unter Manuelle Installationen.</value>
+  <data name="InstanceGroupNotManaged" xml:space="preserve">
+    <value>Nicht von Borea verwaltet</value>
   </data>
-  <data name="ManualInstallsEmpty" xml:space="preserve">
-    <value>Kein Mod-Ordner in dieser Instanz wurde ohne Borea installiert.</value>
+  <data name="InstanceEmptyContent" xml:space="preserve">
+    <value>Borea hat in dieser Instanz noch keine Inhalte installiert. Füge Inhalte über Entdecken hinzu.</value>
   </data>
   <data name="ManualInstallsInfo" xml:space="preserve">
     <value>Borea hat die Mods in dieser Liste nicht installiert, aber sie gehören zu dieser Instanz. Wenn du diese Instanz über Borea spielst, lädt das Spiel jeden dieser Mods, der aktiviert ist. Findet das Spiel einen neuen Mod, fragt es dich zuerst, ob du ihn aktivieren willst. Borea aktualisiert sie nicht.</value>
@@ -1598,6 +1595,12 @@
   </data>
   <data name="ManualInstallsNotInIndex" xml:space="preserve">
     <value>Nicht im Inhaltsindex</value>
+  </data>
+  <data name="ManualInstallsNoUpdates" xml:space="preserve">
+    <value>Borea kann diesen Mod nicht aktualisieren</value>
+  </data>
+  <data name="ManualInstallsEmptyHint" xml:space="preserve">
+    <value>Lege einen Mod-Ordner in den Mods-Ordner dieser Instanz, um einen Mod zu nutzen, der nicht im Inhaltsindex ist.</value>
   </data>
   <data name="ManualInstallsNoMatch" xml:space="preserve">
     <value>Im Inhaltsindex, aber die Dateien passen zu keiner Version</value>

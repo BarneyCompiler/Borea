@@ -341,6 +341,99 @@ public sealed class ContentUpdateTests
     }
 
     [Fact]
+    public async Task Update_AFolderAddedByHandWhileItRuns_AReopenDoesNotStopTheUpdate()
+    {
+        using var download = new ManualResetEventSlim();
+        using var harness = await ViewModelHarness.CreateAsync(respond: request =>
+        {
+            if (request.RequestUri?.Host == ArchiveHost)
+                download.Wait(TimeSpan.FromSeconds(30));
+            return ServeArchive(request);
+        });
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("1.1.0")]);
+        var viewModel = harness.ViewModel;
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await viewModel.LoadAsync();
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+        var folder = Path.Combine(harness.Services.Paths.GetInstanceModsFolder(instance.InstanceId), "LocalOnly");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "mod.toml"), "name = \"LocalOnly\"");
+        var row = viewModel.ContentGroups.Single().Items.Single();
+        await row.UpdateCommand.ExecuteAsync(null);
+
+        var update = row.ConfirmUpdateCommand.ExecuteAsync(null);
+        for (var wait = 0; wait < 300 && !harness.Requests.Any(uri => uri.Host == ArchiveHost); wait++)
+            await Task.Delay(100);
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+
+        // the rows come from the record while the update runs, and the record does not know the folder yet
+        Assert.Empty(viewModel.ManualInstallItems);
+
+        download.Set();
+        await update;
+
+        Assert.DoesNotContain(viewModel.Toasts.Items, toast => toast.IsFailed);
+        Assert.Equal(ModVersion.Parse("1.1.0"), (await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods.Single(mod => mod.ModId == OwnId).Version);
+        Assert.Equal(["LocalOnly"], viewModel.ManualInstallItems.Select(item => item.FolderName));
+    }
+
+    [Fact]
+    public async Task Update_WhileItRuns_TheFoldersBoreaDidNotInstallStayAsTheyAre()
+    {
+        using var download = new ManualResetEventSlim();
+        using var harness = await ViewModelHarness.CreateAsync(respond: request =>
+        {
+            if (request.RequestUri?.Host == ArchiveHost)
+                download.Wait(TimeSpan.FromSeconds(30));
+            return ServeArchive(request);
+        });
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("1.1.0")]);
+        var viewModel = harness.ViewModel;
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        var modsFolder = harness.Services.Paths.GetInstanceModsFolder(instance.InstanceId);
+        foreach (var name in new[] { "KSArmory", "MeasureTools" })
+        {
+            Directory.CreateDirectory(Path.Combine(modsFolder, name));
+            File.WriteAllText(Path.Combine(modsFolder, name, "mod.toml"), $"name = \"{name}\"");
+        }
+
+        await viewModel.LoadAsync();
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+        var replaced = viewModel.ManualInstallItems.Single(item => item.FolderName == "KSArmory");
+        var waiting = viewModel.ManualInstallItems.Single(item => item.FolderName == "MeasureTools");
+        // a plan with a warning waits on the row for Install anyway
+        await waiting.BeginReplaceCommand.ExecuteAsync(null);
+        await waiting.ConfirmReplaceCommand.ExecuteAsync(null);
+        Assert.NotNull(waiting.PendingPlan);
+        var row = viewModel.ContentGroups.Single().Items.Single();
+        await row.UpdateCommand.ExecuteAsync(null);
+
+        var update = row.ConfirmUpdateCommand.ExecuteAsync(null);
+        for (var wait = 0; wait < 300 && !harness.Requests.Any(uri => uri.Host == ArchiveHost); wait++)
+            await Task.Delay(100);
+        Assert.False(viewModel.CanChangeContent);
+        await replaced.ManageCommand.ExecuteAsync(null);
+        await replaced.BeginReplaceCommand.ExecuteAsync(null);
+        await waiting.ConfirmInstallCommand.ExecuteAsync(null);
+
+        Assert.Equal(ManualInstallCheck.NotChecked, replaced.Check);
+        Assert.False(replaced.IsInstalling);
+        Assert.Null(replaced.PendingPlan);
+        Assert.Null(replaced.InstallWarning);
+        Assert.Null(replaced.InstallError);
+        Assert.False(waiting.IsInstalling);
+        Assert.NotNull(waiting.PendingPlan);
+        Assert.DoesNotContain(viewModel.Toasts.Items, toast => toast.IsFailed);
+
+        download.Set();
+        await update;
+
+        Assert.True(File.Exists(Path.Combine(modsFolder, "KSArmory", "mod.toml")));
+        Assert.True(File.Exists(Path.Combine(modsFolder, "MeasureTools", "mod.toml")));
+        Assert.Equal([OwnId], (await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods.Select(mod => mod.ModId));
+    }
+
+    [Fact]
     public async Task Manage_ReloadWhileItRuns_KeepsTheRowAndBlocksOtherChanges()
     {
         using var download = new ManualResetEventSlim();

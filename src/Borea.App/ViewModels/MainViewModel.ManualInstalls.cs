@@ -16,7 +16,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace Borea.App.ViewModels;
 
 /// <summary>
-/// The Manual installs tab of the instance page.
+/// The table of the Content tab for the mod folders of the instance that Borea did not install.
 /// </summary>
 public partial class MainViewModel
 {
@@ -26,15 +26,12 @@ public partial class MainViewModel
 
     public bool HasManualInstalls => ManualInstallItems.Count > 0;
 
-    [ObservableProperty]
-    private string? _manualInstallsError;
+    /// <summary>Whether the Content tab shows the table, which a failed scan shows to give its error.</summary>
+    public bool ShowManualInstalls => HasManualInstalls || ManualInstallsError is not null;
 
-    [RelayCommand]
-    private async Task ShowInstanceManualInstallsAsync()
-    {
-        InstanceTab = InstanceTab.ManualInstalls;
-        await LoadManualInstallsAsync();
-    }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowManualInstalls))]
+    private string? _manualInstallsError;
 
     /// <summary>Opens the mods folder of the instance on the page, where a mod installed by hand goes.</summary>
     [RelayCommand]
@@ -49,9 +46,7 @@ public partial class MainViewModel
 
     private async Task LoadManualInstallsAsync()
     {
-        ManualInstallsError = null;
-        ManualInstallItems.Clear();
-        OnPropertyChanged(nameof(HasManualInstalls));
+        ShowManualInstallRows([], null);
         if (_services is null || SelectedInstance is null)
             return;
 
@@ -61,7 +56,7 @@ public partial class MainViewModel
         string? error = null;
         try
         {
-            foreach (var foreign in await services.ForeignModAdopter.ScanAsync(instanceId))
+            foreach (var foreign in await ReadForeignModsAsync(services, instanceId))
             {
                 bool? inIndex = null;
                 if (error is null)
@@ -87,16 +82,45 @@ public partial class MainViewModel
         if (SelectedInstance?.InstanceId != instanceId)
             return;
 
+        ShowManualInstallRows(items, error);
+    }
+
+    /// <summary>
+    /// The scan writes the folders it finds into the instance record. A running install or update of the
+    /// instance stops when that record changed after its plan, and a library folder change holds the record
+    /// for the whole move, so while either runs the rows come from the record as it is.
+    /// </summary>
+    private async Task<IReadOnlyList<ForeignMod>> ReadForeignModsAsync(BoreaServices services, Guid instanceId)
+    {
+        if (!IsChangingContentOf(instanceId))
+        {
+            using var libraryUse = TryUseLibrary();
+            if (libraryUse is not null)
+                return await services.ForeignModAdopter.ScanAsync(instanceId);
+        }
+
+        var instance = await services.Instances.GetByIdAsync(instanceId)
+            ?? throw new InvalidOperationException(Localization.InstallInstanceMissing);
+        return instance.ForeignMods;
+    }
+
+    /// <summary>Whether an update, an install or a replace changes the content of the instance now.</summary>
+    private bool IsChangingContentOf(Guid instanceId)
+        => _runningUpdates.ContainsKey(instanceId) || _installRuns.Any(run => run.TaskItem.InstanceId == instanceId);
+
+    private void ShowManualInstallRows(IEnumerable<ManualInstallItem> rows, string? error)
+    {
         ManualInstallItems.Clear();
-        foreach (var item in items)
-            ManualInstallItems.Add(item);
+        foreach (var row in rows)
+            ManualInstallItems.Add(row);
         OnPropertyChanged(nameof(HasManualInstalls));
+        OnPropertyChanged(nameof(ShowManualInstalls));
         ManualInstallsError = error;
     }
 
     internal async Task ManageManualInstallAsync(ManualInstallItem row)
     {
-        if (_services is null || row.IsBusy)
+        if (_services is null || row.IsBusy || _runningUpdates.ContainsKey(row.InstanceId))
             return;
 
         using var libraryUse = TryUseLibrary();
@@ -157,10 +181,12 @@ public partial class MainViewModel
 
     /// <summary>
     /// Plans against the instance without the folder, so a conflict stops the replacement before the folder is touched.
+    /// The page turns the row actions off while an update of the instance runs, because two executors on one
+    /// instance can lose a write to its mod list.
     /// </summary>
     private async Task PlanManualReplaceAsync(ManualInstallItem row)
     {
-        if (_services is null || row.IsBusy)
+        if (_services is null || row.IsBusy || _runningUpdates.ContainsKey(row.InstanceId))
             return;
 
         using var libraryUse = TryUseLibrary();
@@ -220,7 +246,7 @@ public partial class MainViewModel
 
     internal async Task ConfirmManualReplaceInstallAsync(ManualInstallItem row)
     {
-        if (_services is null || row.PendingPlan is not { } plan || row.IsBusy)
+        if (_services is null || row.PendingPlan is not { } plan || row.IsBusy || _runningUpdates.ContainsKey(row.InstanceId))
             return;
 
         using var libraryUse = TryUseLibrary();
@@ -299,7 +325,7 @@ public enum ManualInstallCheck
 }
 
 /// <summary>
-/// One folder on the Manual installs tab. <see cref="IsInIndex"/> is null when the content index could not be read.
+/// One mod folder that Borea did not install. <see cref="IsInIndex"/> is null when the content index could not be read.
 /// </summary>
 public sealed partial class ManualInstallItem : ObservableObject, IInstallRow
 {

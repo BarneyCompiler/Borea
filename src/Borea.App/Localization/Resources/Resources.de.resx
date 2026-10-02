@@ -3219,8 +3219,26 @@
   <data name="ContentCopyLink" xml:space="preserve">
     <value>Link kopieren</value>
   </data>
+  <data name="ContentCopyShareLink" xml:space="preserve">
+    <value>Link zum Teilen kopieren</value>
+  </data>
   <data name="ContentLinkCopied" xml:space="preserve">
     <value>Der Link wurde in die Zwischenablage kopiert.</value>
+  </data>
+  <data name="ContentReport" xml:space="preserve">
+    <value>Melden</value>
+  </data>
+  <data name="ContentReportTakedown" xml:space="preserve">
+    <value>Takedown-Anfrage</value>
+  </data>
+  <data name="ContentReportTakedownHint" xml:space="preserve">
+    <value>Einen Steward bitten, ein Listing oder eine Modpack-Version nicht mehr anzubieten.</value>
+  </data>
+  <data name="ContentReportDispute" xml:space="preserve">
+    <value>ID-Streitfall</value>
+  </data>
+  <data name="ContentReportDisputeHint" xml:space="preserve">
+    <value>Bestreiten, wem die ID eines Listings gehört.</value>
   </data>
   <data name="ContentTags" xml:space="preserve">
     <value>Tags</value>

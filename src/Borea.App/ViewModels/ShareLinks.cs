@@ -16,6 +16,9 @@ public static class ShareLinks
     /// <summary>Null for a pack that is not from the index.</summary>
     public static string? For(ModPackMetadata pack) => For("pack", pack.Source, pack.ModPackId);
 
+    /// <summary>Whether content comes from the index under an id that the share pages and the report forms of content-index can name.</summary>
+    public static bool IsFromIndex(string source, string id) => source == IndexSource && ModIds.IsValid(id);
+
     private static string? For(string kind, string source, string id)
-        => source == IndexSource && ModIds.IsValid(id) ? $"{SiteUrl}{kind}/{id}/" : null;
+        => IsFromIndex(source, id) ? $"{SiteUrl}{kind}/{id}/" : null;
 }

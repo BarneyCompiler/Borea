@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Borea.Core.Game;
 using Borea.Core.Mods;
 using Borea.Core.Planning;
+using Borea.Core.Stewardship;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -87,6 +88,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsLoaderContent))]
     [NotifyPropertyChangedFor(nameof(HasContentDependenciesTab))]
     [NotifyPropertyChangedFor(nameof(ContentShareUrl))]
+    [NotifyPropertyChangedFor(nameof(CanReportContent))]
     [NotifyPropertyChangedFor(nameof(CanEditContentStatus))]
     [NotifyPropertyChangedFor(nameof(CanAmendContentReleases))]
     private DiscoverItem? _selectedContent;
@@ -111,6 +113,8 @@ public partial class MainViewModel
 
     /// <summary>The share page of the listing on the landing site, or null when it has none.</summary>
     public string? ContentShareUrl => SelectedContent is { } item ? ShareLinks.For(item.Listing) : null;
+
+    public bool CanReportContent => SelectedContent is { } item && ShareLinks.IsFromIndex(item.Source, item.ModId);
 
     public bool HasContentTags => SelectedContent is { AllTags.Count: > 0 };
 
@@ -433,6 +437,14 @@ public partial class MainViewModel
 
     [RelayCommand]
     private Task CopyContentShareLinkAsync() => CopyShareLinkAsync(ContentShareUrl);
+
+    /// <summary>Opens the report form of content-index for the listing. Borea sends nothing, the player writes the issue on GitHub.</summary>
+    [RelayCommand]
+    private void ReportContent(IndexReportKind kind)
+    {
+        if (CanReportContent && SelectedContent is { } item && TryOpenWithSystem(IndexReport.FormUrl(kind, item.ModId).AbsoluteUri) is { } error)
+            ContentDetailError = error;
+    }
 
     private Task CopyShareLinkAsync(string? url)
         => url is null ? Task.CompletedTask : CopyTextAsync(() => Task.FromResult(url), () => url, () => Localization.ContentLinkCopied);

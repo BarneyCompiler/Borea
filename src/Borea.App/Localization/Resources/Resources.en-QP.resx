@@ -1737,6 +1737,24 @@
   <data name="ContentLinks" xml:space="preserve">
     <value>Compass headin's</value>
   </data>
+  <data name="ContentCopyShareLink" xml:space="preserve">
+    <value>Copy th' link fer yer mateys</value>
+  </data>
+  <data name="ContentReport" xml:space="preserve">
+    <value>Raise th' alarm</value>
+  </data>
+  <data name="ContentReportTakedown" xml:space="preserve">
+    <value>Make it walk th' plank</value>
+  </data>
+  <data name="ContentReportTakedownHint" xml:space="preserve">
+    <value>Ask a steward to stop offerin' a listin' or a pack version.</value>
+  </data>
+  <data name="ContentReportDispute" xml:space="preserve">
+    <value>Quarrel o'er th' id</value>
+  </data>
+  <data name="ContentReportDisputeHint" xml:space="preserve">
+    <value>Contest who owns th' id o' a listin'.</value>
+  </data>
   <data name="ContentTags" xml:space="preserve">
     <value>Made o' this</value>
   </data>

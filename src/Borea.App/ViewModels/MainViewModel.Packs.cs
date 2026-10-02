@@ -14,6 +14,7 @@ using Borea.Core.ModPacks;
 using Borea.Core.Mods;
 using Borea.Core.Planning;
 using Borea.Core.Preferences;
+using Borea.Core.Stewardship;
 using Borea.Core.Tags;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -47,6 +48,7 @@ public partial class MainViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPackTags))]
     [NotifyPropertyChangedFor(nameof(PackShareUrl))]
+    [NotifyPropertyChangedFor(nameof(CanReportPack))]
     private PackItem? _selectedPack;
 
     public ObservableCollection<ContentLink> PackLinks { get; } = [];
@@ -61,6 +63,8 @@ public partial class MainViewModel
 
     /// <summary>The share page of the pack on the landing site, or null when it has none.</summary>
     public string? PackShareUrl => SelectedPack is { } pack ? ShareLinks.For(pack.Metadata) : null;
+
+    public bool CanReportPack => SelectedPack is { } pack && ShareLinks.IsFromIndex(pack.Metadata.Source, pack.PackId);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPackDescriptionTab))]
@@ -248,6 +252,18 @@ public partial class MainViewModel
 
     [RelayCommand]
     private Task CopyPackShareLinkAsync() => CopyShareLinkAsync(PackShareUrl);
+
+    /// <summary>Opens the report form of content-index for the pack. A takedown names the version the page shows, which the player can still change on GitHub.</summary>
+    [RelayCommand]
+    private void ReportPack(IndexReportKind kind)
+    {
+        if (!CanReportPack || SelectedPack is not { } pack)
+            return;
+
+        var url = IndexReport.FormUrl(kind, pack.PackId, kind == IndexReportKind.Takedown ? pack.Metadata.Version : null);
+        if (TryOpenWithSystem(url.AbsoluteUri) is { } error)
+            PackDetailError = error;
+    }
 
     [RelayCommand]
     private Task CopyPackForumListAsync()

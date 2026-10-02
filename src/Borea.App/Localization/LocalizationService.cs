@@ -2078,7 +2078,19 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ContentCopyLink => Resources.ContentCopyLink;
 
+    public string ContentCopyShareLink => Resources.ContentCopyShareLink;
+
     public string ContentLinkCopied => Resources.ContentLinkCopied;
+
+    public string ContentReport => Resources.ContentReport;
+
+    public string ContentReportTakedown => Resources.ContentReportTakedown;
+
+    public string ContentReportTakedownHint => Resources.ContentReportTakedownHint;
+
+    public string ContentReportDispute => Resources.ContentReportDispute;
+
+    public string ContentReportDisputeHint => Resources.ContentReportDisputeHint;
 
     public string ContentTags => Resources.ContentTags;
 

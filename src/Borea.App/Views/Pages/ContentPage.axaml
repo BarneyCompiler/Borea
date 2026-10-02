@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Borea.App.ViewModels"
              xmlns:mods="using:Borea.Core.Mods"
+             xmlns:stewardship="using:Borea.Core.Stewardship"
              xmlns:views="using:Borea.App.Views"
              x:Class="Borea.App.Views.Pages.ContentPage"
              x:DataType="vm:MainViewModel">
@@ -170,6 +171,25 @@
                                         <Button.Flyout>
                                             <MenuFlyout Placement="BottomEdgeAlignedRight">
                                                 <MenuItem Header="{Binding SelectedContent.FavoriteText}" Command="{Binding SelectedContent.ToggleFavoriteCommand}" />
+                                                <MenuItem Header="{Binding Localization.ContentCopyShareLink}" Command="{Binding CopyContentShareLinkCommand}" IsVisible="{Binding ContentShareUrl, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <MenuItem Header="{Binding Localization.ContentReport}" IsVisible="{Binding CanReportContent}">
+                                                    <MenuItem Command="{Binding ReportContentCommand}" CommandParameter="{x:Static stewardship:IndexReportKind.Takedown}" AutomationProperties.Name="{Binding Localization.ContentReportTakedown}" AutomationProperties.HelpText="{Binding Localization.ContentReportTakedownHint}">
+                                                        <MenuItem.Header>
+                                                            <StackPanel Spacing="2">
+                                                                <TextBlock Text="{Binding Localization.ContentReportTakedown}" />
+                                                                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ContentReportTakedownHint}" />
+                                                            </StackPanel>
+                                                        </MenuItem.Header>
+                                                    </MenuItem>
+                                                    <MenuItem Command="{Binding ReportContentCommand}" CommandParameter="{x:Static stewardship:IndexReportKind.Dispute}" AutomationProperties.Name="{Binding Localization.ContentReportDispute}" AutomationProperties.HelpText="{Binding Localization.ContentReportDisputeHint}">
+                                                        <MenuItem.Header>
+                                                            <StackPanel Spacing="2">
+                                                                <TextBlock Text="{Binding Localization.ContentReportDispute}" />
+                                                                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ContentReportDisputeHint}" />
+                                                            </StackPanel>
+                                                        </MenuItem.Header>
+                                                    </MenuItem>
+                                                </MenuItem>
                                                 <MenuItem Header="{Binding Localization.StewardDispute}" Command="{Binding DisputeContentCommand}" IsVisible="{Binding CanEditContentStatus}" />
                                                 <MenuItem Header="{Binding Localization.StewardDelist}" Command="{Binding DelistContentCommand}" IsVisible="{Binding CanEditContentStatus}" />
                                                 <MenuItem Header="{Binding Localization.StewardAmend}" Command="{Binding AmendContentReleasesCommand}" IsVisible="{Binding CanAmendContentReleases}" />

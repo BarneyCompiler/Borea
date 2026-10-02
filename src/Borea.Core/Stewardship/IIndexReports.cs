@@ -35,6 +35,13 @@ public sealed record IndexReport(int Number, Uri Url, string Title, string? Auth
 
     public const string DisputePrefix = "[Dispute]";
 
+    public const string TakedownForm = "takedown.yml";
+
+    public const string DisputeForm = "id-dispute.yml";
+
+    // The id of the listing id field in both forms. GitHub fills a field of an issue form from the query parameter with its id.
+    private const string ListingField = "listing";
+
     // The labels of the fields in .github/ISSUE_TEMPLATE/takedown.yml and id-dispute.yml of content-index.
     public const string ListingLabel = "Listing id";
 
@@ -146,6 +153,22 @@ public sealed record IndexReport(int Number, Uri Url, string Title, string? Auth
 
         var version = parts[1].Length > 1 && parts[1][0] is 'v' or 'V' && char.IsAsciiDigit(parts[1][1]) ? parts[1][1..] : parts[1];
         return ModVersion.TryParse(version, out _) ? (parts[0], version) : (null, null);
+    }
+
+    /// <summary>
+    /// The new issue page of the form for <paramref name="kind"/>, with the listing id field filled in as <see cref="IdOf"/> reads it.
+    /// Only a takedown names a pack version, because a dispute is about the id itself.
+    /// </summary>
+    public static Uri FormUrl(IndexReportKind kind, string id, ModVersion? version = null)
+    {
+        if (!ModIds.IsValid(id))
+            throw new ArgumentException($"'{id}' is not a listing id.", nameof(id));
+        if (version is not null && kind != IndexReportKind.Takedown)
+            throw new ArgumentException("Only a takedown names a pack version.", nameof(version));
+
+        var form = kind == IndexReportKind.Takedown ? TakedownForm : DisputeForm;
+        var listing = version is { } named ? $"{id} {named}" : id;
+        return new Uri($"https://github.com/{Repository}/issues/new?template={form}&{ListingField}={Uri.EscapeDataString(listing)}");
     }
 
     /// <summary>

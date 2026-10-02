@@ -1,3 +1,4 @@
+using Borea.Core.Mods;
 using Borea.Core.Stewardship;
 
 namespace Borea.Core.Tests.Stewardship;
@@ -127,6 +128,34 @@ public sealed class IndexReportTests
     public void IdOf_ReadsAnIdAndAnOptionalPackVersion(string text, string? id, string? version)
     {
         Assert.Equal((id, version), IndexReport.IdOf(text));
+    }
+
+    [Fact]
+    public void FormUrl_OpensTheFormWithTheListingIdFilledIn()
+    {
+        Assert.Equal(
+            "https://github.com/KSAModding/content-index/issues/new?template=takedown.yml&listing=MeasureTools",
+            IndexReport.FormUrl(IndexReportKind.Takedown, "MeasureTools").AbsoluteUri);
+        Assert.Equal(
+            "https://github.com/KSAModding/content-index/issues/new?template=id-dispute.yml&listing=tools-pack",
+            IndexReport.FormUrl(IndexReportKind.Dispute, "tools-pack").AbsoluteUri);
+    }
+
+    [Fact]
+    public void FormUrl_TakedownOfOnePackVersion_NamesTheVersionTheWayTheStewardPageReadsIt()
+    {
+        var url = IndexReport.FormUrl(IndexReportKind.Takedown, "tools-pack", ModVersion.Parse("1.1.0-beta.1"));
+
+        Assert.Equal("https://github.com/KSAModding/content-index/issues/new?template=takedown.yml&listing=tools-pack%201.1.0-beta.1", url.AbsoluteUri);
+        var listing = Uri.UnescapeDataString(url.Query.Split("&listing=")[1]);
+        Assert.Equal(("tools-pack", "1.1.0-beta.1"), IndexReport.IdOf(listing));
+    }
+
+    [Fact]
+    public void FormUrl_RefusesAnIdThatIsNoListingId_AndADisputeOfOneVersion()
+    {
+        Assert.Throws<ArgumentException>(() => IndexReport.FormUrl(IndexReportKind.Takedown, "my mod&template=x"));
+        Assert.Throws<ArgumentException>(() => IndexReport.FormUrl(IndexReportKind.Dispute, "tools-pack", ModVersion.Parse("1.1.0")));
     }
 
     [Fact]

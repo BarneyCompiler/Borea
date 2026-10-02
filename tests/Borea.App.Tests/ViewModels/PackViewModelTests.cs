@@ -955,6 +955,79 @@ public sealed class PackViewModelTests
     }
 
     [Fact]
+    public async Task PackUpdate_DetachedMod_SaysTheUpdateLeavesItAlone()
+    {
+        var versions = Pack("tools-pack", "Tools Pack", Version("1.0.0", Pin("KSArmory", "0.8.44")), Version("1.1.0", Pin("KSArmory", "0.9.0"), Pin("MeasureTools", "1.1.10")));
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(versions));
+        var viewModel = harness.ViewModel;
+        var instance = await OpenToolsPackInstanceAsync(harness);
+        await viewModel.ContentGroups.SelectMany(group => group.Items).Single().DetachCommand.ExecuteAsync(null);
+
+        await viewModel.PackUpdate!.UpdateCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            [harness.Localization.FormatPackUpdateAdd(viewModel.ContentName("MeasureTools"), "1.1.10"), harness.Localization.FormatPackUpdateDetached(viewModel.ContentName("KSArmory"))],
+            viewModel.PackUpdate.ChangeTexts);
+        var mod = Assert.Single((await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods);
+        Assert.Equal(("KSArmory", ModVersion.Parse("0.8.44"), InstallReason.Manual), (mod.ModId, mod.Version, mod.Reason));
+    }
+
+    [Fact]
+    public async Task Detach_PackMod_MovesToTheModsGroup_AndTheHeaderCountsTheModsThatDiffer()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(Pack("tools-pack", "Tools Pack", Version("1.0.0", Pin("KSArmory", "0.8.44"), Pin("MeasureTools", "1.1.9")))));
+        var viewModel = harness.ViewModel;
+        var instance = await OpenToolsPackInstanceAsync(harness);
+        var row = viewModel.ContentGroups.SelectMany(group => group.Items).Single();
+        Assert.True(row.CanDetach);
+        Assert.Equal(harness.Localization.FormatInstanceGroupModpack("Tools Pack", "1.0.0"), viewModel.ContentGroups.Single().Title);
+        // the pack pins a mod that the instance does not have, so it differs before the detach already
+        Assert.Equal(harness.Localization.FormatInstancePackDifference(1, "Tools Pack", "1.0.0"), viewModel.PackDifferenceText);
+
+        await row.DetachCommand.ExecuteAsync(null);
+
+        var detached = viewModel.ContentGroups.Single();
+        Assert.Equal(harness.Localization.InstanceGroupMods, detached.Title);
+        Assert.False(detached.Items.Single().CanDetach);
+        Assert.Equal(harness.Localization.FormatInstancePackDifference(2, "Tools Pack", "1.0.0"), viewModel.PackDifferenceText);
+        var saved = (await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!;
+        Assert.Equal(new InstanceSource.FromModPack("tools-pack", ModVersion.Parse("1.0.0")).WithDetached(["KSArmory"]), saved.Source);
+        Assert.Equal(InstallReason.Manual, Assert.Single(saved.Mods).Reason);
+    }
+
+    [Fact]
+    public async Task Header_DetachedModThatThePackVersionDoesNotPin_DoesNotCount()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(ToolsPackVersions()));
+        var release = (await harness.Services.Mods.GetReleaseAsync("KSArmory", ModVersion.Parse("0.8.44")))!;
+        var installed = new InstalledMod("KSArmory", release.Version, InstallReason.Manual, DateTimeOffset.UnixEpoch, release, ownershipToken: "token");
+        // version 1.0.0 of the pack does not pin MeasureTools, so only KSArmory differs from it
+        var source = new InstanceSource.FromModPack("tools-pack", ModVersion.Parse("1.0.0")).WithDetached(["KSArmory", "MeasureTools"]);
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Tools", source, DateTimeOffset.UnixEpoch, [installed], false);
+        await harness.Services.Instances.CreateAsync(instance);
+        await harness.Services.Instances.SetActiveInstanceAsync(instance.InstanceId);
+        await harness.ViewModel.LoadAsync();
+        await harness.ViewModel.EnsureDiscoverLoadedAsync();
+
+        await harness.ViewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+
+        Assert.Equal(harness.Localization.FormatInstancePackDifference(1, "Tools Pack", "1.0.0"), harness.ViewModel.PackDifferenceText);
+    }
+
+    [Fact]
+    public async Task Detach_ModThatThePackDidNotInstall_IsNotOffered()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(ToolsPackVersions()));
+        var viewModel = harness.ViewModel;
+        var instance = await OpenToolsPackInstanceAsync(harness);
+        await InstalledContent.AddAsync(harness, "MeasureTools", activate: true, ownership: ModInstallOwnership.Borea, into: instance);
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.ContentGroups.SelectMany(group => group.Items).Single(item => item.ModId == "MeasureTools").CanDetach);
+        Assert.Null(viewModel.PackDifferenceText);
+    }
+
+    [Fact]
     public async Task PackUpdate_FailedDownload_KeepsTheOldSourceTheDroppedModAndTheNotice()
     {
         using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(ToolsPackVersions()));

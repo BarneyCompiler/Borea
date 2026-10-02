@@ -239,6 +239,7 @@
                                         <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentInstallAgain}" Command="{Binding InstallAgainCommand}" IsVisible="{Binding IsMissing}" />
                                         <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentPinVersion}" Command="{Binding PinCommand}" IsVisible="{Binding CanPin}" />
                                         <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentUnpin}" Command="{Binding UnpinCommand}" IsVisible="{Binding IsPinned}" />
+                                        <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentDetachFromPack}" Command="{Binding DetachCommand}" IsVisible="{Binding CanDetach}" />
                                         <MenuItem Header="{Binding RemoveActionText}" Command="{Binding BeginRemoveCommand}" IsEnabled="{Binding CanRemove}" AutomationProperties.HelpText="{Binding RemoveBlockedText}" />
                                         <MenuItem IsEnabled="False" IsVisible="{Binding RemoveBlockedText, Converter={x:Static ObjectConverters.IsNotNull}}">
                                             <MenuItem.Header>

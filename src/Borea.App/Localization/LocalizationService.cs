@@ -246,6 +246,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatToastUnpinFailed(string content)
         => string.Format(CultureInfo.CurrentCulture, Resources.ToastUnpinFailedFormat, content);
 
+    public string FormatToastDetachFailed(string content)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ToastDetachFailedFormat, content);
+
     public string FormatToastCheckFailed(string folder)
         => string.Format(CultureInfo.CurrentCulture, Resources.ToastCheckFailedFormat, folder);
 
@@ -1352,6 +1355,12 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ContentUnpin => Resources.ContentUnpin;
 
+    public string ContentDetachFromPack => Resources.ContentDetachFromPack;
+
+    /// <summary>"2 mods differ from Flight Planning Essentials 1.0.1"</summary>
+    public string FormatInstancePackDifference(int count, string pack, string version)
+        => string.Format(CultureInfo.CurrentCulture, count == 1 ? Resources.InstancePackDifferenceOne : Resources.InstancePackDifferenceFormat, count, pack, version);
+
     /// <summary>"Pinned at 1.2.0. Updates leave this mod at this version."</summary>
     public string FormatContentPinned(string version)
         => string.Format(CultureInfo.CurrentCulture, Resources.ContentPinnedFormat, version);
@@ -2189,6 +2198,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatPackUpdatePinned(string name, string version)
         => string.Format(CultureInfo.CurrentCulture, Resources.PackUpdatePinnedFormat, name, version);
+
+    public string FormatPackUpdateDetached(string name)
+        => string.Format(CultureInfo.CurrentCulture, Resources.PackUpdateDetachedFormat, name);
 
     public string PackUpdateNoModChanges => Resources.PackUpdateNoModChanges;
 

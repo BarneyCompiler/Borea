@@ -1212,6 +1212,21 @@
   <data name="InstallMessagePinnedDependencyFormat" xml:space="preserve">
     <value>This bounty be needin' {0}, but {1} be nailed down at {2} on this sea.</value>
   </data>
+  <data name="ContentDetachFromPack" xml:space="preserve">
+    <value>Cut loose from the pack o' barrels</value>
+  </data>
+  <data name="ToastDetachFailedFormat" xml:space="preserve">
+    <value>Couldn't cut {0} loose from the pack o' barrels</value>
+  </data>
+  <data name="PackUpdateDetachedFormat" xml:space="preserve">
+    <value>Leaves {0} be, fer it be cut loose from the pack o' barrels</value>
+  </data>
+  <data name="InstancePackDifferenceOne" xml:space="preserve">
+    <value>1 booty strays from {1} {2}</value>
+  </data>
+  <data name="InstancePackDifferenceFormat" xml:space="preserve">
+    <value>{0} booties stray from {1} {2}</value>
+  </data>
   <data name="ContentRemove" xml:space="preserve">
     <value>Toss overboard</value>
   </data>

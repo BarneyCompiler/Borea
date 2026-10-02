@@ -1848,6 +1848,21 @@
   <data name="InstallMessagePinnedDependencyFormat" xml:space="preserve">
     <value>This release needs {0}, but {1} is pinned at {2} in this instance.</value>
   </data>
+  <data name="ContentDetachFromPack" xml:space="preserve">
+    <value>Detach from modpack</value>
+  </data>
+  <data name="ToastDetachFailedFormat" xml:space="preserve">
+    <value>Could not detach {0} from the modpack</value>
+  </data>
+  <data name="PackUpdateDetachedFormat" xml:space="preserve">
+    <value>Leaves {0} alone, because it is detached from the modpack</value>
+  </data>
+  <data name="InstancePackDifferenceOne" xml:space="preserve">
+    <value>1 mod differs from {1} {2}</value>
+  </data>
+  <data name="InstancePackDifferenceFormat" xml:space="preserve">
+    <value>{0} mods differ from {1} {2}</value>
+  </data>
   <data name="ContentRemove" xml:space="preserve">
     <value>Remove</value>
   </data>

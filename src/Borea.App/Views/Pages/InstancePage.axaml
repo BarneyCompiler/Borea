@@ -370,6 +370,7 @@
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
                     <TextBlock Classes="body-md danger" Text="{Binding UpdateAll.InstallError}" TextWrapping="Wrap" Margin="0,16,0,0" IsVisible="{Binding UpdateAll.InstallError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Classes="body-md secondary" Text="{Binding PackDifferenceText}" TextWrapping="Wrap" Margin="0,16,0,0" IsVisible="{Binding PackDifferenceText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     <!-- a newer version of the pack the instance was created from -->
                     <StackPanel Margin="0,16,0,0" IsVisible="{Binding PackUpdate, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <Grid ColumnDefinitions="*,Auto">

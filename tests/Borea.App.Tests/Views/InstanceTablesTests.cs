@@ -272,6 +272,46 @@ public sealed class InstanceTablesTests
     }
 
     [Fact]
+    public async Task PackMod_TheMenuOffersDetach_AndTheHeaderThenNamesTheDifference()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var pack = (await harness.Services.Instances.CreateAsync("Tools", new InstanceSource.FromModPack("tools-pack", ModVersion.Parse("1.0.0")))).Instance;
+        await InstalledContent.AddAsync(harness, "KSArmory", activate: true, reason: InstallReason.ModPack, ownership: ModInstallOwnership.Borea, into: pack);
+        await harness.ViewModel.LoadAsync();
+        await harness.ViewModel.Instances.Single().OpenCommand.ExecuteAsync(null);
+        var viewModel = harness.ViewModel;
+        var localization = harness.Localization;
+        var row = viewModel.ContentGroups.SelectMany(group => group.Items).Single();
+
+        var (menu, before, detachedMenu, after) = await HeadlessApp.RunAsync(harness, async () =>
+        {
+            var page = new InstancePage();
+            var window = new Window { Width = 1280, Height = 900, DataContext = viewModel, Content = page };
+            window.Show();
+            try
+            {
+                page.UpdateLayout();
+                var shown = (MenuOf(page, row), TextsIn(page));
+                await row.DetachCommand.ExecuteAsync(null);
+                page.UpdateLayout();
+                var detached = viewModel.ContentGroups.SelectMany(group => group.Items).Single();
+                return (shown.Item1, shown.Item2, MenuOf(page, detached), TextsIn(page));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        // the index does not list the pack, so the header names it by its id
+        var difference = localization.FormatInstancePackDifference(1, "tools-pack", "1.0.0");
+        Assert.Contains((localization.ContentDetachFromPack, row.DetachCommand), menu);
+        Assert.DoesNotContain(difference, before);
+        Assert.DoesNotContain(detachedMenu, item => item.Header == localization.ContentDetachFromPack);
+        Assert.Contains(difference, after);
+    }
+
+    [Fact]
     public async Task ForeignFolder_WhileAnUpdateOfTheInstanceRuns_TheRowActionsAreOff()
     {
         const string archiveHost = "archives.test";

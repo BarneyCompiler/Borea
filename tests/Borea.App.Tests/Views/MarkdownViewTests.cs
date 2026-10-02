@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Headless;
@@ -539,6 +540,137 @@ public sealed partial class MarkdownViewTests
         Assert.Empty(leftovers);
     }
 
+    [Fact]
+    public async Task Edit_RebuildsOnlyTheChangedBlocksAndDrawsWhatAFreshViewDraws()
+    {
+        string[] edits =
+        [
+            "Intro\n\n![Shot](ksa-image:shot)\n\n- one\n- two\n\nTyped",
+            "Intro\n\n![Shot](ksa-image:shot)\n\n- one\n- two\n\nTyped more",
+            "Intro\n\nNew block\n\n![Shot](ksa-image:shot)\n\n- one\n- two\n\nTyped more",
+            "Intro ![Shot](ksa-image:shot) after\n\n- one\n- two and three\n\n```\ncode\n```",
+            "Intro",
+            "",
+        ];
+
+        var steps = await HeadlessApp.RunAsync(() =>
+        {
+            var images = Images(Record("shot"));
+            var view = new MarkdownView { Images = images, Markdown = edits[0] };
+            var steps = new List<(List<Control> Before, List<Control> After, List<string> Drawn, List<string> Fresh)>();
+            foreach (var edit in edits.Skip(1))
+            {
+                var before = view.Children.ToList();
+                view.Markdown = edit;
+                steps.Add((before, view.Children.ToList(), Drawn(view), Drawn(new MarkdownView { Images = images, Markdown = edit })));
+            }
+
+            return Task.FromResult(steps);
+        });
+
+        foreach (var step in steps)
+            Assert.Equal(step.Fresh, step.Drawn);
+
+        var typed = steps[0];
+        Assert.Equal(typed.Before.Take(3), typed.After.Take(3));
+        Assert.NotSame(typed.Before[3], typed.After[3]);
+        var inserted = steps[1];
+        Assert.Same(inserted.Before[0], inserted.After[0]);
+        Assert.Equal(inserted.Before.Skip(1), inserted.After.Skip(2));
+        Assert.Empty(steps[^1].After);
+    }
+
+    /// <summary>A repeated block is part of both the equal start and the equal end, so the end must not count the blocks of the start again.</summary>
+    [Theory]
+    [InlineData("- a\n- a", "- a")]
+    [InlineData("Same\n\nSame\n\nSame", "Same\n\nSame")]
+    [InlineData("A", "A\n\nA")]
+    [InlineData("A\n\nA", "A\n\nA\n\nA")]
+    public async Task Edit_WhereTheEqualStartAndEndOverlap_DrawsWhatAFreshViewDraws(string before, string after)
+    {
+        var (drawn, fresh) = await HeadlessApp.RunAsync(() =>
+        {
+            var view = new MarkdownView { Markdown = before };
+            view.Markdown = after;
+            return Task.FromResult((Drawn(view), Drawn(new MarkdownView { Markdown = after })));
+        });
+
+        Assert.Equal(fresh, drawn);
+    }
+
+    /// <summary>
+    /// The indent before a block and the blank lines at the end of a code block without a closing fence are outside the span of the block,
+    /// but they change what it draws.
+    /// </summary>
+    [Theory]
+    [InlineData("  ```\n  code\n  ```", "```\n  code\n  ```")]
+    [InlineData("```\n  code\n  ```", "  ```\n  code\n  ```")]
+    [InlineData("Intro\n\n  ```\n  code\n  ```\n\nEnd", "Intro typed\n\n```\n  code\n  ```\n\nEnd")]
+    [InlineData(" - a\n\n      code", "- a\n\n      code")]
+    [InlineData(" 1. a\n\n       code", "1. a\n\n       code")]
+    [InlineData("x\n\n```\ncode", "x\n\n```\ncode\n\n\n")]
+    public async Task Edit_OfTheIndentOrTheTrailingBlankLines_DrawsWhatAFreshViewDraws(string before, string after)
+    {
+        var (drawn, fresh) = await HeadlessApp.RunAsync(() =>
+        {
+            var view = new MarkdownView { Markdown = before };
+            view.Markdown = after;
+            return Task.FromResult((Drawn(view), Drawn(new MarkdownView { Markdown = after })));
+        });
+
+        Assert.Equal(fresh, drawn);
+    }
+
+    /// <summary>A link reference definition changes what a block that uses it draws, also when the source of that block stays the same.</summary>
+    [Theory]
+    [InlineData("[x][r] and more\n\nEnd", "[x][r] and more\n\nEnd\n\n[r]: https://example.com/r")]
+    [InlineData("[x][r] and more\n\n[r]: https://example.com/r\n\nEnd", "[x][r] and more\n\nEnd")]
+    [InlineData("[x][r] and more\n\n[r]: https://example.com/r", "[x][r] and more\n\n[r]: javascript:alert(1)")]
+    public async Task Edit_OfALinkReferenceDefinition_DrawsWhatAFreshViewDraws(string before, string after)
+    {
+        var (drawn, fresh) = await HeadlessApp.RunAsync(() =>
+        {
+            var view = new MarkdownView { Markdown = before };
+            view.Markdown = after;
+            return Task.FromResult((Drawn(view), Drawn(new MarkdownView { Markdown = after })));
+        });
+
+        Assert.Equal(fresh, drawn);
+    }
+
+    /// <summary>A text too deep to parse shows as one paragraph that has no source span, so every edit builds that paragraph again.</summary>
+    [Fact]
+    public async Task Edit_OfATextTooDeepToParse_DrawsWhatAFreshViewDraws()
+    {
+        var deep = string.Concat(Enumerable.Repeat("> ", 40));
+
+        var (drawn, fresh) = await HeadlessApp.RunAsync(() =>
+        {
+            var view = new MarkdownView { Markdown = deep + "first" };
+            view.Markdown = deep + "second";
+            return Task.FromResult((Drawn(view), Drawn(new MarkdownView { Markdown = deep + "second" })));
+        });
+
+        Assert.Equal(fresh, drawn);
+        Assert.EndsWith("second]", drawn.Last(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NewImages_RebuildEveryBlock()
+    {
+        var (before, after, url) = await HeadlessApp.RunAsync(() =>
+        {
+            var view = new MarkdownView { Images = Images(Record("shot")), Markdown = "Intro\n\n![Shot](ksa-image:shot)" };
+            var before = view.Children.ToList();
+            view.Images = Images(Record("shot", "https://images.example/shot-v2.png"));
+            return Task.FromResult((before, view.Children.ToList(), Drawn(view).Single(line => line.StartsWith("ListingImageView", StringComparison.Ordinal))));
+        });
+
+        Assert.Equal(2, after.Count);
+        Assert.DoesNotContain(after, before.Contains);
+        Assert.EndsWith("https://images.example/shot-v2.png", url, StringComparison.Ordinal);
+    }
+
     /// <summary>The text of a block outside code, where Markdown characters are part of the text.</summary>
     private static string Prose(TextBlock text) =>
         text.FontFamily == MarkdownView.MonoFont || text.Inlines is not { Count: > 0 } inlines
@@ -577,8 +709,30 @@ public sealed partial class MarkdownViewTests
         _ => child.GetType().Name,
     };
 
-    private static string? AutomationName(Control control) => Avalonia.Automation.AutomationProperties.GetName(control);
+    private static string? AutomationName(Control control) => AutomationProperties.GetName(control);
 
     [GeneratedRegex(@"\*\*|__|\]\(|!\[|\]\[|^#{1,6}\s|^\s*>|^\s*([-+*]|\d+[.)])\s|^\s*([-*_])(\s*\2){2,}\s*$|\|\s*:?-{3,}|^\s*\||```|~~~|</?[A-Za-z][^>]*>|&#?[A-Za-z0-9]+;|\\[!-/:-@\[-`{-~]", RegexOptions.Multiline)]
     private static partial Regex Leftover();
+
+    /// <summary>Every control the view built, with its classes, its text with the style of each run, and the image or name it shows.</summary>
+    internal static List<string> Drawn(MarkdownView view) =>
+        view.GetLogicalDescendants().OfType<Control>().Select(control => control switch
+        {
+            TextBlock text => $"{Kind(text)} {Inlines(text)}{text.Text}",
+            ListingImageView image => $"{Kind(image)} {image.Image?.Record.Url}",
+            _ => $"{Kind(control)} {AutomationProperties.GetName(control)}",
+        }).ToList();
+
+    private static string Kind(Control control) => $"{control.GetType().Name}.{string.Join('.', control.Classes)} {control.Opacity}";
+
+    private static string Inlines(TextBlock text) => text.Inlines is { Count: > 0 } inlines ? string.Concat(inlines.Select(Inline)) : string.Empty;
+
+    private static string Inline(Inline inline) => inline is Run run ? $"{Style(run)}[{run.Text}]" : inline.GetType().Name;
+
+    /// <summary>The bold, the italic, the underline of a link and the mono font of code, which are the styles the view gives a run.</summary>
+    private static string Style(Run run) => string.Concat(
+        run.FontWeight == FontWeight.Bold ? "b" : string.Empty,
+        run.FontStyle == FontStyle.Italic ? "i" : string.Empty,
+        run.TextDecorations is not null ? "u" : string.Empty,
+        run.FontFamily == MarkdownView.MonoFont ? "m" : string.Empty);
 }

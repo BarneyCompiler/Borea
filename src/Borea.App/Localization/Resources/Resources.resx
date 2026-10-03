@@ -1851,8 +1851,17 @@
   <data name="ContentDetachFromPack" xml:space="preserve">
     <value>Detach from modpack</value>
   </data>
+  <data name="ContentAttachToPack" xml:space="preserve">
+    <value>Attach to modpack again</value>
+  </data>
+  <data name="ContentAttachVersionFormat" xml:space="preserve">
+    <value>Changes to {0}, the version that {1} {2} pins</value>
+  </data>
   <data name="ToastDetachFailedFormat" xml:space="preserve">
     <value>Could not detach {0} from the modpack</value>
+  </data>
+  <data name="ToastAttachFailedFormat" xml:space="preserve">
+    <value>Could not attach {0} to the modpack again</value>
   </data>
   <data name="PackUpdateDetachedFormat" xml:space="preserve">
     <value>Leaves {0} alone, because it is detached from the modpack</value>

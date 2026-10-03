@@ -175,6 +175,7 @@
                     </CheckBox>
                     <TextBlock Classes="body-sm secondary" Text="{Binding ManageNotInstalledText}" TextWrapping="Wrap" IsVisible="{Binding ManageNotInstalledText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     <TextBlock Classes="body-sm secondary" Text="{Binding ProgressStatus}" ToolTip.Tip="{Binding ProgressStatus}" TextTrimming="CharacterEllipsis" IsVisible="{Binding ProgressStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <TextBlock Classes="body-sm secondary" Text="{Binding PackVersionText}" TextWrapping="Wrap" IsVisible="{Binding PackVersionText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     <TextBlock Classes="body-sm secondary" Text="{Binding InstallWarning}" ToolTip.Tip="{Binding InstallWarning}" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsConfirmingUpdate}" />
                     <TextBlock Classes="body-sm danger" Text="{Binding InstallError}" ToolTip.Tip="{Binding InstallError}" TextTrimming="CharacterEllipsis" IsVisible="{Binding InstallError, Converter={x:Static ObjectConverters.IsNotNull}}" />
                 </StackPanel>
@@ -240,6 +241,7 @@
                                         <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentPinVersion}" Command="{Binding PinCommand}" IsVisible="{Binding CanPin}" />
                                         <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentUnpin}" Command="{Binding UnpinCommand}" IsVisible="{Binding IsPinned}" />
                                         <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentDetachFromPack}" Command="{Binding DetachCommand}" IsVisible="{Binding CanDetach}" />
+                                        <MenuItem Header="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.ContentAttachToPack}" Command="{Binding AttachCommand}" IsVisible="{Binding CanAttach}" />
                                         <MenuItem Header="{Binding RemoveActionText}" Command="{Binding BeginRemoveCommand}" IsEnabled="{Binding CanRemove}" AutomationProperties.HelpText="{Binding RemoveBlockedText}" />
                                         <MenuItem IsEnabled="False" IsVisible="{Binding RemoveBlockedText, Converter={x:Static ObjectConverters.IsNotNull}}">
                                             <MenuItem.Header>

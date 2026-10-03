@@ -306,8 +306,10 @@ public sealed class InstanceTablesTests
         // the index does not list the pack, so the header names it by its id
         var difference = localization.FormatInstancePackDifference(1, "tools-pack", "1.0.0");
         Assert.Contains((localization.ContentDetachFromPack, row.DetachCommand), menu);
+        Assert.DoesNotContain(menu, item => item.Header == localization.ContentAttachToPack);
         Assert.DoesNotContain(difference, before);
         Assert.DoesNotContain(detachedMenu, item => item.Header == localization.ContentDetachFromPack);
+        Assert.Contains(detachedMenu, item => item.Header == localization.ContentAttachToPack);
         Assert.Contains(difference, after);
     }
 

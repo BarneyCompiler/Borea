@@ -249,6 +249,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatToastDetachFailed(string content)
         => string.Format(CultureInfo.CurrentCulture, Resources.ToastDetachFailedFormat, content);
 
+    public string FormatToastAttachFailed(string content)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ToastAttachFailedFormat, content);
+
     public string FormatToastCheckFailed(string folder)
         => string.Format(CultureInfo.CurrentCulture, Resources.ToastCheckFailedFormat, folder);
 
@@ -1356,6 +1359,12 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ContentUnpin => Resources.ContentUnpin;
 
     public string ContentDetachFromPack => Resources.ContentDetachFromPack;
+
+    public string ContentAttachToPack => Resources.ContentAttachToPack;
+
+    /// <summary>"Changes to 0.8.44, the version that Tools Pack 1.0.0 pins"</summary>
+    public string FormatContentAttachVersion(string version, string pack, string packVersion)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ContentAttachVersionFormat, version, pack, packVersion);
 
     /// <summary>"2 mods differ from Flight Planning Essentials 1.0.1"</summary>
     public string FormatInstancePackDifference(int count, string pack, string version)

@@ -1215,8 +1215,17 @@
   <data name="ContentDetachFromPack" xml:space="preserve">
     <value>Cut loose from the pack o' barrels</value>
   </data>
+  <data name="ContentAttachToPack" xml:space="preserve">
+    <value>Lash back to the pack o' barrels</value>
+  </data>
+  <data name="ContentAttachVersionFormat" xml:space="preserve">
+    <value>Swaps to {0}, the version {1} {2} be nailin' down</value>
+  </data>
   <data name="ToastDetachFailedFormat" xml:space="preserve">
     <value>Couldn't cut {0} loose from the pack o' barrels</value>
+  </data>
+  <data name="ToastAttachFailedFormat" xml:space="preserve">
+    <value>Couldn't lash {0} back to the pack o' barrels</value>
   </data>
   <data name="PackUpdateDetachedFormat" xml:space="preserve">
     <value>Leaves {0} be, fer it be cut loose from the pack o' barrels</value>

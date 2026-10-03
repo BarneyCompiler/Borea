@@ -609,6 +609,108 @@ public sealed class RepositoryInstallPlannerTests
     }
 
     [Fact]
+    public void PlanningState_PinChange_DoesNotMatch()
+    {
+        var before = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UnixEpoch, [Owned("A")], false);
+        var after = Instance.FromExisting(before.InstanceId, "Test", InstanceSource.Custom.Value, DateTimeOffset.UnixEpoch, [Owned("A", pinned: true)], false);
+        Assert.False(InstallPlanningState.Capture(before).Matches(after));
+    }
+
+    [Fact]
+    public async Task PlanAsync_UpdateOfEveryMod_LeavesThePinnedModAndUpdatesTheOthers()
+    {
+        var pinned = Owned("A", pinned: true);
+        var free = Owned("B");
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UtcNow, [pinned, free], false);
+        var repository = new FakeRepository([pinned.Metadata, Release("A", "2.0.0"), free.Metadata, Release("B", "2.0.0")]);
+
+        var plan = await new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(new InstallPlanningRequest(instance, [Update(pinned), Update(free)], repository));
+
+        Assert.True(plan.IsReady);
+        Assert.Equal(["B 2.0.0"], plan.Operations.Select(value => $"{value.Release.ModId} {value.Release.Version}"));
+        Assert.DoesNotContain(plan.Warnings, value => value.ModId == "A");
+    }
+
+    [Fact]
+    public async Task PlanAsync_UpdateOfAPinnedMod_PlansNothing()
+    {
+        var pinned = Owned("A", pinned: true);
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UtcNow, [pinned], false);
+
+        var plan = await new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(new InstallPlanningRequest(instance, [Update(pinned)], new FakeRepository([pinned.Metadata, Release("A", "2.0.0")])));
+
+        Assert.True(plan.IsReady);
+        Assert.Empty(plan.Operations);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PlanAsync_RequestForAnotherVersionOfAPinnedMod_StopsAndNamesThePin(bool exact)
+    {
+        var pinned = Owned("A", pinned: true);
+        var newer = Release("A", "2.0.0");
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UtcNow, [pinned], false);
+
+        var plan = await new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(new InstallPlanningRequest(instance, [new RequestedMod(newer, InstallReason.Manual, exact)], new FakeRepository([pinned.Metadata, newer])));
+
+        Assert.False(plan.IsReady);
+        Assert.Empty(plan.Operations);
+        var conflict = Assert.Single(plan.Conflicts);
+        Assert.Equal(new PlanningMessage("A", PlanningMessageKind.Pinned) { Version = ModVersion.Parse("1.0.0"), OtherVersion = ModVersion.Parse("2.0.0") }, conflict);
+    }
+
+    [Fact]
+    public async Task PlanAsync_DependencyThatNeedsANewerPinnedMod_StopsAndNamesThePin()
+    {
+        var pinned = Owned("B", pinned: true);
+        var needsNewer = Required("B", "2.0.0");
+        var a = Release("A", dependencies: [needsNewer]);
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UtcNow, [pinned], false);
+
+        var plan = await new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(new InstallPlanningRequest(instance, [new RequestedMod(a, InstallReason.Manual)], new FakeRepository([a, pinned.Metadata, Release("B", "2.0.0")])));
+
+        Assert.False(plan.IsReady);
+        Assert.DoesNotContain(plan.Operations, value => value.Release.ModId == "B");
+        Assert.Contains(new PlanningMessage("A", PlanningMessageKind.PinnedDependency) { Dependency = needsNewer, Value = "B", Version = ModVersion.Parse("1.0.0") }, plan.Conflicts);
+        Assert.DoesNotContain(plan.Conflicts, value => value.Kind == PlanningMessageKind.UnsatisfiedDependency);
+    }
+
+    [Fact]
+    public async Task PlanAsync_AlternativeThatNeedsANewerPinnedMod_StopsAndNamesThePin()
+    {
+        var pinned = Owned("B", pinned: true);
+        var dependency = ModDependency.OfAlternatives(ModDependencyKind.Required, [new ModDependencyAlternative("B", minVersion: ModVersion.Parse("2.0.0")), new ModDependencyAlternative("C")]);
+        var a = Release("A", dependencies: [dependency]);
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UtcNow, [pinned], false);
+        var alternatives = new Dictionary<string, string> { ["A:dependency:0:alternative"] = "B" };
+
+        var plan = await new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(new InstallPlanningRequest(instance, [new RequestedMod(a, InstallReason.Manual)], new FakeRepository([a, pinned.Metadata, Release("B", "2.0.0"), Release("C")]), Alternatives: alternatives));
+
+        Assert.False(plan.IsReady);
+        Assert.DoesNotContain(plan.Operations, value => value.Release.ModId == "B");
+        var conflict = Assert.Single(plan.Conflicts);
+        Assert.Equal("pinned-dependency", conflict.Code);
+        Assert.Equal("B", conflict.Value);
+        Assert.Equal(ModVersion.Parse("1.0.0"), conflict.Version);
+        Assert.Equal("B", conflict.Dependency?.ModId);
+        Assert.Equal(ModVersion.Parse("2.0.0"), conflict.Dependency?.MinVersion);
+    }
+
+    [Fact]
+    public async Task PlanAsync_DependencyThatThePinnedVersionSatisfies_IsReady()
+    {
+        var pinned = Owned("B", pinned: true);
+        var a = Release("A", dependencies: [Required("B")]);
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UtcNow, [pinned], false);
+
+        var plan = await new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(new InstallPlanningRequest(instance, [new RequestedMod(a, InstallReason.Manual)], new FakeRepository([a, pinned.Metadata, Release("B", "2.0.0")])));
+
+        Assert.True(plan.IsReady);
+        Assert.Equal(["A"], plan.Operations.Select(value => value.Release.ModId));
+    }
+
+    [Fact]
     public async Task PlanAsync_StableChannel_SkipsANewerDevReleaseOfARequestedMod()
     {
         var stable = Release("A", "1.0.0");
@@ -818,6 +920,8 @@ public sealed class RepositoryInstallPlannerTests
     private static Task<InstallPlan> PlanAsync(IReadOnlyList<ModVersionMetadata> requested, IReadOnlyList<ModVersionMetadata> available) => new RepositoryInstallPlanner(new ModDependencyResolver()).PlanAsync(new InstallPlanningRequest(new Instance("Test", InstanceSource.Custom.Value), requested.Select(value => new RequestedMod(value, InstallReason.Manual)).ToList(), new FakeRepository(available)));
     private static ModDependency Required(string id, string? min = null, string? max = null) => new(id, ModDependencyKind.Required, min is null ? null : ModVersion.Parse(min), max is null ? null : ModVersion.Parse(max));
     private static InstalledMod Installed(string id, string version = "1.0.0", IReadOnlyList<ModDependency>? dependencies = null, ReleaseStatus status = ReleaseStatus.Stable) => new(id, ModVersion.Parse(version), InstallReason.Manual, DateTimeOffset.UtcNow, Release(id, version, dependencies, status: status));
+    private static InstalledMod Owned(string id, string version = "1.0.0", bool pinned = false) => new(id, ModVersion.Parse(version), InstallReason.Manual, DateTimeOffset.UtcNow, Release(id, version), ownership: ModInstallOwnership.Borea, ownershipToken: "token", isPinned: pinned);
+    private static RequestedMod Update(InstalledMod mod) => new(mod.Metadata, mod.Reason, Exact: false);
     private static readonly DateTimeOffset GoneSince = new(2026, 9, 23, 10, 24, 0, TimeSpan.Zero);
     private static ModVersionMetadata Release(string id, string version = "1.0.0", IReadOnlyList<ModDependency>? dependencies = null, bool yanked = false, int gameMinRevision = 2131, IReadOnlyList<string>? os = null, ReleaseStatus status = ReleaseStatus.Stable, DateTimeOffset? unavailableSince = null) => new(1, id, ModVersion.Parse(version), status, DateTimeOffset.UnixEpoch, gameMinRevision == 2131 ? "2026.7.4.2131" : $"2026.7.4.{gameMinRevision}", gameMinRevision, new DownloadInfo("https://example.com/mod.zip", new string('A', 64), 1, "application/zip", unavailableSince: unavailableSince), 1, dependencies ?? [], os: os, yanked: yanked);
 

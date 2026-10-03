@@ -24,7 +24,10 @@ public static class ModPackUpdates
                 : null;
     }
 
-    /// <summary>The pins that <paramref name="target"/> adds or changes, and the pack mods that it no longer pins.</summary>
+    /// <summary>
+    /// The pins that <paramref name="target"/> adds or changes, and the pack mods that it no longer pins.
+    /// A mod the player pinned keeps its version, and stays as a normal mod when the pack drops it.
+    /// </summary>
     public static IReadOnlyList<ModPackChange> Compare(Instance instance, ModPackMetadata target)
     {
         ArgumentNullException.ThrowIfNull(instance);
@@ -36,13 +39,15 @@ public static class ModPackUpdates
             var installed = instance.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, pin.ContentId));
             if (installed is null)
                 changes.Add(new ModPackChange(pin.ContentId, ModPackChangeKind.Add, null, pin.Version));
+            else if (installed.IsPinned && installed.Version != pin.Version)
+                changes.Add(new ModPackChange(installed.ModId, ModPackChangeKind.Pinned, installed.Version, installed.Version));
             else if (installed.Version != pin.Version)
                 changes.Add(new ModPackChange(installed.ModId, ModPackChangeKind.Change, installed.Version, pin.Version));
         }
 
         foreach (var dropped in instance.Mods.Where(mod => mod.Reason == InstallReason.ModPack && !target.Mods.Any(pin => ModIds.Equals(pin.ContentId, mod.ModId))))
         {
-            changes.Add(dropped.CanDeleteFiles
+            changes.Add(dropped.CanDeleteFiles && !dropped.IsPinned
                 ? new ModPackChange(dropped.ModId, ModPackChangeKind.Remove, dropped.Version, null)
                 : new ModPackChange(dropped.ModId, ModPackChangeKind.Keep, dropped.Version, dropped.Version));
         }

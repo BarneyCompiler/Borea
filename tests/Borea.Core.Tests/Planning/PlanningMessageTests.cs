@@ -17,6 +17,8 @@ public sealed class PlanningMessageTests
         { new("A", PlanningMessageKind.OutsideChannel) { Channel = ReleaseChannel.Testing }, "outside-channel", "No release of A in the testing channel is available." },
         { new("A", PlanningMessageKind.MissingRequest), "missing-request", "No release was selected for the request." },
         { new("A", PlanningMessageKind.ExactPin) { Version = ModVersion.Parse("1.0.0") }, "exact-pin", "Exact version 1.0.0 was not selected." },
+        { new("A", PlanningMessageKind.Pinned) { Version = ModVersion.Parse("1.0.0"), OtherVersion = ModVersion.Parse("2.0.0") }, "pinned", "The mod is pinned at 1.0.0 in this instance, so Borea does not change it to 2.0.0. Unpin it first." },
+        { new("A", PlanningMessageKind.PinnedDependency) { Dependency = Library, Value = "library", Version = ModVersion.Parse("0.9.0") }, "pinned-dependency", "Required dependency on mod 'library' >= 1.0.0: library is pinned at 0.9.0 in this instance." },
         { new("A", PlanningMessageKind.ProposedConflict) { Dependency = Library }, "proposed-conflict", "Required dependency on mod 'library' >= 1.0.0" },
         { new("A", PlanningMessageKind.Yanked), "yanked", "The selected release is yanked." },
         { new("A", PlanningMessageKind.Yanked) { Value = "Broken build." }, "yanked", "Broken build." },

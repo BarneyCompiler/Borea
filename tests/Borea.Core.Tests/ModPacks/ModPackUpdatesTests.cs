@@ -31,6 +31,26 @@ public sealed class ModPackUpdatesTests
     }
 
     [Fact]
+    public void Compare_PinnedMod_KeepsItsVersion_AndStaysWhenThePackDropsIt()
+    {
+        var repinned = Installed("Repinned", "1.0.0", InstallReason.ModPack);
+        var dropped = Installed("Dropped", "1.0.0", InstallReason.ModPack);
+        var same = Installed("Same", "1.0.0", InstallReason.ModPack);
+        repinned.SetPinned(true);
+        dropped.SetPinned(true);
+        same.SetPinned(true);
+        var instance = Instance(repinned, dropped, same);
+
+        var changes = ModPackUpdates.Compare(instance, Pack("2.0.0", ("Repinned", "1.1.0"), ("Same", "1.0.0")));
+
+        Assert.Equal(
+        [
+            new ModPackChange("Dropped", ModPackChangeKind.Keep, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.0.0")),
+            new ModPackChange("Repinned", ModPackChangeKind.Pinned, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.0.0")),
+        ], changes);
+    }
+
+    [Fact]
     public void KeepNeeded_DroppedModThatAStayingModRequires_IsKept()
     {
         var instance = Instance(

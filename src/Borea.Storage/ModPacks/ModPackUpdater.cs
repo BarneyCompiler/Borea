@@ -152,7 +152,7 @@ public sealed class ModPackUpdater : IModPackUpdater
         {
             try
             {
-                foreach (var pin in target.Mods)
+                foreach (var pin in target.Mods.Where(pin => !changes.Any(change => change.Kind == ModPackChangeKind.Pinned && ModIds.Equals(change.ModId, pin.ContentId))))
                 {
                     var installed = instance.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, pin.ContentId) && mod.Version == pin.Version);
                     var release = installed?.Metadata ?? await request.Repository.GetReleaseAsync(pin.ContentId, pin.Version, planning.Token).ConfigureAwait(false);

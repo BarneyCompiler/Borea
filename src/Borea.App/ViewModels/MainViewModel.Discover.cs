@@ -438,7 +438,7 @@ public partial class MainViewModel
     /// the Versions table against <paramref name="installed"/> (RFC 0017). A
     /// listing from another source stays unknown, because its releases would
     /// have to be fetched one by one. A pack is evaluated by the bounds of its
-    /// newest usable version.
+    /// newest usable version and of the releases that version pins.
     /// </summary>
     internal async Task RefreshCompatibilityAsync(GameVersion? installed)
     {
@@ -461,9 +461,12 @@ public partial class MainViewModel
 
         foreach (var pack in _packs)
         {
-            pack.Compatibility = Borea.Core.Game.Compatibility.Evaluate(pack.Metadata, installed, _gameReleases);
+            pack.ShowCompatibility(await PinnedReleasesAsync(_services.ContentIndex, pack.Metadata), installed, _gameReleases);
             pack.NewerMembers = await ModPackMemberReleases.FindAsync(pack.Metadata, _services.ContentIndex, _services.Settings.ReleaseChannel);
         }
+
+        foreach (var member in PackMembers)
+            member.RefreshCompatibility(installed);
 
         ShowNewerMembers();
         ApplyDiscoverFilters();

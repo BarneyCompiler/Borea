@@ -24,6 +24,7 @@ public enum MarkdownSpanKind
     Text,
     Bold,
     Italic,
+    BoldItalic,
     Code,
     Link,
     Image,
@@ -128,6 +129,8 @@ public static partial class MarkdownParser
                 spans.Add(new MarkdownSpan(MarkdownSpanKind.Image, match.Groups["alt"].Value, Unbracket(match.Groups["source"].Value)));
             else if (match.Groups["html"].Success)
                 AddHtmlImage(spans, match.Groups["html"].Value);
+            else if (match.Groups["bolditalic"].Success)
+                AddEnclosing(spans, MarkdownSpanKind.BoldItalic, match.Groups["bolditalic"].Value);
             else if (match.Groups["bold"].Success)
                 AddEnclosing(spans, MarkdownSpanKind.Bold, match.Groups["bold"].Value);
             else if (match.Groups["italic"].Success)
@@ -245,6 +248,8 @@ public static partial class MarkdownParser
     [GeneratedRegex($$"""
         !\[(?<alt>[^\]]*)\]\(\s*(?<source><[^>]*>|[^\s()]*)(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)
         | (?i:<(?:img|image)\b)(?<html>[^>]*)>
+        | \*\*\*(?<bolditalic>(?>(?:{{NestedImage}}|[^*])+))\*\*\*
+        | (?<![\p{L}\p{N}_])___(?<bolditalic>(?>(?:{{NestedImage}}|[^_])+))___(?![\p{L}\p{N}_])
         | \*\*(?<bold>(?>(?:{{NestedImage}}|[^*])+))\*\*
         | (?<![\p{L}\p{N}_])__(?<bold>(?>(?:{{NestedImage}}|[^_])+))__(?![\p{L}\p{N}_])
         | \*(?<italic>(?>(?:{{NestedImage}}|[^*])+))\*

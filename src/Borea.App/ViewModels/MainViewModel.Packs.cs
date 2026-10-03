@@ -96,7 +96,7 @@ public partial class MainViewModel
         if (SelectedLicense is not null)
             filtered = filtered.Where(pack => string.Equals(pack.License, SelectedLicense, StringComparison.OrdinalIgnoreCase));
         if (HasGameVersionRange)
-            filtered = filtered.Where(pack => Borea.Core.Game.Compatibility.SupportsAnyBuild(pack.Metadata, DiscoverGameMin?.Revision, DiscoverGameMax?.Revision, _gameReleases));
+            filtered = filtered.Where(pack => Borea.Core.Game.Compatibility.SupportsAnyBuild(pack.Metadata, pack.Pinned, DiscoverGameMin?.Revision, DiscoverGameMax?.Revision, _gameReleases));
         if (SelectedCategories.Count > 0)
         {
             var matching = ContentTagFilter.Filter(
@@ -207,7 +207,7 @@ public partial class MainViewModel
             {
                 var release = await _services.Mods.GetReleaseAsync(pin.ContentId, pin.Version);
                 var listing = _listings.FirstOrDefault(item => ModIds.Equals(item.ModId, pin.ContentId) && item.Source == "index");
-                members.Add(new PackMemberItem(this, pin, release, listing));
+                members.Add(new PackMemberItem(this, pin, release, listing, _compatibilityGame));
             }
 
             var versions = await _services.ModPacks.GetAvailableVersionsAsync(pack.PackId);
@@ -377,28 +377,24 @@ public partial class MainViewModel
                 throw new InvalidOperationException(Localization.DiscoverNoRelease);
 
             var installed = services.InstalledVersion.GetInstalledVersion()?.Version;
+            var pinned = await PinnedReleasesAsync(services.Mods, metadata);
             var compatibility = Borea.Core.Game.Compatibility.Evaluate(metadata, installed, _gameReleases);
-            if (compatibility == GameCompatibility.Incompatible)
-                throw new InvalidOperationException(Localization.FormatPackIncompatible(metadata.GameMin));
+            ThrowIfIncompatible(metadata, compatibility, pinned, installed);
 
             var instance = instanceId is { } existing
                 ? await services.Instances.GetByIdAsync(existing) ?? throw new InvalidOperationException(Localization.InstallInstanceMissing)
                 : NewPackInstance(newInstanceName!, metadata);
-            var reasons = PackWarnings(selected, metadata, compatibility);
+            var reasons = PackWarnings(selected, metadata, compatibility, pinned, installed);
             var yanked = new HashSet<string>(ModIds.Comparer);
             var requested = new List<RequestedMod>();
-            foreach (var pin in metadata.Mods)
+            foreach (var release in pinned)
             {
-                var release = await services.Mods.GetReleaseAsync(pin.ContentId, pin.Version);
-                if (release is null)
-                    continue;
-
                 requested.Add(new RequestedMod(release, InstallReason.ModPack, Exact: true));
                 if (!release.Yanked)
                     continue;
 
-                yanked.Add(pin.ContentId);
-                reasons.Add(Localization.FormatPackMemberYanked(pin.ContentId, pin.Version.ToString(), release.YankedReason));
+                yanked.Add(release.ModId);
+                reasons.Add(Localization.FormatPackMemberYanked(release.ModId, release.Version.ToString(), release.YankedReason));
             }
 
             InstallPlan? plan = null;
@@ -425,7 +421,7 @@ public partial class MainViewModel
             {
                 stopped = StoppedText(pack);
             }
-            else if (confirm || reasons.Count > 0 || choices is not null || (plan is { IsReady: true } && (PackPlanWarnings(plan).Count > 0 || InstallStepsOf(plan).Count > 0)))
+            else if (confirm || reasons.Count > 0 || choices is not null || (plan is { IsReady: true } && (PackPlanWarnings(plan, metadata).Count > 0 || InstallStepsOf(plan).Count > 0)))
             {
                 pack.PendingInstall = request;
                 pack.PendingInstanceName = newInstanceName;
@@ -467,7 +463,43 @@ public partial class MainViewModel
             ShowSuccessToast(() => Localization.FormatLibraryNowActive(newInstanceName));
     }
 
-    private List<string> PackWarnings(ModPackResult selected, ModPackMetadata metadata, GameCompatibility compatibility)
+    /// <summary>The releases the pack pins, in pack order. A pin whose release the index does not have is left out, because it has its own warning.</summary>
+    private static async Task<List<ModVersionMetadata>> PinnedReleasesAsync(IModRepository mods, ModPackMetadata metadata)
+    {
+        var pinned = new List<ModVersionMetadata>();
+        foreach (var pin in metadata.Mods)
+        {
+            if (await mods.GetReleaseAsync(pin.ContentId, pin.Version) is { } release)
+                pinned.Add(release);
+        }
+
+        return pinned;
+    }
+
+    /// <summary>Blocks the install when the pack's own bounds or a pinned release do not admit the installed game, and names each of them.</summary>
+    /// <param name="compatibility">The state the pack's own bounds put the installed game in.</param>
+    private void ThrowIfIncompatible(ModPackMetadata metadata, GameCompatibility compatibility, IEnumerable<ModVersionMetadata> pinned, GameVersion? installed)
+    {
+        var reasons = PinFitTexts(pinned, installed, GameCompatibility.Incompatible);
+        if (compatibility == GameCompatibility.Incompatible)
+            reasons.Insert(0, Localization.FormatPackIncompatible(metadata.GameMin));
+        if (reasons.Count > 0)
+            throw new InvalidOperationException(string.Join(" ", reasons));
+    }
+
+    /// <summary>Names a pinned release with the bound that keeps it from fitting the installed game, or returns null when it fits.</summary>
+    internal string? PinFitText(ModVersionMetadata release, GameCompatibility compatibility) => compatibility switch
+    {
+        GameCompatibility.Incompatible => Localization.FormatPackMemberIncompatible(release.ModId, release.Version.ToString(), release.GameMin),
+        GameCompatibility.Untested when release.GameMax is { } max => Localization.FormatPackMemberUntested(release.ModId, release.Version.ToString(), max),
+        _ => null,
+    };
+
+    private List<string> PinFitTexts(IEnumerable<ModVersionMetadata> pinned, GameVersion? installed, GameCompatibility compatibility)
+        => pinned.Select(release => Borea.Core.Game.Compatibility.Evaluate(release, installed) == compatibility ? PinFitText(release, compatibility) : null).OfType<string>().ToList();
+
+    /// <param name="compatibility">The state the pack's own bounds put the installed game in. The untested pins are named one by one.</param>
+    private List<string> PackWarnings(ModPackResult selected, ModPackMetadata metadata, GameCompatibility compatibility, IEnumerable<ModVersionMetadata> pinned, GameVersion? installed)
     {
         var warnings = new List<string>();
         foreach (var status in new[] { selected.PackStatus, selected.VersionStatus })
@@ -488,6 +520,7 @@ public partial class MainViewModel
         else if (compatibility == GameCompatibility.Unknown)
             warnings.Add(Localization.PackCompatibilityUnknown);
 
+        warnings.AddRange(PinFitTexts(pinned, installed, GameCompatibility.Untested));
         return warnings;
     }
 
@@ -495,7 +528,7 @@ public partial class MainViewModel
     private void HoldPack(PackItem pack, InstallPlan? plan)
     {
         var reasons = pack.PendingReasons.ToList();
-        if (plan is not null && (plan.IsReady || pack.Choices is not null) && PackPlanWarnings(plan) is { Count: > 0 } warnings)
+        if (plan is not null && (plan.IsReady || pack.Choices is not null) && PackPlanWarnings(plan, pack.PendingInstall?.Pack.Metadata ?? pack.Metadata) is { Count: > 0 } warnings)
             reasons.Add(Describe(warnings));
         if (reasons.Count > 0 && pack.PendingInstanceName is { } name)
             reasons.Insert(0, Localization.FormatPackCreatesInstance(name));
@@ -506,9 +539,13 @@ public partial class MainViewModel
             choices.BlockedText = BlockedText(plan);
     }
 
-    /// <summary>The pack names its yanked members itself.</summary>
-    private static List<PlanningMessage> PackPlanWarnings(InstallPlan plan)
-        => plan.Warnings.Where(warning => warning.Kind != PlanningMessageKind.Yanked).ToList();
+    /// <summary>The pack names its yanked members and its untested pins itself.</summary>
+    private static List<PlanningMessage> PackPlanWarnings(InstallPlan plan, ModPackMetadata metadata)
+        => plan.Warnings.Where(warning => warning.Kind != PlanningMessageKind.Yanked && !IsUntestedPin(warning, metadata)).ToList();
+
+    private static bool IsUntestedPin(PlanningMessage warning, ModPackMetadata metadata)
+        => warning is { Kind: PlanningMessageKind.Compatibility, Compatibility: GameCompatibility.Untested }
+            && metadata.Mods.Any(pin => ModIds.Equals(pin.ContentId, warning.ModId));
 
     /// <summary>Installs the pack the row holds, unless the plan with its choices asks something new, cannot run, or has a new warning.</summary>
     internal async Task ConfirmPackInstallAsync(PackItem pack)
@@ -736,6 +773,17 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
 
     public bool IsIncompatible => Compatibility == GameCompatibility.Incompatible;
 
+    /// <summary>The releases this version pins that the index has, which decide the compatibility together with the pack's own bounds.</summary>
+    internal IReadOnlyList<ModVersionMetadata> Pinned { get; private set; } = [];
+
+    private Borea.Core.Game.GameVersion? _game;
+
+    /// <summary>Each pinned release that does not fit the installed game, with its bound, in pack order.</summary>
+    public IReadOnlyList<string> UnfitPinTexts => Pinned
+        .Select(release => _owner.PinFitText(release, Borea.Core.Game.Compatibility.Evaluate(release, _game)))
+        .OfType<string>()
+        .ToList();
+
     /// <summary>False when most rows of the Modpacks tab share this state, so the row leaves the chip out.</summary>
     [ObservableProperty]
     private bool _showsCompatibility = true;
@@ -841,6 +889,14 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
         _isFavorite = owner.IsFavoritePack(metadata.ModPackId);
     }
 
+    internal void ShowCompatibility(IReadOnlyList<ModVersionMetadata> pinned, Borea.Core.Game.GameVersion? installed, GameReleaseList releases)
+    {
+        Pinned = pinned;
+        _game = installed;
+        Compatibility = Borea.Core.Game.Compatibility.Evaluate(Metadata, pinned, installed, releases);
+        OnPropertyChanged(nameof(UnfitPinTexts));
+    }
+
     internal static string GameVersion(ModPackMetadata pack)
         => pack.GameMax is null ? $">= {pack.GameMin}" : $"{pack.GameMin} - {pack.GameMax}";
 
@@ -886,6 +942,7 @@ public sealed partial class PackItem : ObservableObject, IPlanRow
         OnPropertyChanged(nameof(AuthorsText));
         OnPropertyChanged(nameof(TypeText));
         OnPropertyChanged(nameof(CompatibilityText));
+        OnPropertyChanged(nameof(UnfitPinTexts));
         OnPropertyChanged(nameof(ModCountText));
         OnPropertyChanged(nameof(NewerReleasesText));
         OnPropertyChanged(nameof(ConfirmInstallText));
@@ -1003,25 +1060,51 @@ public sealed partial class PackMemberItem : ObservableObject
 
     public string? NewerText => NewerVersion is null ? null : _owner.Localization.FormatPackMemberNewer(NewerVersion);
 
-    public PackMemberItem(MainViewModel owner, ModPackEntry pin, ModVersionMetadata? release, DiscoverItem? listing)
+    private readonly ModVersionMetadata? _release;
+
+    /// <summary>How the pinned release fits the installed game. The row names it only when it does not fit.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CompatibilityText))]
+    [NotifyPropertyChangedFor(nameof(FitText))]
+    [NotifyPropertyChangedFor(nameof(IsUntested))]
+    [NotifyPropertyChangedFor(nameof(IsIncompatible))]
+    private GameCompatibility _compatibility = GameCompatibility.Unknown;
+
+    public string CompatibilityText => _owner.CompatibilityText(Compatibility);
+
+    /// <summary>The pinned release with the bound that keeps it from fitting the installed game, or null when it fits.</summary>
+    public string? FitText => _release is null ? null : _owner.PinFitText(_release, Compatibility);
+
+    public bool IsUntested => Compatibility == GameCompatibility.Untested;
+
+    public bool IsIncompatible => Compatibility == GameCompatibility.Incompatible;
+
+    public PackMemberItem(MainViewModel owner, ModPackEntry pin, ModVersionMetadata? release, DiscoverItem? listing, GameVersion? installed)
     {
         _owner = owner;
         _listing = listing;
+        _release = release;
         Pin = pin;
         Name = listing?.Name ?? release?.Listing?.Name ?? pin.ContentId;
         IsUnlisted = release is null;
         IsYanked = release?.Yanked == true;
         YankedReason = IsYanked ? release!.YankedReason : null;
         _unavailableSince = release?.Download.UnavailableSince;
+        RefreshCompatibility(installed);
     }
 
     [RelayCommand]
     private Task OpenAsync() => _listing is null ? Task.CompletedTask : _owner.OpenContentAsync(_listing);
 
+    internal void RefreshCompatibility(GameVersion? installed)
+        => Compatibility = _release is null ? GameCompatibility.Unknown : Borea.Core.Game.Compatibility.Evaluate(_release, installed);
+
     internal void RefreshText()
     {
         OnPropertyChanged(nameof(NewerText));
         OnPropertyChanged(nameof(GoneText));
+        OnPropertyChanged(nameof(CompatibilityText));
+        OnPropertyChanged(nameof(FitText));
     }
 }
 

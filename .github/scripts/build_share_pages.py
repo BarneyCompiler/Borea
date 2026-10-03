@@ -88,7 +88,7 @@ IMAGE_CAP = 1024 * 1024
 # What an image with no words of its own is called, so that a reader always sees a line where an image is.
 IMAGE_PLACEHOLDER = "Image"
 # The line under the Borea buttons, and the line that takes their place on a phone or a tablet.
-DESKTOP_HINT = "Open in Borea and Install with Borea need Borea on this computer."
+DESKTOP_HINT = '"Open in Borea" and "Install with Borea" work only when Borea is installed on this computer.'
 HANDHELD_HINT = "Borea runs on Windows, Linux and macOS. To install this with Borea, open this page on a computer."
 # RFC 0058 asks a client to offer a reader a way to load no image from the host of an author. A share page goes
 # further and loads none from another host than GitHub until the reader asks, because a reader arrives here from

@@ -2130,6 +2130,12 @@
   <data name="PackMemberYankedFormat" xml:space="preserve">
     <value>{0} {1} is torn asunder.</value>
   </data>
+  <data name="PackMemberIncompatibleFormat" xml:space="preserve">
+    <value>{0} {1} be needin' KSA {2} or fresher.</value>
+  </data>
+  <data name="PackMemberUntestedFormat" xml:space="preserve">
+    <value>{0} {1} be sailin' with KSA up to {2}.</value>
+  </data>
   <data name="PackIncompleteFormat" xml:space="preserve">
     <value>{0} o' {1} barrels o' fun ain't been hauled onboard.</value>
   </data>

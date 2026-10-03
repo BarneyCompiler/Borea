@@ -190,6 +190,9 @@
                                                     <Border Classes="chip" IsVisible="{Binding NewerText, Converter={x:Static ObjectConverters.IsNotNull}}">
                                                         <TextBlock Text="{Binding NewerText}" ToolTip.Tip="{Binding NewerText}" MaxWidth="110" TextTrimming="CharacterEllipsis" />
                                                     </Border>
+                                                    <Border Classes="chip" Classes.untested="{Binding IsUntested}" Classes.incompatible="{Binding IsIncompatible}" IsVisible="{Binding FitText, Converter={x:Static ObjectConverters.IsNotNull}}" ToolTip.Tip="{Binding FitText}">
+                                                        <TextBlock Text="{Binding CompatibilityText}" />
+                                                    </Border>
                                                     <Border Classes="chip incompatible" IsVisible="{Binding IsYanked}" ToolTip.Tip="{Binding YankedReason}">
                                                         <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).Localization.PackMemberYanked}" />
                                                     </Border>
@@ -272,6 +275,19 @@
                                 <TextBlock Text="{Binding SelectedPack.CompatibilityText}" />
                             </StackPanel>
                         </Border>
+                        <!-- the pinned releases whose bounds do not admit the installed game -->
+                        <ItemsControl ItemsSource="{Binding SelectedPack.UnfitPinTexts}" IsVisible="{Binding !!SelectedPack.UnfitPinTexts.Count, FallbackValue={x:False}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Classes="body-sm secondary" Text="{Binding}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                     <Border Height="1" Background="{StaticResource Brush.BorderStrong}">
                         <Border.IsVisible>

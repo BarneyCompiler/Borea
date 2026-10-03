@@ -78,20 +78,17 @@ public partial class MainViewModel
         {
             var metadata = item.Pack.Metadata!;
             var installed = services.InstalledVersion.GetInstalledVersion()?.Version;
+            var pinned = await PinnedReleasesAsync(services.Mods, metadata);
             var compatibility = Borea.Core.Game.Compatibility.Evaluate(metadata, installed, _gameReleases);
-            if (compatibility == GameCompatibility.Incompatible)
-                throw new InvalidOperationException(Localization.FormatPackIncompatible(metadata.GameMin));
+            ThrowIfIncompatible(metadata, compatibility, pinned, installed);
 
             var yanked = new Dictionary<string, ModVersionMetadata>(ModIds.Comparer);
-            foreach (var pin in metadata.Mods)
-            {
-                if (await services.Mods.GetReleaseAsync(pin.ContentId, pin.Version) is { Yanked: true } release)
-                    yanked[pin.ContentId] = release;
-            }
+            foreach (var release in pinned.Where(release => release.Yanked))
+                yanked[release.ModId] = release;
 
             var request = new ModPackUpdateRequest(item.InstanceId, item.Pack, services.Mods, installed, services.GamePlatform.Current, ProceedWithYankedMembers: yanked.Count == 0 ? null : yanked.Keys.ToHashSet(ModIds.Comparer));
             var (pending, result) = await PlanPackUpdateWithChoicesAsync(services, request, null);
-            var reasons = PackWarnings(item.Pack, metadata, compatibility);
+            var reasons = PackWarnings(item.Pack, metadata, compatibility, pinned, installed);
             foreach (var change in result.Changes.Where(change => change.Kind is ModPackChangeKind.Add or ModPackChangeKind.Change))
             {
                 if (yanked.TryGetValue(change.ModId, out var release))
@@ -146,7 +143,7 @@ public partial class MainViewModel
     private void HoldPackUpdate(PackUpdateItem item, ModPackUpdateRequest request, ModPackUpdateResult result)
     {
         var reasons = item.PendingReasons.ToList();
-        if (result.Plan is { } plan && PackPlanWarnings(plan) is { Count: > 0 } warnings)
+        if (result.Plan is { } plan && PackPlanWarnings(plan, item.Pack.Metadata!) is { Count: > 0 } warnings)
             reasons.Add(Describe(warnings));
 
         item.PendingRequest = request;

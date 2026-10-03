@@ -1833,6 +1833,9 @@
   <data name="ContentPinnedFormat" xml:space="preserve">
     <value>Pinned at {0}. Updates leave this mod at this version.</value>
   </data>
+  <data name="ContentHeldByPinFormat" xml:space="preserve">
+    <value>{0} needs {1}, which is pinned at {2}.</value>
+  </data>
   <data name="ToastPinFailedFormat" xml:space="preserve">
     <value>Could not pin {0}</value>
   </data>

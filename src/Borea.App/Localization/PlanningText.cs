@@ -91,7 +91,7 @@ internal static class PlanningText
         return alternative is null ? message.Value : Bounds(alternative.ModId, alternative.MinVersion, alternative.MaxVersion);
     }
 
-    private static string Bounds(string modId, ModVersion? min, ModVersion? max) => (min, max) switch
+    public static string Bounds(string modId, ModVersion? min, ModVersion? max) => (min, max) switch
     {
         (null, null) => modId,
         ({ } low, null) => $"{modId} >= {low}",

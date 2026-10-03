@@ -1833,6 +1833,9 @@
   <data name="ContentPinnedFormat" xml:space="preserve">
     <value>Bei {0} angeheftet. Updates lassen diese Mod bei dieser Version.</value>
   </data>
+  <data name="ContentHeldByPinFormat" xml:space="preserve">
+    <value>{0} braucht {1}, die bei {2} angeheftet ist.</value>
+  </data>
   <data name="ToastPinFailedFormat" xml:space="preserve">
     <value>{0} konnte nicht angeheftet werden</value>
   </data>

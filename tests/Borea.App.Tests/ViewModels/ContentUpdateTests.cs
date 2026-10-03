@@ -669,6 +669,108 @@ public sealed class ContentUpdateTests
     }
 
     [Fact]
+    public async Task Open_NewestReleaseNeedsANewerPinnedMod_NamesThePinAndOffersNoUpdate()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        // the pinned mod has a listing, so the note names it by its name and not by its id
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("1.1.0"), Release("1.0.0", modId: "other"), Release("2.0.0", modId: "other", dependencies: [new ModDependency(OwnId, ModDependencyKind.Required, ModVersion.Parse("1.1.0"))])]);
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "other", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await harness.Services.Instances.UpdateAsync(instance.InstanceId, saved => saved.SetPinned(OwnId, pinned: true));
+
+        var row = await OpenRowAsync(harness, "other");
+
+        Assert.Equal(harness.Localization.FormatContentHeldByPin("2.0.0", "Aircraft HUD >= 1.1.0", "1.0.0"), row.HeldText);
+        Assert.Null(row.UpdateVersion);
+        Assert.False(row.HasUpdate);
+        Assert.False(harness.ViewModel.HasUpdates);
+        Assert.Equal(0, harness.ViewModel.ActiveInstanceUpdateCount);
+    }
+
+    [Fact]
+    public async Task Open_OlderNewerReleaseFitsThePin_OffersItWithoutANote()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("1.5.0", dependencies: [NeedsHelper("1.0.0")]), Release("2.0.0", dependencies: [NeedsHelper("1.1.0")]), Release("1.0.0", modId: "helper"), Release("1.1.0", modId: "helper")]);
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "helper", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await harness.Services.Instances.UpdateAsync(instance.InstanceId, saved => saved.SetPinned("helper", pinned: true));
+
+        var row = await OpenRowAsync(harness, OwnId);
+
+        Assert.Equal("1.5.0", row.UpdateVersion);
+        Assert.True(row.HasUpdate);
+        Assert.Null(row.HeldText);
+        Assert.Equal(1, harness.ViewModel.ActiveInstanceUpdateCount);
+    }
+
+    [Fact]
+    public async Task UpdateAll_ModHeldByAPin_UpdatesTheOthersAndKeepsTheNote()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(respond: ServeArchive);
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("2.0.0", dependencies: [NeedsHelper("1.1.0")]), Release("1.0.0", modId: "helper"), Release("1.1.0", modId: "helper"), Release("1.0.0", modId: "other"), Release("1.1.0", modId: "other")]);
+        var viewModel = harness.ViewModel;
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "helper", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "other", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await harness.Services.Instances.UpdateAsync(instance.InstanceId, saved => saved.SetPinned("helper", pinned: true));
+        Assert.NotNull((await OpenRowAsync(harness, OwnId)).HeldText);
+        var updateAll = viewModel.UpdateAll!;
+
+        await updateAll.UpdateCommand.ExecuteAsync(null);
+        Assert.Null(updateAll.InstallError);
+        Assert.Equal(["other 1.1.0"], updateAll.PendingPlan!.Operations.Select(operation => $"{operation.Release.ModId} {operation.Release.Version}"));
+        await updateAll.ConfirmUpdateCommand.ExecuteAsync(null);
+        await viewModel.WhenContentUpdatesCheckedAsync();
+
+        var mods = (await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods;
+        Assert.Equal(["5000 1.0.0", "helper 1.0.0", "other 1.1.0"], mods.OrderBy(mod => mod.ModId, StringComparer.Ordinal).Select(mod => $"{mod.ModId} {mod.Version}"));
+        var held = viewModel.ContentGroups.Single().Items.Single(item => item.ModId == OwnId);
+        Assert.NotNull(held.HeldText);
+        Assert.False(held.HasUpdate);
+    }
+
+    [Fact]
+    public async Task Unpin_ThePinThatHoldsAnUpdate_TakesTheNoteAwayAndOffersTheUpdate()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("2.0.0", dependencies: [NeedsHelper("1.1.0")]), Release("1.0.0", modId: "helper"), Release("1.1.0", modId: "helper")]);
+        var viewModel = harness.ViewModel;
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "helper", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await harness.Services.Instances.UpdateAsync(instance.InstanceId, saved => saved.SetPinned("helper", pinned: true));
+        Assert.NotNull((await OpenRowAsync(harness, OwnId)).HeldText);
+
+        await viewModel.ContentGroups.Single().Items.Single(item => item.ModId == "helper").UnpinCommand.ExecuteAsync(null);
+        await viewModel.WhenContentUpdatesCheckedAsync();
+
+        var row = viewModel.ContentGroups.Single().Items.Single(item => item.ModId == OwnId);
+        Assert.Null(row.HeldText);
+        Assert.Equal("2.0.0", row.UpdateVersion);
+        Assert.True(row.HasUpdate);
+    }
+
+    [Fact]
+    public async Task Pin_OfTheModANewerReleaseNeeds_ShowsTheNote()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("2.0.0", dependencies: [NeedsHelper("1.1.0")]), Release("1.0.0", modId: "helper"), Release("1.1.0", modId: "helper")]);
+        var viewModel = harness.ViewModel;
+        await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "helper", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        var row = await OpenRowAsync(harness, OwnId);
+        Assert.Equal("2.0.0", row.UpdateVersion);
+        Assert.Null(row.HeldText);
+
+        await viewModel.ContentGroups.Single().Items.Single(item => item.ModId == "helper").PinCommand.ExecuteAsync(null);
+        await viewModel.WhenContentUpdatesCheckedAsync();
+
+        var held = viewModel.ContentGroups.Single().Items.Single(item => item.ModId == OwnId);
+        Assert.NotNull(held.HeldText);
+        Assert.Null(held.UpdateVersion);
+    }
+
+    [Fact]
     public async Task Open_InstanceWithoutPins_PlansEachModOnce()
     {
         var plans = new ConcurrentQueue<InstallPlanningRequest>();
@@ -690,7 +792,69 @@ public sealed class ContentUpdateTests
         var rows = harness.ViewModel.ContentGroups.Single().Items;
         Assert.Null(rows.Single(item => item.ModId == OwnId).UpdateVersion);
         Assert.Equal("1.1.0", rows.Single(item => item.ModId == "helper").UpdateVersion);
+        Assert.All(rows, item => Assert.Null(item.HeldText));
     }
+
+    [Fact]
+    public async Task Open_NewestReleaseAlsoNeedsAModNoSourceHas_ShowsNoNote()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        // unpinning the helper would not bring 2.0.0, so a note that names the pin would be wrong
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("2.0.0", dependencies: [NeedsHelper("1.1.0"), NeedsAbsent]), Release("1.0.0", modId: "helper"), Release("1.1.0", modId: "helper")]);
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "helper", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await harness.Services.Instances.UpdateAsync(instance.InstanceId, saved => saved.SetPinned("helper", pinned: true));
+
+        var row = await OpenRowAsync(harness, OwnId);
+
+        Assert.Null(row.HeldText);
+        Assert.Null(row.UpdateVersion);
+    }
+
+    [Fact]
+    public async Task Open_ModHeldForAnotherReasonInAnInstanceWithAPin_PlansItOnce()
+    {
+        var plans = new ConcurrentQueue<InstallPlanningRequest>();
+        using var harness = await ViewModelHarness.CreateAsync(wrapInstallPlanner: inner => new RecordingPlanner(inner, plans));
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("2.0.0", dependencies: [NeedsAbsent]), Release("1.0.0", modId: "helper"), Release("1.1.0", modId: "helper")]);
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "helper", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await harness.Services.Instances.UpdateAsync(instance.InstanceId, saved => saved.SetPinned("helper", pinned: true));
+
+        var row = await OpenRowAsync(harness, OwnId);
+
+        Assert.NotEmpty(plans);
+        Assert.DoesNotContain(plans, plan => plan.Requested.Any(mod => mod.Exact));
+        Assert.Null(row.HeldText);
+    }
+
+    [Fact]
+    public async Task Home_InstanceWithAPinThatHoldsAnUpdate_CountsWithoutAnExactPlan()
+    {
+        var plans = new ConcurrentQueue<InstallPlanningRequest>();
+        using var harness = await ViewModelHarness.CreateAsync(wrapInstallPlanner: inner => new RecordingPlanner(inner, plans));
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("2.0.0", dependencies: [NeedsHelper("1.1.0")]), Release("1.0.0", modId: "helper"), Release("1.1.0", modId: "helper")]);
+        var instance = await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "helper", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await harness.Services.Instances.UpdateAsync(instance.InstanceId, saved => saved.SetPinned("helper", pinned: true));
+
+        await harness.ViewModel.LoadAsync();
+        await harness.ViewModel.WhenContentUpdatesCheckedAsync();
+
+        Assert.NotEmpty(plans);
+        Assert.DoesNotContain(plans, plan => plan.Requested.Any(mod => mod.Exact));
+        Assert.Equal(0, harness.ViewModel.ActiveInstanceUpdateCount);
+    }
+
+    private static async Task<ContentItem> OpenRowAsync(ViewModelHarness harness, string modId)
+    {
+        await harness.ViewModel.LoadAsync();
+        await harness.ViewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+        await harness.ViewModel.WhenContentUpdatesCheckedAsync();
+        return harness.ViewModel.ContentGroups.Single().Items.Single(item => item.ModId == modId);
+    }
+
+    private static ModDependency NeedsHelper(string version) => new("helper", ModDependencyKind.Required, ModVersion.Parse(version));
 
     private static ModDependency NeedsAbsent => new("absent", ModDependencyKind.Required, ModVersion.Parse("1.0.0"));
 

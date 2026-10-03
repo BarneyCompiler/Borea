@@ -162,6 +162,7 @@ public sealed class MarkdownView : StackPanel
             {
                 MarkdownSpanKind.Bold => new Bold { Inlines = { new Run(span.Text) } },
                 MarkdownSpanKind.Italic => new Italic { Inlines = { new Run(span.Text) } },
+                MarkdownSpanKind.BoldItalic => new Bold { Inlines = { new Italic { Inlines = { new Run(span.Text) } } } },
                 MarkdownSpanKind.Code => new Run(span.Text) { FontFamily = MonoFont, Background = Brushes.Black },
                 MarkdownSpanKind.Link => new Run(span.Text) { TextDecorations = TextDecorations.Underline },
                 _ => new Run(span.Text),

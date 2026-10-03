@@ -3699,6 +3699,12 @@
   <data name="PackMemberYankedFormat" xml:space="preserve">
     <value>{0} {1} wurde zurückgezogen.</value>
   </data>
+  <data name="PackMemberIncompatibleFormat" xml:space="preserve">
+    <value>{0} {1} braucht KSA {2} oder neuer.</value>
+  </data>
+  <data name="PackMemberUntestedFormat" xml:space="preserve">
+    <value>{0} {1} unterstützt KSA bis {2}.</value>
+  </data>
   <data name="PackIncompleteFormat" xml:space="preserve">
     <value>{0} von {1} Mods wurden nicht installiert.</value>
   </data>

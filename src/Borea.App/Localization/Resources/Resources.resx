@@ -3699,6 +3699,12 @@
   <data name="PackMemberYankedFormat" xml:space="preserve">
     <value>{0} {1} is yanked.</value>
   </data>
+  <data name="PackMemberIncompatibleFormat" xml:space="preserve">
+    <value>{0} {1} needs KSA {2} or newer.</value>
+  </data>
+  <data name="PackMemberUntestedFormat" xml:space="preserve">
+    <value>{0} {1} supports KSA up to {2}.</value>
+  </data>
   <data name="PackIncompleteFormat" xml:space="preserve">
     <value>{0} of {1} mods did not install.</value>
   </data>

@@ -15,6 +15,10 @@
     <InternalsVisibleTo Include="Borea.Core.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.4.0" />
+  </ItemGroup>
+
   <Target Name="CheckContentIndexBranch" BeforeTargets="CoreCompile">
     <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(ContentIndexBranch)', '^(?!.*\.\.)[A-Za-z0-9_][A-Za-z0-9._/-]*[A-Za-z0-9_]$|^[A-Za-z0-9_]$'))" Text="ContentIndexBranch '$(ContentIndexBranch)' is not a plain branch name of letters, digits, '.', '_', '/' and '-'." />
   </Target>

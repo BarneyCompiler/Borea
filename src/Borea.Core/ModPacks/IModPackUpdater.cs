@@ -42,9 +42,15 @@ public enum ModPackChangeKind
 
     /// <summary>The new version pins another version of the mod, but the player pinned it, so it stays at its version.</summary>
     Pinned,
+
+    /// <summary>
+    /// The new version pins another version of the mod, or a mod the player removed, but the player detached it
+    /// from the pack, so the update leaves it alone.
+    /// </summary>
+    Detached,
 }
 
-/// <param name="From">The installed version, or null for an added mod.</param>
+/// <param name="From">The installed version, or null for an added mod or a detached mod that the player removed.</param>
 /// <param name="To">The version after the update, or null for a removed mod. A kept mod can change version when a new pin needs it.</param>
 public sealed record ModPackChange(string ModId, ModPackChangeKind Kind, ModVersion? From, ModVersion? To);
 

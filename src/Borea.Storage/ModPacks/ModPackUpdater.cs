@@ -111,7 +111,7 @@ public sealed class ModPackUpdater : IModPackUpdater
             {
                 foreach (var mod in current.Mods.Where(mod => kept.Any(change => ModIds.Equals(change.ModId, mod.ModId))))
                     mod.MarkAsManuallyInstalled();
-                current.ChangeSource(new InstanceSource.FromModPack(target.ModPackId, target.Version));
+                current.ChangeSource(ModPackUpdates.SourceAfter(current.Source, target));
                 return true;
             }, cancellationToken).ConfigureAwait(false);
         }
@@ -134,6 +134,10 @@ public sealed class ModPackUpdater : IModPackUpdater
             throw new InvalidOperationException($"Pack '{target.ModPackId}' {target.Version} is not newer than version {current.Version} of instance '{instance.Name}'.");
 
         var changes = ModPackUpdates.Compare(instance, target);
+
+        // A detached mod is not a member of the update. The update does not request it, not even at the pinned
+        // version, and no member list names it.
+        var pins = target.Mods.Where(pin => !ModPackUpdates.IsDetached(current, pin.ContentId)).ToList();
         var warnings = new List<PlanningMessage>();
         var members = new List<ModPackMemberResult>();
         ModPackUpdateResult Result(InstallPlan? plan, bool stopped = false) => new(instance.InstanceId, current.Version, target, changes, plan, Ordered(members), warnings, false, stopped);
@@ -141,7 +145,7 @@ public sealed class ModPackUpdater : IModPackUpdater
         if (request.Pack.VersionStatus?.State == IndexStatusState.Retracted)
         {
             warnings.Add(new PlanningMessage(target.ModPackId, PlanningMessageKind.RetractedPack) { Value = request.Pack.VersionStatus.Reason });
-            members.AddRange(target.Mods.Select(pin => Member(pin, ModPackMemberStatus.Unresolved, "The pack version is retracted.")));
+            members.AddRange(pins.Select(pin => Member(pin, ModPackMemberStatus.Unresolved, "The pack version is retracted.")));
             return (instance, Result(null));
         }
 
@@ -152,7 +156,7 @@ public sealed class ModPackUpdater : IModPackUpdater
         {
             try
             {
-                foreach (var pin in target.Mods.Where(pin => !changes.Any(change => change.Kind == ModPackChangeKind.Pinned && ModIds.Equals(change.ModId, pin.ContentId))))
+                foreach (var pin in pins.Where(pin => !changes.Any(change => change.Kind == ModPackChangeKind.Pinned && ModIds.Equals(change.ModId, pin.ContentId))))
                 {
                     var installed = instance.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, pin.ContentId) && mod.Version == pin.Version);
                     var release = installed?.Metadata ?? await request.Repository.GetReleaseAsync(pin.ContentId, pin.Version, planning.Token).ConfigureAwait(false);
@@ -174,7 +178,7 @@ public sealed class ModPackUpdater : IModPackUpdater
 
                 if (members.Count > 0)
                 {
-                    members.AddRange(target.Mods
+                    members.AddRange(pins
                         .Where(pin => members.All(member => !ModIds.Equals(member.ModId, pin.ContentId)))
                         .Select(pin => Member(pin, ModPackMemberStatus.NotAttempted, "Another pack member needs caller action.")));
                     return (instance, Result(null));
@@ -196,7 +200,7 @@ public sealed class ModPackUpdater : IModPackUpdater
             catch (OperationCanceledException) when (stop is { IsRequested: true } && !cancellationToken.IsCancellationRequested)
             {
                 members.Clear();
-                members.AddRange(target.Mods.Select(pin => Member(pin, ModPackMemberStatus.NotAttempted, StoppedMessage)));
+                members.AddRange(pins.Select(pin => Member(pin, ModPackMemberStatus.NotAttempted, StoppedMessage)));
                 return (instance, Result(null, stopped: true));
             }
         }
@@ -207,7 +211,7 @@ public sealed class ModPackUpdater : IModPackUpdater
         changes = WithDependencies(changes, draft, plan);
         if (!plan.IsReady)
         {
-            members.AddRange(target.Mods
+            members.AddRange(pins
                 .Where(pin => !plan.Selections.Any(selection => selection.IsAlreadyInstalled && ModIds.Equals(selection.Release.ModId, pin.ContentId)))
                 .Select(pin => Member(pin, ModPackMemberStatus.Unresolved, "The shared install plan is not ready.")));
             members.AddRange(AlreadyInstalled(changes, draft, plan));
@@ -226,13 +230,19 @@ public sealed class ModPackUpdater : IModPackUpdater
         return (instance, Result(plan));
     }
 
-    /// <summary>Adds what the plan installs besides the pins, such as a new dependency or a new version of a kept mod.</summary>
+    /// <summary>
+    /// Adds what the plan installs besides the pins, such as a new dependency or a new version of a kept mod.
+    /// A detached mod that the plan installs is an addition or a change, because the update does not leave it alone.
+    /// </summary>
     private static IReadOnlyList<ModPackChange> WithDependencies(IReadOnlyList<ModPackChange> changes, Instance draft, InstallPlan plan)
     {
         ModVersion? Planned(string modId) => plan.Operations.FirstOrDefault(operation => ModIds.Equals(operation.Release.ModId, modId))?.Release.Version;
-        var kept = changes.Select(change => change.Kind == ModPackChangeKind.Keep && Planned(change.ModId) is { } version
-            ? change with { To = version }
-            : change);
+        var kept = changes.Select(change => (change.Kind, Planned(change.ModId)) switch
+        {
+            (ModPackChangeKind.Keep, { } version) => change with { To = version },
+            (ModPackChangeKind.Detached, { } version) => change with { Kind = change.From is null ? ModPackChangeKind.Add : ModPackChangeKind.Change, To = version },
+            _ => change,
+        });
         var added = plan.Operations
             .Where(operation => !changes.Any(change => ModIds.Equals(change.ModId, operation.Release.ModId)))
             .Select(operation => draft.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, operation.Release.ModId)) is { } installed

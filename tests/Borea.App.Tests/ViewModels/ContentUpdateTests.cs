@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Net;
 using System.Text;
@@ -665,6 +666,41 @@ public sealed class ContentUpdateTests
         Assert.Equal("1.1.0", unpinned.UpdateVersion);
         Assert.True(unpinned.HasUpdate);
         Assert.False(Assert.Single((await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods).IsPinned);
+    }
+
+    [Fact]
+    public async Task Open_InstanceWithoutPins_PlansEachModOnce()
+    {
+        var plans = new ConcurrentQueue<InstallPlanningRequest>();
+        using var harness = await ViewModelHarness.CreateAsync(wrapInstallPlanner: inner => new RecordingPlanner(inner, plans));
+        // the newest release needs a mod no source has, so the update stays at the installed release as it does under a pin
+        harness.SpaceDock.Releases.AddRange([Release("1.0.0"), Release("2.0.0", dependencies: [NeedsAbsent]), Release("1.0.0", modId: "helper"), Release("1.1.0", modId: "helper")]);
+        await InstalledContent.AddAsync(harness, OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await InstalledContent.AddAsync(harness, "helper", activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        await harness.ViewModel.LoadAsync();
+        await harness.ViewModel.WhenContentUpdatesCheckedAsync();
+        plans.Clear();
+
+        await harness.ViewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+        await harness.ViewModel.WhenContentUpdatesCheckedAsync();
+
+        Assert.Equal(
+            [$"{OwnId} 1.0.0 update", "helper 1.0.0 update"],
+            plans.Select(plan => string.Join(", ", plan.Requested.Select(mod => $"{mod.Release.ModId} {mod.Release.Version} {(mod.Exact ? "exact" : "update")}"))).Order(StringComparer.Ordinal));
+        var rows = harness.ViewModel.ContentGroups.Single().Items;
+        Assert.Null(rows.Single(item => item.ModId == OwnId).UpdateVersion);
+        Assert.Equal("1.1.0", rows.Single(item => item.ModId == "helper").UpdateVersion);
+    }
+
+    private static ModDependency NeedsAbsent => new("absent", ModDependencyKind.Required, ModVersion.Parse("1.0.0"));
+
+    private sealed class RecordingPlanner(IInstallPlanner inner, ConcurrentQueue<InstallPlanningRequest> requests) : IInstallPlanner
+    {
+        public Task<InstallPlan> PlanAsync(InstallPlanningRequest request, CancellationToken cancellationToken = default)
+        {
+            requests.Enqueue(request);
+            return inner.PlanAsync(request, cancellationToken);
+        }
     }
 
     [Fact]

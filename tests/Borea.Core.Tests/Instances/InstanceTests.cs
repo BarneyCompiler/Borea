@@ -161,6 +161,45 @@ public sealed class InstanceTests
     }
 
     [Fact]
+    public void AttachToModPack_DetachedMod_FollowsThePackAgain()
+    {
+        var instance = new Instance("Test", new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")));
+        instance.AddMod(TestFixtures.SampleInstalledMod(reason: InstallReason.ModPack));
+        instance.DetachFromModPack("test-mod");
+
+        Assert.True(instance.AttachToModPack("TEST-MOD"));
+
+        Assert.Equal(InstallReason.ModPack, instance.Mods.Single().Reason);
+        Assert.Equal(new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")), instance.Source);
+        Assert.False(instance.AttachToModPack("test-mod"));
+    }
+
+    [Fact]
+    public void AttachToModPack_DetachedModThatThePlayerRemoved_LeavesTheSet()
+    {
+        var source = new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")).WithDetached(["test-mod", "other-mod"]);
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", source, DateTimeOffset.UnixEpoch, [], false);
+
+        Assert.True(instance.AttachToModPack("test-mod"));
+
+        Assert.Equal(new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")).WithDetached(["other-mod"]), instance.Source);
+    }
+
+    [Fact]
+    public void AttachToModPack_ModThatIsNotDetached_Throws()
+    {
+        var custom = new Instance("Custom", InstanceSource.Custom.Value);
+        custom.AddMod(TestFixtures.SampleInstalledMod(reason: InstallReason.Manual));
+        var pack = new Instance("Pack", new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")));
+        pack.AddMod(TestFixtures.SampleInstalledMod(reason: InstallReason.Manual));
+
+        Assert.Throws<InvalidOperationException>(() => custom.AttachToModPack("test-mod"));
+        Assert.Throws<InvalidOperationException>(() => pack.AttachToModPack("test-mod"));
+        Assert.Throws<InvalidOperationException>(() => pack.AttachToModPack("other-mod"));
+        Assert.Equal(InstallReason.Manual, pack.Mods.Single().Reason);
+    }
+
+    [Fact]
     public void AddMod_DuplicateModId_ThrowsInvalidOperationException()
     {
         var instance = new Instance("Test", InstanceSource.Custom.Value);

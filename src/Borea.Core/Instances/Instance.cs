@@ -203,6 +203,29 @@ public sealed class Instance
         return true;
     }
 
+    /// <summary>
+    /// Makes a detached mod follow the pack again, so the next pack update moves it to the version the pack pins.
+    /// A detached mod that the player removed only leaves the set. Returns false when the mod already follows the pack.
+    /// </summary>
+    public bool AttachToModPack(string modId)
+    {
+        if (Source is not InstanceSource.FromModPack pack)
+            throw new InvalidOperationException($"Instance '{Name}' was not created from a mod pack.");
+
+        var mod = _mods.FirstOrDefault(m => ModIds.Equals(m.ModId, modId));
+        if (!pack.Detached.Contains(modId))
+        {
+            if (mod?.Reason == InstallReason.ModPack)
+                return false;
+
+            throw new InvalidOperationException($"Mod '{mod?.ModId ?? modId}' is not detached from the mod pack of this instance.");
+        }
+
+        Source = pack.WithDetached(pack.Detached.Where(id => !ModIds.Equals(id, modId)));
+        mod?.MarkAsModPackMember();
+        return true;
+    }
+
     public void ReplaceForeignMods(IReadOnlyList<ForeignMod> foreignMods)
     {
         ArgumentNullException.ThrowIfNull(foreignMods);

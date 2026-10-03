@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Avalonia;
@@ -31,6 +32,12 @@ public sealed class MarkdownView : StackPanel
 
     private const string Bullet = "\u2022";
 
+    /// <summary>The source of each shown top level block and the number of children it made, in the order of the children.</summary>
+    private List<(string? Source, int Count)> _shown = [];
+
+    /// <summary>The link reference definitions of the shown text.</summary>
+    private string _definitions = string.Empty;
+
     public string? Markdown
     {
         get => GetValue(MarkdownProperty);
@@ -52,21 +59,85 @@ public sealed class MarkdownView : StackPanel
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (change.Property == ImagesProperty)
+            Clear();
+
         if (change.Property == MarkdownProperty || change.Property == ImagesProperty)
             Rebuild();
     }
 
-    private void Rebuild()
+    private void Clear()
     {
         Children.Clear();
-        if (!string.IsNullOrWhiteSpace(Markdown))
-            AddBlocks(Children, MarkdownSyntax.Parse(Markdown), Images);
+        _shown = [];
     }
 
-    /// <summary>A link reference definition, and any block that CommonMark has but this view does not draw, shows nothing.</summary>
-    private static void AddBlocks(Controls target, ContainerBlock container, DescriptionImages? images)
+    /// <summary>
+    /// Keeps the children of the unchanged top level blocks at the start and at the end, so typing rebuilds only the edited blocks,
+    /// and an image next to them stays loaded instead of loading again on every key. A block is unchanged when its source is,
+    /// and a change of the link reference definitions rebuilds every block, because any block can use them.
+    /// </summary>
+    private void Rebuild()
     {
-        foreach (var block in container)
+        var document = string.IsNullOrWhiteSpace(Markdown) ? null : MarkdownSyntax.Parse(Markdown);
+        var blocks = document?.Where(block => block is not LinkReferenceDefinitionGroup).ToList() ?? [];
+        var definitions = document is null ? string.Empty : Definitions(document);
+        if (definitions != _definitions)
+        {
+            Clear();
+            _definitions = definitions;
+        }
+
+        var sources = blocks.Select((block, index) => Source(Markdown!, block, index == blocks.Count - 1)).ToList();
+        var start = 0;
+        while (start < sources.Count && start < _shown.Count && Same(sources[start], _shown[start].Source))
+            start++;
+
+        var end = 0;
+        while (end < sources.Count - start && end < _shown.Count - start && Same(sources[^(end + 1)], _shown[^(end + 1)].Source))
+            end++;
+
+        var first = _shown.Take(start).Sum(block => block.Count);
+        Children.RemoveRange(first, _shown.Skip(start).Take(_shown.Count - start - end).Sum(block => block.Count));
+
+        var built = new Controls();
+        var shown = _shown.Take(start).ToList();
+        for (var index = start; index < blocks.Count - end; index++)
+        {
+            var count = built.Count;
+            AddBlocks(built, [blocks[index]], Images);
+            shown.Add((sources[index], built.Count - count));
+        }
+
+        Children.InsertRange(first, built);
+        shown.AddRange(_shown.Skip(_shown.Count - end));
+        _shown = shown;
+    }
+
+    /// <summary>
+    /// The text that decides what a block draws, or null when the block has no span inside the text. The span starts after the indent
+    /// of the first line, but that indent moves the columns of a code block or a list item, so the text starts at the start of the line.
+    /// The last block runs to the end of the text, because a code block without a closing fence holds blank lines after its span.
+    /// </summary>
+    private static string? Source(string markdown, Block block, bool last)
+    {
+        if (block.Span.Start < 0 || block.Span.Length <= 0 || block.Span.End >= markdown.Length)
+            return null;
+
+        var line = block.Span.Start == 0 ? 0 : markdown.LastIndexOf('\n', block.Span.Start - 1) + 1;
+        return last ? markdown[line..] : markdown[line..(block.Span.End + 1)];
+    }
+
+    /// <summary>A block without a source is never the same as a shown block, so it is always built again.</summary>
+    private static bool Same(string? source, string? shown) => source is not null && source == shown;
+
+    private static string Definitions(MarkdownDocument document) =>
+        string.Join('\n', document.OfType<LinkReferenceDefinitionGroup>().SelectMany(group => group.Links).Select(link => $"{link.Key}\n{link.Value.Url}\n{link.Value.Title}"));
+
+    /// <summary>A link reference definition, and any block that CommonMark has but this view does not draw, shows nothing.</summary>
+    private static void AddBlocks(Controls target, IEnumerable<Block> blocks, DescriptionImages? images)
+    {
+        foreach (var block in blocks)
         {
             switch (block)
             {

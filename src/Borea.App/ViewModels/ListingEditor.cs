@@ -245,7 +245,7 @@ public sealed partial class ListingEditor : ObservableObject
 
     /// <summary>The draft as the fields describe it now.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PullRequestText), nameof(OwnerFilePath), nameof(OwnerFileText))]
+    [NotifyPropertyChangedFor(nameof(PullRequestText), nameof(OwnerFilePath), nameof(OwnerFileText), nameof(DescriptionPreview))]
     private ListingDraft _draft = new();
 
     /// <summary>The listing file the draft gives, in the layout of content-index.</summary>
@@ -713,6 +713,7 @@ public sealed partial class ListingEditor : ObservableObject
 
         var draft = BuildDraft(out var pageIssues);
         Draft = draft;
+        RefreshDescriptionPreview();
         if (_owner.Services is not { } services)
             return;
 

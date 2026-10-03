@@ -365,6 +365,7 @@ public sealed partial class ListingEditor
         Cancel();
         StopFollowing();
         StopOwnershipCheck();
+        DropDescriptionPreviewImages();
         if (!_isPageOpen)
             return;
 

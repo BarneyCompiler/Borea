@@ -6,6 +6,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using Borea.App.ViewModels;
+using Borea.Core.Index;
 using Borea.Core.Listings;
 using Borea.Core.ModPacks;
 using Borea.Core.Mods;
@@ -705,6 +706,146 @@ public sealed class ListingEditorTests
         Assert.Null(icon.Width);
         Assert.Null(icon.Size);
         Assert.DoesNotContain("sha256", editor.DocumentText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DescriptionPreview_WhileOn_FollowsTheDescriptionAsTheFileHoldsIt()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, _, _) = await ValidNewListingAsync(harness);
+        var changed = new List<string?>();
+        editor.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        editor.Description = "## Intro\r\nFirst line";
+
+        Assert.Null(editor.DescriptionPreview);
+
+        editor.IsDescriptionPreviewOn = true;
+
+        Assert.Equal("## Intro\nFirst line", editor.DescriptionPreview);
+
+        changed.Clear();
+        editor.Description += " typed";
+
+        Assert.Contains(nameof(ListingEditor.DescriptionPreview), changed);
+        Assert.Equal("## Intro\nFirst line typed", editor.DescriptionPreview);
+
+        editor.Description = string.Empty;
+
+        Assert.Null(editor.DescriptionPreview);
+
+        editor.Description = "Back";
+        editor.IsDescriptionPreviewOn = false;
+
+        Assert.Equal("Back", editor.DescriptionPreview);
+
+        editor.Description = "Later";
+
+        Assert.Equal("Back", editor.DescriptionPreview);
+
+        editor.IsDescriptionPreviewOn = true;
+
+        Assert.Equal("Later", editor.DescriptionPreview);
+    }
+
+    [Fact]
+    public async Task DescriptionPreview_ImagesAreTheMeasuredRows()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, _, window) = await ValidNewListingAsync(harness);
+        var shot = await DescriptionImageAsync(editor, window, "shot", Png(1600, 900));
+        DescriptionImageRow(editor, "later");
+        await DescriptionImageAsync(editor, window, "shot", Png(800, 600), "https://images.example/other.png");
+        await DescriptionImageAsync(editor, window, "not an id", Png(800, 600));
+
+        Assert.Same(DescriptionImages.None, editor.DescriptionPreviewImages);
+
+        editor.IsDescriptionPreviewOn = true;
+
+        var images = editor.DescriptionPreviewImages;
+        var record = Assert.Single(images.Images).Record;
+        Assert.Equal(("shot", "https://images.example/shot.png", shot.Sha256!.ToUpperInvariant(), 1600, 900, shot.Size!.Value), (((DescriptionImage)record).Id, record.Url, record.Sha256, record.Width, record.Height, record.SizeBytes));
+        Assert.Null(images.Find("later"));
+        Assert.Empty(harness.Images.Requests);
+
+        editor.Description = "![Shot](ksa-image:shot) typed";
+
+        Assert.Same(images, editor.DescriptionPreviewImages);
+
+        shot.Attribution = "Maxi";
+
+        Assert.NotSame(images, editor.DescriptionPreviewImages);
+        Assert.Equal("Maxi", editor.DescriptionPreviewImages.Find("shot")?.Attribution);
+
+        var shown = editor.DescriptionPreviewImages;
+        editor.IsDescriptionPreviewOn = false;
+
+        Assert.Same(shown, editor.DescriptionPreviewImages);
+    }
+
+    [Fact]
+    public async Task DescriptionPreview_LeavingThePage_DropsTheImagesAndOpeningItMakesThemAgain()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, _, window) = await ValidNewListingAsync(harness);
+        await DescriptionImageAsync(editor, window, "shot", Png(1600, 900));
+        editor.IsDescriptionPreviewOn = true;
+        var images = editor.DescriptionPreviewImages;
+        Assert.NotNull(images.Find("shot"));
+
+        harness.ViewModel.CurrentWindowDiscover = true;
+
+        Assert.False(harness.ViewModel.CurrentWindowListing);
+        Assert.Same(DescriptionImages.None, editor.DescriptionPreviewImages);
+
+        await harness.ViewModel.OpenListingAsync();
+
+        Assert.True(editor.IsDescriptionPreviewOn);
+        Assert.NotSame(images, editor.DescriptionPreviewImages);
+        Assert.NotNull(editor.DescriptionPreviewImages.Find("shot"));
+    }
+
+    [Fact]
+    public async Task DescriptionPreview_ASourceLinkThatCannotOpen_ShowsAToast()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var (editor, opened, window) = await ValidNewListingAsync(harness);
+        var shot = await DescriptionImageAsync(editor, window, "shot", Png(1600, 900));
+        shot.Source = "https://example.org/original";
+        editor.IsDescriptionPreviewOn = true;
+        var image = editor.DescriptionPreviewImages.Find("shot")!;
+
+        image.OpenSourceCommand.Execute(null);
+
+        Assert.Equal(["https://example.org/original"], opened);
+        Assert.Empty(harness.ViewModel.Toasts.Items);
+
+        harness.ViewModel.OpenWithSystem = _ => throw new Win32Exception("No browser is set.");
+        image.OpenSourceCommand.Execute(null);
+
+        var toast = Assert.Single(harness.ViewModel.Toasts.Items);
+        Assert.True(toast.IsFailed);
+        Assert.Equal(harness.Localization.FormatToastOpenFailed("https://example.org/original"), toast.Message);
+        Assert.Equal("No browser is set.", toast.Detail);
+        Assert.Null(harness.ViewModel.ContentDetailError);
+    }
+
+    private static ListingImageRow DescriptionImageRow(ListingEditor editor, string id, string? url = null)
+    {
+        editor.AddDescriptionImageCommand.Execute(null);
+        var row = editor.DescriptionImages[^1];
+        row.Id = id;
+        row.Url = url ?? $"https://images.example/{id}.png";
+        return row;
+    }
+
+    private static async Task<ListingImageRow> DescriptionImageAsync(ListingEditor editor, FakeWindowServices window, string id, byte[] png, string? url = null)
+    {
+        var row = DescriptionImageRow(editor, id, url);
+        window.ImageToOpen = new PickedBinaryFile($"{id}.png", png);
+        await row.ChooseFileCommand.ExecuteAsync(null);
+        Assert.True(row.IsMeasured, row.Problem);
+        return row;
     }
 
     [Fact]

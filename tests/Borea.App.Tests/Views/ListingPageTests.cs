@@ -1,8 +1,10 @@
 using System.Net;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Borea.App.Tests.ViewModels;
 using Borea.App.ViewModels;
@@ -189,6 +191,115 @@ public sealed class ListingPageTests
         Assert.Contains(localization.ListingOpenPullRequest, texts);
         Assert.Contains(localization.ListingNewPullRequestText, texts);
         Assert.DoesNotContain(localization.ListingEditPullRequestText, texts);
+    }
+
+    [Fact]
+    public async Task DescriptionPreview_DrawsTheDescriptionAsTheModPageDoes()
+    {
+        const string images = @"![The settings window](ksa-image:settings-window)\n\n![The old map](ksa-image:map-view) and ![Gone](ksa-image:gone)\n\n";
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: json => ImageViewModelTests.WithImages("AdvancedFlightComputer", $$"""{ "description": [{{ImageViewModelTests.Description("settings-window")}}] }""")(
+            json.Replace("\"description\": \"Adds quick-tools", $"\"description\": \"{images}Adds quick-tools", StringComparison.Ordinal)));
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        await viewModel.DiscoverItems.Single(item => item.ModId == "AdvancedFlightComputer").OpenCommand.ExecuteAsync(null);
+        var description = viewModel.SelectedContent!.Description!;
+        var modPage = await HeadlessApp.RunAsync(harness, () => Task.FromResult(DrawnDescription(new Borea.App.Views.Pages.ContentPage(), harness)));
+
+        await viewModel.OpenListingAsync();
+        viewModel.ListingEditor.Load(new ListingDraft
+        {
+            Description = description,
+            DescriptionImages =
+            [
+                new ListingImageRecord("https://images.example/settings-window.png") { Id = "settings-window", Sha256 = new string('A', 64), Width = 1600, Height = 900, Size = 400_000 },
+                new ListingImageRecord("https://images.example/map-view.png") { Id = "map-view" },
+            ],
+        });
+        viewModel.ListingEditor.IsDescriptionPreviewOn = true;
+        var preview = await HeadlessApp.RunAsync(harness, () => Task.FromResult(DrawnDescription(new ListingPage(), harness)));
+
+        Assert.StartsWith("![The settings window]", description, StringComparison.Ordinal);
+        Assert.Contains("ListingImageView. 1 https://images.example/settings-window.png", preview);
+        Assert.Contains("Border.thumbnail 1 The old map", preview);
+        Assert.Contains("Border.thumbnail 1 Gone", preview);
+        Assert.Equal(modPage, preview);
+    }
+
+    [Fact]
+    public async Task DescriptionPreview_TheSwitchShowsItAndTypingUpdatesIt()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var editor = harness.ViewModel.ListingEditor;
+        await harness.ViewModel.OpenListingAsync();
+        editor.StartEmptyCommand.Execute(null);
+        editor.Description = "Typed";
+
+        var (before, shown, sideBySide, typed, after, restored, kept) = await HeadlessApp.RunAsync(harness, () =>
+        {
+            var page = new ListingPage { DataContext = harness.ViewModel };
+            var window = new Window { Width = 1280, Height = 832, Content = page, DataContext = harness.ViewModel };
+            window.Show();
+            window.UpdateLayout();
+            // the scroll area of a hidden preview has no visual children yet, so the view is found in the logical tree
+            var preview = page.GetLogicalDescendants().OfType<MarkdownView>().Single(view => view.Images is not null);
+            var toggle = page.GetVisualDescendants().OfType<ToggleSwitch>().Single(toggle => AutomationProperties.GetName(toggle) == harness.Localization.ListingDescriptionPreview);
+            var before = preview.IsEffectivelyVisible;
+
+            var field = page.GetVisualDescendants().OfType<TextBox>().Single(box => AutomationProperties.GetName(box) == harness.Localization.ListingDescription);
+            var fullWidth = field.Bounds.Width;
+
+            Click(window, toggle);
+            window.UpdateLayout();
+            var shown = (preview.IsEffectivelyVisible, MarkdownViewTests.Drawn(preview).Last());
+            var fieldLeft = field.TranslatePoint(default, window)!.Value;
+            var previewLeft = preview.TranslatePoint(default, window)!.Value;
+            var sideBySide = (field.Bounds.Width < fullWidth / 2 + 1, previewLeft.X > fieldLeft.X + field.Bounds.Width, previewLeft.Y < fieldLeft.Y + field.Bounds.Height);
+
+            field.Focus();
+            field.CaretIndex = field.Text!.Length;
+            window.KeyTextInput(" more");
+            window.UpdateLayout();
+            var typed = MarkdownViewTests.Drawn(preview).Last();
+            var shownChildren = preview.Children.Count;
+
+            Click(window, toggle);
+            window.UpdateLayout();
+            var after = preview.IsEffectivelyVisible;
+            var restored = Math.Abs(field.Bounds.Width - fullWidth) < 1;
+            var kept = shownChildren > 0 && preview.Children.Count == shownChildren;
+            window.Close();
+            return Task.FromResult((before, shown, sideBySide, typed, after, restored, kept));
+        });
+
+        Assert.False(before);
+        Assert.True(shown.IsEffectivelyVisible);
+        Assert.EndsWith("[Typed]", shown.Item2, StringComparison.Ordinal);
+        Assert.Equal((true, true, true), sideBySide);
+        Assert.EndsWith("[Typed more]", typed, StringComparison.Ordinal);
+        Assert.Equal("Typed more", editor.Description);
+        Assert.False(after);
+        Assert.True(restored, "the field takes the whole width again");
+        Assert.True(kept, "turning the preview off hides its view and removes none of its controls");
+        Assert.False(editor.IsDescriptionPreviewOn);
+    }
+
+    /// <summary>What the visible description view of the page draws, with its images resolved.</summary>
+    private static List<string> DrawnDescription(UserControl page, ViewModelHarness harness)
+    {
+        page.DataContext = harness.ViewModel;
+        var window = new Window { Width = 1280, Height = 832, Content = page, DataContext = harness.ViewModel };
+        window.Show();
+        window.UpdateLayout();
+        var drawn = MarkdownViewTests.Drawn(page.GetVisualDescendants().OfType<MarkdownView>().Single(view => view.IsEffectivelyVisible && view.Images is not null));
+        window.Close();
+        return drawn;
+    }
+
+    private static void Click(Window window, Control control)
+    {
+        var center = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseUp(center, MouseButton.Left);
     }
 
     [Fact]

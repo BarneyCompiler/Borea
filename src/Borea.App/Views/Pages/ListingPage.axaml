@@ -181,9 +181,33 @@
                                 <TextBlock Classes="heading-sm" Text="{Binding Localization.ListingAbstract}" Margin="0,10,0,0" />
                                 <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingAbstractHint}" TextWrapping="Wrap" />
                                 <TextBox Classes="field" Text="{Binding ListingEditor.Abstract}" TextWrapping="Wrap" AutomationProperties.Name="{Binding Localization.ListingAbstract}" />
-                                <TextBlock Classes="heading-sm" Text="{Binding Localization.ListingDescription}" Margin="0,10,0,0" />
+                                <Grid ColumnDefinitions="*,16,Auto,8,Auto" Margin="0,10,0,0">
+                                    <TextBlock Classes="heading-sm" Text="{Binding Localization.ListingDescription}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Classes="label-md" Text="{Binding Localization.ListingPreview}" VerticalAlignment="Center" />
+                                    <ToggleSwitch Grid.Column="4" Classes="switch" IsChecked="{Binding ListingEditor.IsDescriptionPreviewOn}" AutomationProperties.Name="{Binding Localization.ListingDescriptionPreview}" />
+                                </Grid>
                                 <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingDescriptionHint}" TextWrapping="Wrap" />
-                                <TextBox Classes="field" Text="{Binding ListingEditor.Description}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" MaxHeight="480" AutomationProperties.Name="{Binding Localization.ListingDescription}" />
+                                <!-- the preview stands next to the field, so turning it on or off does not move the rest of the page -->
+                                <Grid Classes="description-editor" Classes.preview="{Binding ListingEditor.IsDescriptionPreviewOn}" ColumnDefinitions="*,16,*">
+                                    <Grid.Styles>
+                                        <Style Selector="Grid.description-editor > TextBox">
+                                            <Setter Property="Grid.ColumnSpan" Value="3" />
+                                        </Style>
+                                        <Style Selector="Grid.description-editor.preview > TextBox">
+                                            <Setter Property="Grid.ColumnSpan" Value="1" />
+                                        </Style>
+                                    </Grid.Styles>
+                                    <TextBox Classes="field" Text="{Binding ListingEditor.Description}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" MaxHeight="480" AutomationProperties.Name="{Binding Localization.ListingDescription}" />
+                                    <!-- the description as the mod page draws it, with the same view -->
+                                    <Border Grid.Column="2" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" CornerRadius="12" MaxHeight="480" IsVisible="{Binding ListingEditor.IsDescriptionPreviewOn}">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <Panel Margin="24">
+                                                <views:MarkdownView Markdown="{Binding ListingEditor.DescriptionPreview}" Images="{Binding ListingEditor.DescriptionPreviewImages}" IsVisible="{Binding ListingEditor.DescriptionPreview, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <TextBlock Classes="body-md muted" Text="{Binding Localization.ContentNoDescription}" IsVisible="{Binding ListingEditor.DescriptionPreview, Converter={x:Static ObjectConverters.IsNull}}" />
+                                            </Panel>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
                                 <TextBlock Classes="heading-sm" Text="{Binding Localization.ListingLicense}" Margin="0,10,0,0" />
                                 <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ListingLicenseHint}" TextWrapping="Wrap" />
                                 <TextBox Classes="field" Text="{Binding ListingEditor.License}" AutomationProperties.Name="{Binding Localization.ListingLicense}" />

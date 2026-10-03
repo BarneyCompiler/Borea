@@ -1576,6 +1576,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ListingDescriptionHint => Resources.ListingDescriptionHint;
 
+    public string ListingDescriptionPreview => Resources.ListingDescriptionPreview;
+
     public string ListingLicense => Resources.ListingLicense;
 
     public string ListingLicenseHint => Resources.ListingLicenseHint;

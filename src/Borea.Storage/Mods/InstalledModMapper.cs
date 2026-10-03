@@ -14,6 +14,7 @@ public static class InstalledModMapper
         Ownership = mod.Ownership.ToString(),
         OwnershipToken = mod.OwnershipToken,
         Storage = mod.Storage.ToString(),
+        Pinned = mod.IsPinned ? true : null,
         Metadata = ModVersionMetadataMapper.ToDto(mod.Metadata),
     };
 
@@ -30,5 +31,6 @@ public static class InstalledModMapper
         dto.OwnershipToken,
         string.IsNullOrWhiteSpace(dto.Storage)
             ? ModStorage.Private
-            : Enum.Parse<ModStorage>(dto.Storage));
+            : Enum.Parse<ModStorage>(dto.Storage),
+        dto.Pinned == true);
 }

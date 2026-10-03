@@ -33,6 +33,11 @@ public sealed class InstalledMod
     public ModStorage Storage { get; }
 
     /// <summary>
+    /// An update leaves a pinned mod at its version, and a plan that needs another version of it stops.
+    /// </summary>
+    public bool IsPinned { get; private set; }
+
+    /// <summary>
     /// A private folder proves ownership with its token, and a linked folder
     /// with a link to the stored release that <see cref="Checksum"/> names.
     /// </summary>
@@ -48,7 +53,8 @@ public sealed class InstalledMod
         string? checksum = null,
         ModInstallOwnership ownership = ModInstallOwnership.Borea,
         string? ownershipToken = null,
-        ModStorage storage = ModStorage.Private)
+        ModStorage storage = ModStorage.Private,
+        bool isPinned = false)
     {
         if (string.IsNullOrWhiteSpace(modId))
             throw new ArgumentException("Mod ID cannot be null or whitespace.", nameof(modId));
@@ -68,6 +74,7 @@ public sealed class InstalledMod
         Ownership = ownership;
         OwnershipToken = ownershipToken;
         Storage = storage;
+        IsPinned = isPinned;
 
         if (ownership == ModInstallOwnership.Foreign && !string.IsNullOrWhiteSpace(ownershipToken))
             throw new ArgumentException("A foreign mod cannot have a Borea ownership token.", nameof(ownershipToken));
@@ -89,4 +96,6 @@ public sealed class InstalledMod
     {
         Reason = InstallReason.Manual;
     }
+
+    public void SetPinned(bool pinned) => IsPinned = pinned;
 }

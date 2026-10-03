@@ -117,7 +117,8 @@ public sealed class FileModReplacer : IModReplacer
                 download.Sha256,
                 ModInstallOwnership.Borea,
                 staged.OwnershipToken,
-                staged.Storage);
+                staged.Storage,
+                expectedCurrent.IsPinned);
 
             await _instances.UpdateAsync(
                 instanceId,

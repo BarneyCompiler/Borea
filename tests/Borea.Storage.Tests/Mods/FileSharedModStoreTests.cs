@@ -97,6 +97,19 @@ public sealed class FileSharedModStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CheckAsync_ChangedRelease_KeepsThePinOfTheMod()
+    {
+        await InstallBothAsync();
+        await _instances.UpdateAsync(_first, instance => instance.SetPinned(ModId, pinned: true));
+        File.WriteAllText(Path.Combine(ModFolder(_first), "settings.cfg"), "written by the mod");
+
+        await SharedStore().CheckAsync(_first);
+
+        Assert.True(Assert.Single((await _instances.GetByIdAsync(_first))!.Mods).IsPinned);
+        Assert.False(Assert.Single((await _instances.GetByIdAsync(_second))!.Mods).IsPinned);
+    }
+
+    [Fact]
     public async Task CheckAsync_WhileTheGameRuns_ChangesNothing()
     {
         await InstallBothAsync();

@@ -46,7 +46,7 @@ internal sealed partial class MarkdownText
         _text = NewText();
     }
 
-    /// <param name="textClass">The text class of a heading, or null for body text, which can be selected.</param>
+    /// <param name="textClass">The text class of a heading, or null for body text.</param>
     public static void Write(Controls target, ContainerInline? inlines, string? textClass, DescriptionImages? images)
     {
         var writer = new MarkdownText(target, textClass, images);
@@ -66,7 +66,7 @@ internal sealed partial class MarkdownText
 
     private TextBlock NewText() => _textClass is null
         ? Body()
-        : new TextBlock { TextWrapping = TextWrapping.Wrap, Classes = { _textClass } };
+        : new SelectableTextBlock { TextWrapping = TextWrapping.Wrap, Classes = { _textClass } };
 
     private void WriteChildren(ContainerInline container, RunStyle style)
     {

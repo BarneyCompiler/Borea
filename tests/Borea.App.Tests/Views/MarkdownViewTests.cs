@@ -290,6 +290,21 @@ public sealed partial class MarkdownViewTests
     }
 
     [Fact]
+    public async Task Headings_CanBeSelectedAndKeepTheLookOfTheirTextClass()
+    {
+        var headings = await RenderAsync("# Large\n\n## Medium\n\n### Small", (_, view) =>
+            TextBlocks(view).Select(text => (text is SelectableTextBlock, Text(text), string.Join(' ', text.Classes), text.FontSize, text.FontWeight)).ToList());
+
+        Assert.Equal(
+            [
+                (true, "Large", "heading-lg", 24, FontWeight.SemiBold),
+                (true, "Medium", "heading-md", 16, FontWeight.SemiBold),
+                (true, "Small", "heading-sm", 14, FontWeight.SemiBold),
+            ],
+            headings);
+    }
+
+    [Fact]
     public async Task Code_TakesTheSurfacesOfTheTheme()
     {
         var (inline, block) = await RenderAsync("text `inline`\n\n```\nblock\n```", (_, view) =>

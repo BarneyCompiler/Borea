@@ -756,7 +756,8 @@
     actions.appendChild(copy);
     actions.appendChild(link(base + "#download", "Get Borea", "button secondary"));
     fragment.appendChild(actions);
-    fragment.appendChild(element("p", "meta hint desktop-only", "Open in Borea and Install with Borea need Borea on this computer."));
+    fragment.appendChild(element("p", "meta hint desktop-only",
+      '"Open in Borea" and "Install with Borea" work only when Borea is installed on this computer.'));
     fragment.appendChild(element("p", "meta hint handheld-only",
       "Borea runs on Windows, Linux and macOS. To install this with Borea, open this page on a computer."));
     return fragment;

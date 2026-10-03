@@ -10,6 +10,7 @@ using Borea.Composition;
 using Borea.Core.Game;
 using Borea.Core.History;
 using Borea.Core.Index;
+using Borea.Core.Licenses;
 using Borea.Core.ModPacks;
 using Borea.Core.Mods;
 using Borea.Core.Planning;
@@ -52,6 +53,9 @@ public partial class MainViewModel
     public ObservableCollection<DiscoverChoice> OsOptions { get; } = [];
 
     public ObservableCollection<DiscoverChoice> LicenseOptions { get; } = [];
+
+    /// <summary>The licenses the License filter holds. A listing shows when its license names one of them.</summary>
+    public ObservableCollection<string> SelectedLicenses { get; } = [];
 
     public ObservableCollection<DiscoverCategory> CategoryOptions { get; } = [];
 
@@ -100,10 +104,6 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(HasDiscoverFilters))]
     private string? _selectedOs;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasDiscoverFilters))]
-    private string? _selectedLicense;
-
     /// <summary>The public builds of the snapshot, newest first, for the Game version filter.</summary>
     public ObservableCollection<GameVersionOption> GameVersionOptions { get; } = [];
 
@@ -128,7 +128,7 @@ public partial class MainViewModel
         ({ } min, { } max) => $"{min.Text} - {max.Text}",
     };
 
-    public bool HasDiscoverFilters => HideInstalled || HideIncompatible || FavoritesOnly || InstalledInOtherInstances || SelectedOs is not null || SelectedLicense is not null || SelectedCategories.Count > 0 || HasGameVersionRange;
+    public bool HasDiscoverFilters => HideInstalled || HideIncompatible || FavoritesOnly || InstalledInOtherInstances || SelectedOs is not null || SelectedLicenses.Count > 0 || SelectedCategories.Count > 0 || HasGameVersionRange;
 
     /// <summary>The saved Sort by choice of the Mods and Modpacks tabs.</summary>
     public DiscoverSortOrder DiscoverSort => _discoverSort ?? _appPreferences.DiscoverSortOrder;
@@ -226,9 +226,9 @@ public partial class MainViewModel
             MarkChoice(OsOptions, SelectedOs);
 
             LicenseOptions.Clear();
-            foreach (var license in listings.Select(listing => listing.License).Concat(packs.Select(pack => pack.License)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(license => license))
+            foreach (var license in LicenseFilter.Options(listings.Select(listing => listing.License).Concat(packs.Select(pack => pack.License))))
                 LicenseOptions.Add(new DiscoverChoice(license));
-            MarkChoice(LicenseOptions, SelectedLicense);
+            MarkLicenses();
 
             LoadCategoryOptions(listings, packs);
             LoadGameVersionOptions(snapshot.GameVersions);
@@ -269,8 +269,8 @@ public partial class MainViewModel
             filtered = filtered.Where(item => item.IsInOtherInstance);
         if (SelectedOs is not null)
             filtered = filtered.Where(item => item.SupportsOs(SelectedOs));
-        if (SelectedLicense is not null)
-            filtered = filtered.Where(item => string.Equals(item.License, SelectedLicense, StringComparison.OrdinalIgnoreCase));
+        if (SelectedLicenses.Count > 0)
+            filtered = filtered.Where(item => LicenseFilter.Matches(item.License, SelectedLicenses));
         if (HasGameVersionRange)
             filtered = filtered.Where(item => item.LatestInChannel is { } release
                 && Borea.Core.Game.Compatibility.SupportsAnyBuild(release.GameMinRevision, release.GameMaxRevision, DiscoverGameMin?.Revision, DiscoverGameMax?.Revision));
@@ -486,16 +486,16 @@ public partial class MainViewModel
         ApplyDiscoverFilters();
     }
 
-    partial void OnSelectedLicenseChanged(string? value)
-    {
-        MarkChoice(LicenseOptions, value);
-        ApplyDiscoverFilters();
-    }
-
     private static void MarkChoice(IEnumerable<DiscoverChoice> choices, string? selected)
     {
         foreach (var choice in choices)
             choice.IsSelected = string.Equals(choice.Value, selected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void MarkLicenses()
+    {
+        foreach (var choice in LicenseOptions)
+            choice.IsSelected = SelectedLicenses.Contains(choice.Value, StringComparer.OrdinalIgnoreCase);
     }
 
     // a range whose Min is above its Max would match nothing, so the other bound follows
@@ -527,7 +527,20 @@ public partial class MainViewModel
     private void SelectOs(string? os) => SelectedOs = string.Equals(os, SelectedOs, StringComparison.OrdinalIgnoreCase) ? null : os;
 
     [RelayCommand]
-    private void SelectLicense(string? license) => SelectedLicense = string.Equals(license, SelectedLicense, StringComparison.OrdinalIgnoreCase) ? null : license;
+    private void ToggleLicense(string? license)
+    {
+        if (license is null)
+            return;
+
+        if (SelectedLicenses.FirstOrDefault(selected => string.Equals(selected, license, StringComparison.OrdinalIgnoreCase)) is { } chosen)
+            SelectedLicenses.Remove(chosen);
+        else
+            SelectedLicenses.Add(license);
+
+        MarkLicenses();
+        OnPropertyChanged(nameof(HasDiscoverFilters));
+        ApplyDiscoverFilters();
+    }
 
     [RelayCommand]
     private void ClearDiscoverGameVersionRange()
@@ -591,7 +604,8 @@ public partial class MainViewModel
         FavoritesOnly = false;
         InstalledInOtherInstances = false;
         SelectedOs = null;
-        SelectedLicense = null;
+        SelectedLicenses.Clear();
+        MarkLicenses();
         DiscoverGameMin = null;
         DiscoverGameMax = null;
         foreach (var category in SelectedCategories)
@@ -1087,7 +1101,7 @@ public sealed partial class DiscoverCategory : ObservableObject
 }
 
 /// <summary>
-/// One row of a filter that holds one choice at a time, an operating system or a license.
+/// One row of the Operating system filter, which holds one choice at a time, or of the License filter, which holds several.
 /// </summary>
 public sealed partial class DiscoverChoice(string value) : ObservableObject
 {

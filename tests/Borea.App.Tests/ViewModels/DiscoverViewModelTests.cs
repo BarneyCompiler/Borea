@@ -312,7 +312,7 @@ public sealed class DiscoverViewModelTests
         await viewModel.EnsureDiscoverLoadedAsync();
         var all = viewModel.DiscoverItems.Count;
 
-        viewModel.SelectLicenseCommand.Execute("GPL-3.0");
+        viewModel.ToggleLicenseCommand.Execute("GPL-3.0");
         Assert.True(viewModel.HasDiscoverFilters);
         Assert.False(viewModel.HasDiscoverItems);
 
@@ -330,20 +330,104 @@ public sealed class DiscoverViewModelTests
         await viewModel.EnsureDiscoverLoadedAsync();
         var mit = viewModel.LicenseOptions.Single();
 
-        viewModel.SelectLicenseCommand.Execute("MIT");
+        viewModel.ToggleLicenseCommand.Execute("MIT");
+        Assert.True(mit.IsSelected);
+        Assert.Equal(["MIT"], viewModel.SelectedLicenses);
+
+        viewModel.ToggleLicenseCommand.Execute("mit");
+        Assert.False(mit.IsSelected);
+        Assert.Empty(viewModel.SelectedLicenses);
+        Assert.False(viewModel.HasDiscoverFilters);
+
+        viewModel.ToggleLicenseCommand.Execute("MIT");
+        viewModel.ToggleLicenseCommand.Execute(null);
         Assert.True(mit.IsSelected);
 
-        viewModel.SelectLicenseCommand.Execute("MIT");
-        Assert.False(mit.IsSelected);
-        Assert.Null(viewModel.SelectedLicense);
-
-        viewModel.SelectLicenseCommand.Execute("MIT");
-        viewModel.SelectLicenseCommand.Execute(null);
-        Assert.False(mit.IsSelected);
-
-        viewModel.SelectLicenseCommand.Execute("MIT");
         viewModel.ClearDiscoverFiltersCommand.Execute(null);
         Assert.False(mit.IsSelected);
+        Assert.Empty(viewModel.SelectedLicenses);
+    }
+
+    [Fact]
+    public async Task LicenseFilter_OptionsAreTheLicenseIdsOfTheListings_EachOnce()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithMixedLicenses);
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+
+        Assert.Equal(["MIT", "Apache-2.0", "CC-BY-SA-4.0", "GPL-2.0-only WITH Classpath-exception-2.0"], viewModel.LicenseOptions.Select(license => license.Value));
+    }
+
+    [Fact]
+    public async Task LicenseFilter_ShowsTheListingsWhoseLicenseNamesAChosenOne()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithMixedLicenses);
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+
+        // AdvancedFlightComputer is MIT AND CC-BY-SA-4.0, so it names both
+        viewModel.ToggleLicenseCommand.Execute("MIT");
+        Assert.Equal(["AdvancedFlightComputer", "MeasureTools"], viewModel.DiscoverItems.Select(item => item.ModId));
+
+        viewModel.ToggleLicenseCommand.Execute("CC-BY-SA-4.0");
+        Assert.Equal(["AdvancedFlightComputer", "MeasureTools"], viewModel.DiscoverItems.Select(item => item.ModId));
+
+        viewModel.ToggleLicenseCommand.Execute("MIT");
+        Assert.Equal(["AdvancedFlightComputer"], viewModel.DiscoverItems.Select(item => item.ModId));
+    }
+
+    [Fact]
+    public async Task LicenseFilter_ALicenseWithAnException_MatchesOnlyWhenThatOptionIsChosen()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithMixedLicenses);
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+
+        viewModel.ToggleLicenseCommand.Execute("GPL-2.0-only");
+        Assert.Empty(viewModel.DiscoverItems);
+
+        viewModel.ClearDiscoverFiltersCommand.Execute(null);
+        viewModel.ToggleLicenseCommand.Execute("GPL-2.0-only WITH Classpath-exception-2.0");
+        Assert.Equal(["KSArmory"], viewModel.DiscoverItems.Select(item => item.ModId));
+    }
+
+    [Fact]
+    public async Task LicenseFilter_TwoChosenShowWhatNamesEither_NoneChosenShowsEveryListing()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithMixedLicenses);
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+
+        viewModel.ToggleLicenseCommand.Execute("MIT");
+        viewModel.ToggleLicenseCommand.Execute("GPL-2.0-only WITH Classpath-exception-2.0");
+        Assert.Equal(["AdvancedFlightComputer", "KSArmory", "MeasureTools"], viewModel.DiscoverItems.Select(item => item.ModId));
+        Assert.All(viewModel.LicenseOptions, license => Assert.Equal(license.Value is "MIT" or "GPL-2.0-only WITH Classpath-exception-2.0", license.IsSelected));
+
+        viewModel.ToggleLicenseCommand.Execute("MIT");
+        viewModel.ToggleLicenseCommand.Execute("GPL-2.0-only WITH Classpath-exception-2.0");
+        Assert.False(viewModel.HasDiscoverFilters);
+        Assert.Equal(["AdvancedFlightComputer", "KSArmory", "MeasureTools"], viewModel.DiscoverItems.Select(item => item.ModId));
+    }
+
+    internal static string WithMixedLicenses(string json) => WithLicenses(
+        json,
+        ("AdvancedFlightComputer", "MIT AND CC-BY-SA-4.0"),
+        ("KSArmory", "GPL-2.0-only WITH Classpath-exception-2.0"),
+        ("MeasureTools", "MIT OR Apache-2.0"));
+
+    /// <summary>Sets the license of each listing, in its authored document and in the listing of every release.</summary>
+    private static string WithLicenses(string json, params (string Id, string License)[] licenses)
+    {
+        var root = JsonNode.Parse(json)!;
+        foreach (var (id, license) in licenses)
+        {
+            var listing = root["listings"]!.AsArray().Single(node => (string?)node!["id"] == id)!;
+            listing["authored"]!["license"] = license;
+            foreach (var release in listing["releases"]!.AsArray())
+                release!["listing"]!["license"] = license;
+        }
+
+        return root.ToJsonString();
     }
 
     [Fact]
@@ -370,7 +454,7 @@ public sealed class DiscoverViewModelTests
 
         Assert.Equal("Search 3 mods", viewModel.DiscoverSearchPlaceholderText);
 
-        viewModel.SelectLicenseCommand.Execute("GPL-3.0");
+        viewModel.ToggleLicenseCommand.Execute("GPL-3.0");
         Assert.Equal("Search 3 mods", viewModel.DiscoverSearchPlaceholderText);
 
         viewModel.ShowDiscoverLoadersCommand.Execute(null);
@@ -401,7 +485,7 @@ public sealed class DiscoverViewModelTests
         Assert.Equal("1 of 3 mods", viewModel.DiscoverCountText);
 
         viewModel.SearchText = string.Empty;
-        viewModel.SelectLicenseCommand.Execute("GPL-3.0");
+        viewModel.ToggleLicenseCommand.Execute("GPL-3.0");
         Assert.Equal("0 of 3 mods", viewModel.DiscoverCountText);
 
         viewModel.ClearDiscoverFiltersCommand.Execute(null);

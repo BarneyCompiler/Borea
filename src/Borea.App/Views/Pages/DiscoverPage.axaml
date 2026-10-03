@@ -124,12 +124,23 @@
                                     <TextBlock Classes="label-sm" Text="{Binding SelectedOs}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
-                            <Button Classes="chip-button" Command="{Binding SelectLicenseCommand}" IsVisible="{Binding SelectedLicense, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <Path Classes="icon size-16" Data="{StaticResource Icon.Close}" />
-                                    <TextBlock Classes="label-sm" Text="{Binding SelectedLicense}" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
+                            <ItemsControl ItemsSource="{Binding SelectedLicenses}" IsVisible="{Binding !!SelectedLicenses.Count}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemSpacing="8" LineSpacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Button Classes="chip-button" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ToggleLicenseCommand}" CommandParameter="{Binding}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <Path Classes="icon size-16" Data="{StaticResource Icon.Close}" />
+                                                <TextBlock Classes="label-sm" Text="{Binding}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </WrapPanel>
                     </DockPanel>
 
@@ -320,7 +331,7 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:DiscoverChoice">
-                                        <Button Classes="filter" Classes.active="{Binding IsSelected}" Content="{Binding Value}" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectLicenseCommand}" CommandParameter="{Binding Value}" />
+                                        <Button Classes="filter" Classes.active="{Binding IsSelected}" Content="{Binding Value}" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ToggleLicenseCommand}" CommandParameter="{Binding Value}" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

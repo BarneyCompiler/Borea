@@ -318,8 +318,12 @@ public sealed class UpdateNoticeViewModelTests
         Assert.Equal("999.0.0", viewModel.AvailableUpdateVersion);
         Assert.True(viewModel.ShowReleaseBanner);
         Assert.Equal(status, viewModel.ReleaseBannerText);
+        // a step reaches the view model through Progress<T>, so each one is shown before the next one starts,
+        // or a late report of the last step would write over the text of the finished update
         updater.Next();
+        await ViewModelHarness.WaitUntilAsync(() => task.Step == harness.Localization.FormatSelfUpdateVerifying("999.0.0"));
         updater.Next();
+        await ViewModelHarness.WaitUntilAsync(() => task.Step == harness.Localization.FormatSelfUpdateUnpacking("999.0.0"));
         updater.Next();
         await update;
         Assert.Equal(TaskState.Finished, task.State);

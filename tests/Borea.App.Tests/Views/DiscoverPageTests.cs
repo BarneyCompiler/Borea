@@ -82,7 +82,41 @@ public sealed class DiscoverPageTests
         });
 
         Assert.Equal((false, true, false), marks);
-        Assert.Null(viewModel.SelectedLicense);
+        Assert.Empty(viewModel.SelectedLicenses);
+    }
+
+    [Fact]
+    public async Task License_SeveralStayChosen_AndEachChipTakesOneAway()
+    {
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: DiscoverViewModelTests.WithMixedLicenses);
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+
+        var (active, chips, left) = await RenderAsync(harness, 1280, page =>
+        {
+            Button Option(string license) => SidePanel(page).GetVisualDescendants().OfType<Button>().Single(button => button.Content as string == license);
+            List<string?> Chips()
+            {
+                page.UpdateLayout();
+                return page.GetVisualDescendants().OfType<Button>()
+                    .Where(button => button.Classes.Contains("chip-button") && button.IsEffectivelyVisible && button.Command == viewModel.ToggleLicenseCommand)
+                    .Select(button => button.GetVisualDescendants().OfType<TextBlock>().Single().Text)
+                    .ToList();
+            }
+
+            Click(Option("MIT"));
+            Click(Option("CC-BY-SA-4.0"));
+            var active = viewModel.LicenseOptions.Where(license => Option(license.Value).Classes.Contains("active")).Select(license => license.Value).ToList();
+            var chips = Chips();
+
+            Click(page.GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("chip-button") && button.CommandParameter as string == "CC-BY-SA-4.0"));
+            return (active, chips, Chips());
+        });
+
+        Assert.Equal(["MIT", "CC-BY-SA-4.0"], active);
+        Assert.Equal(["MIT", "CC-BY-SA-4.0"], chips);
+        Assert.Equal(["MIT"], left);
+        Assert.Equal(["AdvancedFlightComputer", "MeasureTools"], viewModel.DiscoverItems.Select(item => item.ModId));
     }
 
     [Theory]
@@ -102,7 +136,7 @@ public sealed class DiscoverPageTests
         viewModel.FavoritesOnly = true;
         viewModel.InstalledInOtherInstances = true;
         viewModel.SelectOsCommand.Execute("windows");
-        viewModel.SelectLicenseCommand.Execute("MIT");
+        viewModel.ToggleLicenseCommand.Execute("MIT");
         viewModel.DiscoverGameMin = viewModel.GameVersionOptions.Single(build => build.Revision == 5261);
         viewModel.DiscoverGameMax = viewModel.GameVersionOptions.Single(build => build.Revision == 5402);
 

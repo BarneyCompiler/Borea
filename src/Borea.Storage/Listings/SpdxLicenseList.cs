@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Borea.Core.Licenses;
 
 namespace Borea.Storage.Listings;
 
@@ -48,30 +49,24 @@ public sealed partial class SpdxLicenseList
         if (depth != 0)
             return [$"'{expression}' has unbalanced parentheses"];
 
-        var unknown = new SortedSet<string>(StringComparer.Ordinal);
-        var parser = new Parser(Tokens(expression), this, unknown);
-        if (!parser.Parse())
+        if (SpdxExpression.Parse(expression) is not { } parsed)
         {
             return [$"'{expression}' does not parse as an SPDX license expression; join several licenses with AND or OR, "
                 + "such as GPL-2.0-only AND CC-BY-SA-4.0"];
         }
 
+        var unknown = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var license in parsed.Licenses)
+        {
+            if (!IsLicense(license.Id) && !IsReference(license.Id))
+                unknown.Add(license.Id);
+            if (license.Exception is { } exception && !_exceptions.Contains(exception) && !IsReference(exception))
+                unknown.Add(exception);
+        }
+
         return unknown.Count == 0
             ? []
             : [$"'{expression}' names {string.Join(", ", unknown)}, which is not on the SPDX license list; the identifiers are at {ListUrl}"];
-    }
-
-    private static List<string>? Tokens(string expression)
-    {
-        var tokens = new List<string>();
-        foreach (Match match in Token().Matches(expression))
-        {
-            if (match.Groups["bad"].Success)
-                return null;
-            tokens.Add(match.Value);
-        }
-
-        return tokens;
     }
 
     private static SpdxLicenseList Load()
@@ -86,89 +81,7 @@ public sealed partial class SpdxLicenseList
             root.GetProperty("exceptions").EnumerateArray().Select(item => item.GetString()!));
     }
 
-    /// <summary>expression := and (OR and)*, and := with (AND with)*, with := atom (WITH exception)?, atom := id | ( expression ).</summary>
-    private sealed class Parser(List<string>? tokens, SpdxLicenseList list, SortedSet<string> unknown)
-    {
-        private int _position;
-
-        public bool Parse() => tokens is { Count: > 0 } && Expression() && _position == tokens.Count;
-
-        private bool Expression()
-        {
-            if (!And())
-                return false;
-            while (Accept("OR"))
-            {
-                if (!And())
-                    return false;
-            }
-
-            return true;
-        }
-
-        private bool And()
-        {
-            if (!With())
-                return false;
-            while (Accept("AND"))
-            {
-                if (!With())
-                    return false;
-            }
-
-            return true;
-        }
-
-        private bool With()
-        {
-            if (Peek() == "(")
-            {
-                _position++;
-                return Expression() && Accept(")");
-            }
-
-            if (Identifier() is not { } license)
-                return false;
-            if (!list.IsLicense(license) && !IsReference(license))
-                unknown.Add(license);
-
-            if (!Accept("WITH"))
-                return true;
-
-            if (Identifier() is not { } exception)
-                return false;
-            if (!list._exceptions.Contains(exception) && !IsReference(exception))
-                unknown.Add(exception);
-            return true;
-        }
-
-        private string? Identifier()
-        {
-            var token = Peek();
-            if (token is null or "(" or ")" || IsOperator(token))
-                return null;
-            _position++;
-            return token;
-        }
-
-        private bool Accept(string expected)
-        {
-            if (!string.Equals(Peek(), expected, StringComparison.OrdinalIgnoreCase))
-                return false;
-            _position++;
-            return true;
-        }
-
-        private string? Peek() => _position < tokens!.Count ? tokens[_position] : null;
-
-        private static bool IsOperator(string token) =>
-            token.Equals("AND", StringComparison.OrdinalIgnoreCase) || token.Equals("OR", StringComparison.OrdinalIgnoreCase) || token.Equals("WITH", StringComparison.OrdinalIgnoreCase);
-    }
-
     private static bool IsReference(string id) => LicenseReference().IsMatch(id);
-
-    [GeneratedRegex(@"[()]|[A-Za-z0-9.:+-]+|(?<bad>[^\s()A-Za-z0-9.:+-])")]
-    private static partial Regex Token();
 
     [GeneratedRegex(@"^(?:DocumentRef-[A-Za-z0-9.-]+:)?LicenseRef-[A-Za-z0-9.-]+$")]
     private static partial Regex LicenseReference();

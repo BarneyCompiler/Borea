@@ -108,6 +108,8 @@ public sealed class ListingValidatorTests
     [InlineData("MIT AND", "'MIT AND' does not parse as an SPDX license expression; join several licenses with AND or OR, such as GPL-2.0-only AND CC-BY-SA-4.0")]
     [InlineData("(MIT OR GPL-3.0-only", "'(MIT OR GPL-3.0-only' has unbalanced parentheses")]
     [InlineData("MIT WITH GPL-3.0-only", "'MIT WITH GPL-3.0-only' names GPL-3.0-only, which is not on the SPDX license list; the identifiers are at https://spdx.org/licenses/")]
+    [InlineData("LicenseRef-a AND licenseref-a", "'LicenseRef-a AND licenseref-a' names licenseref-a, which is not on the SPDX license list; the identifiers are at https://spdx.org/licenses/")]
+    [InlineData("Foo AND foo", "'Foo AND foo' names Foo, foo, which is not on the SPDX license list; the identifiers are at https://spdx.org/licenses/")]
     public void Validate_LicenseExpression_ResolvesAgainstTheSpdxList(string license, string? message)
     {
         var errors = Errors(Valid() with { License = license }).Where(issue => issue.Location == "license").ToList();
@@ -116,6 +118,16 @@ public sealed class ListingValidatorTests
             Assert.Empty(errors);
         else
             Assert.Contains(errors, issue => issue.Message == message);
+    }
+
+    [Fact]
+    public void Validate_LicenseNestedDeeperThanTheLimit_DoesNotParse()
+    {
+        var license = new string('(', 10000) + "MIT" + new string(')', 10000);
+
+        var errors = Errors(Valid() with { License = license }).Where(issue => issue.Location == "license");
+
+        Assert.Contains(errors, issue => issue.Message.EndsWith("does not parse as an SPDX license expression; join several licenses with AND or OR, such as GPL-2.0-only AND CC-BY-SA-4.0", StringComparison.Ordinal));
     }
 
     [Fact]

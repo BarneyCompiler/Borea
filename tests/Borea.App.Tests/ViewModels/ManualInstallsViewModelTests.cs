@@ -2,13 +2,20 @@ using Borea.App.ViewModels;
 using Borea.Core.Dependencies;
 using Borea.Core.Instances;
 using Borea.Core.Mods;
+using Borea.Storage.Logging;
 
 namespace Borea.App.Tests.ViewModels;
 
 public sealed class ManualInstallsViewModelTests
 {
     [Fact]
-    public async Task ShowManualInstalls_ListsForeignFoldersWithTheirIndexState()
+    public void InstanceTabs_AreContentGameDataAndLog()
+    {
+        Assert.Equal([InstanceTab.Content, InstanceTab.GameData, InstanceTab.Log], Enum.GetValues<InstanceTab>());
+    }
+
+    [Fact]
+    public async Task OpenInstance_ListsForeignFoldersWithTheirIndexStateOnTheContentTab()
     {
         using var harness = await ViewModelHarness.CreateAsync();
         var viewModel = harness.ViewModel;
@@ -16,14 +23,13 @@ public sealed class ManualInstallsViewModelTests
         WriteForeignMod(harness, instance, "AdvancedFlightComputer");
         WriteForeignMod(harness, instance, "LocalOnly");
         Directory.CreateDirectory(Path.Combine(harness.Services.Paths.GetInstanceModsFolder(instance.InstanceId), "NotAMod"));
+
         await OpenAsync(harness, "Main");
 
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
-
-        Assert.True(viewModel.IsManualInstallsTab);
-        Assert.False(viewModel.IsContentTab);
-        Assert.False(viewModel.IsGameDataTab);
+        Assert.True(viewModel.IsContentTab);
         Assert.True(viewModel.HasManualInstalls);
+        Assert.True(viewModel.ShowManualInstalls);
+        Assert.Empty(viewModel.ContentGroups);
         Assert.Null(viewModel.ManualInstallsError);
         Assert.Equal(["AdvancedFlightComputer", "LocalOnly"], viewModel.ManualInstallItems.Select(item => item.FolderName));
         var known = viewModel.ManualInstallItems[0];
@@ -40,17 +46,125 @@ public sealed class ManualInstallsViewModelTests
     }
 
     [Fact]
-    public async Task ShowManualInstalls_ModsBoreaRecorded_AreNotListed()
+    public async Task OpenInstance_ModsBoreaRecorded_AreNotListed()
     {
         using var harness = await ViewModelHarness.CreateAsync();
         var viewModel = harness.ViewModel;
         await InstalledContent.AddAsync(harness, "KSArmory", activate: true, ownership: ModInstallOwnership.Borea);
-        await OpenAsync(harness, "Main");
 
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
+        await OpenAsync(harness, "Main");
 
         Assert.Empty(viewModel.ManualInstallItems);
         Assert.False(viewModel.HasManualInstalls);
+        Assert.False(viewModel.ShowManualInstalls);
+    }
+
+    [Fact]
+    public async Task OpenInstance_TheScanFails_ShowsTheTableWithTheError()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value);
+        await viewModel.LoadAsync();
+        // the scan reads the instance record, so it fails once the record is gone
+        await harness.Services.Instances.DeleteAsync(viewModel.Instances.Single().InstanceId);
+
+        await viewModel.Instances.Single().OpenCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasManualInstalls);
+        Assert.NotNull(viewModel.ManualInstallsError);
+        Assert.True(viewModel.ShowManualInstalls);
+    }
+
+    [Fact]
+    public async Task OpenInstanceAgain_KeepsTheRowThatIsBusyAndReadsTheOthersAgain()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        var replaced = WriteForeignMod(harness, instance, "KSArmory");
+        var idle = WriteForeignMod(harness, instance, "LocalOnly");
+        await OpenAsync(harness, "Main");
+        var busy = viewModel.ManualInstallItems.Single(item => item.FolderName == "KSArmory");
+        busy.IsInstalling = true;
+        // a replace moves the folder aside while it installs
+        Directory.Move(replaced, Path.Combine(harness.Services.Paths.GetInstanceRoot(instance.InstanceId), "KSArmory-aside"));
+        Directory.Delete(idle, recursive: true);
+        WriteForeignMod(harness, instance, "MeasureTools");
+
+        await viewModel.Instances.Single().OpenCommand.ExecuteAsync(null);
+
+        Assert.Equal(["KSArmory", "MeasureTools"], viewModel.ManualInstallItems.Select(item => item.FolderName));
+        Assert.Same(busy, viewModel.ManualInstallItems[0]);
+    }
+
+    [Fact]
+    public async Task OpenInstanceAgain_ARowThatTurnsBusyWhileTheRowsLoad_StaysOnThePage()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        WriteForeignMod(harness, instance, "KSArmory");
+        await OpenAsync(harness, "Main");
+        var row = viewModel.ManualInstallItems.Single();
+
+        // the held lock makes the scan wait, and the row starts its replace meanwhile
+        Task open;
+        using (var held = Locks(harness).TryHold([instance.InstanceId]))
+        {
+            Assert.NotNull(held);
+            open = viewModel.Instances.Single().OpenCommand.ExecuteAsync(null);
+            await Task.WhenAny(open, Task.Delay(TimeSpan.FromSeconds(1)));
+            Assert.False(open.IsCompleted);
+            row.IsInstalling = true;
+        }
+
+        await open;
+
+        Assert.Same(row, viewModel.ManualInstallItems.Single());
+    }
+
+    [Fact]
+    public async Task OpenAnotherInstance_ShowsOnlyItsOwnFolders()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var main = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        await harness.Services.Instances.CreateAsync("Second", InstanceSource.Custom.Value);
+        WriteForeignMod(harness, main, "KSArmory");
+        await OpenAsync(harness, "Main");
+        viewModel.ManualInstallItems.Single().IsInstalling = true;
+
+        await viewModel.Instances.Single(instance => instance.Name == "Second").OpenCommand.ExecuteAsync(null);
+
+        Assert.Empty(viewModel.ManualInstallItems);
+        Assert.False(viewModel.ShowManualInstalls);
+    }
+
+    [Fact]
+    public async Task OpenInstance_WhileTheLibraryFolderMoves_OpensAtOnceWithTheRecordedFolders()
+    {
+        using var harness = await ViewModelHarness.CreateAsync();
+        var viewModel = harness.ViewModel;
+        var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
+        WriteForeignMod(harness, instance, "KSArmory");
+        await OpenAsync(harness, "Main");
+        WriteForeignMod(harness, instance, "LocalOnly");
+
+        // a move holds the lock of every instance until it ends
+        bool opened;
+        using (var held = Locks(harness).TryHold([instance.InstanceId]))
+        {
+            Assert.NotNull(held);
+            viewModel.IsChangingLibraryFolder = true;
+            var open = viewModel.Instances.Single().OpenCommand.ExecuteAsync(null);
+            opened = await Task.WhenAny(open, Task.Delay(TimeSpan.FromSeconds(10))) == open;
+        }
+
+        Assert.True(opened);
+        Assert.True(viewModel.CurrentWindowInstance);
+        Assert.Equal(["KSArmory"], viewModel.ManualInstallItems.Select(item => item.FolderName));
+        Assert.Null(viewModel.ManualInstallsError);
     }
 
     [Fact]
@@ -61,7 +175,6 @@ public sealed class ManualInstallsViewModelTests
         var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
         var folder = WriteForeignMod(harness, instance, "KSArmory");
         await OpenAsync(harness, "Main");
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
         var row = viewModel.ManualInstallItems.Single();
 
         await row.ManageCommand.ExecuteAsync(null);
@@ -85,7 +198,6 @@ public sealed class ManualInstallsViewModelTests
         var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
         var folder = WriteForeignMod(harness, instance, "KSArmory");
         await OpenAsync(harness, "Main");
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
         var row = viewModel.ManualInstallItems.Single();
 
         await row.BeginReplaceCommand.ExecuteAsync(null);
@@ -112,7 +224,6 @@ public sealed class ManualInstallsViewModelTests
         var folder = WriteForeignMod(harness, instance, "KSArmory");
         WriteForeignMod(harness, instance, "MeasureTools");
         await OpenAsync(harness, "Main");
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
         var row = viewModel.ManualInstallItems.Single(item => item.FolderName == "KSArmory");
         await row.BeginReplaceCommand.ExecuteAsync(null);
 
@@ -128,6 +239,7 @@ public sealed class ManualInstallsViewModelTests
         Assert.True(File.Exists(Path.Combine(folder, "mod.toml")));
         Assert.Empty(RecoveryFolders(harness, instance));
         Assert.True(viewModel.Toasts.Items[^1].IsFailed);
+        Assert.True(viewModel.IsContentTab);
         Assert.Null(viewModel.ManualInstallsError);
         Assert.Equal(["KSArmory", "MeasureTools"], viewModel.ManualInstallItems.Select(item => item.FolderName));
         await viewModel.WhenPreferencesSavedAsync();
@@ -161,7 +273,6 @@ public sealed class ManualInstallsViewModelTests
         instance.AddMod(new InstalledMod("Rival", rival.Version, InstallReason.Manual, DateTimeOffset.UtcNow, rival, ownership: ModInstallOwnership.Foreign));
         await harness.Services.Instances.SaveAsync(instance);
         await OpenAsync(harness, "Main");
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
         var row = viewModel.ManualInstallItems.Single();
         await row.BeginReplaceCommand.ExecuteAsync(null);
 
@@ -181,7 +292,6 @@ public sealed class ManualInstallsViewModelTests
         var instance = (await harness.Services.Instances.CreateAsync("Main", InstanceSource.Custom.Value)).Instance;
         var folder = WriteForeignMod(harness, instance, "KSArmory");
         await OpenAsync(harness, "Main");
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
         var row = viewModel.ManualInstallItems.Single();
         await row.BeginReplaceCommand.ExecuteAsync(null);
         await row.ConfirmReplaceCommand.ExecuteAsync(null);
@@ -203,6 +313,9 @@ public sealed class ManualInstallsViewModelTests
         File.WriteAllText(Path.Combine(folder, "mod.toml"), $"name = \"{folderName}\"");
         return folder;
     }
+
+    private static IInstanceLocks Locks(ViewModelHarness harness)
+        => (IInstanceLocks)((LoggingInstanceRepository)harness.Services.Instances).Inner;
 
     private static string[] RecoveryFolders(ViewModelHarness harness, Instance instance)
         => Directory.GetDirectories(harness.Services.Paths.GetInstanceRoot(instance.InstanceId), ".borea-recovery-*");

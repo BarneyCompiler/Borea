@@ -1,3 +1,5 @@
+using System.Net;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -5,6 +7,7 @@ using Borea.App.Tests.ViewModels;
 using Borea.App.Views;
 using Borea.App.Views.Pages;
 using Borea.Core.Instances;
+using Borea.Core.Mods;
 
 namespace Borea.App.Tests.Views;
 
@@ -108,58 +111,220 @@ public sealed class InstanceTablesTests
         Assert.Equal(0, buttons);
     }
 
-    [Theory]
-    [InlineData(860)]
-    [InlineData(1280)]
-    [InlineData(1920)]
-    public async Task NoManualInstalls_ShowsTheEmptyTextInATableThatOpensTheModsFolder(double width)
+    private static async Task<ViewModelHarness> ManagedModAndFoldersAsync(params string[] folders)
     {
-        using var harness = await EmptyInstanceAsync();
-        var viewModel = harness.ViewModel;
-        var localization = harness.Localization;
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
-
-        var (texts, command, fits) = await OnInstancePageAsync(harness, width, page =>
+        var harness = await ViewModelHarness.CreateAsync();
+        var instance = await InstalledContent.AddAsync(harness, "KSArmory", activate: true, ownership: ModInstallOwnership.Borea);
+        foreach (var name in folders)
         {
-            var table = TableAround(page, localization.ManualInstallsEmpty)!;
-            var open = ButtonIn(table, localization.GameDataOpenFolder);
-            return (TextsIn(table), open.Command, Holds(table, open));
-        });
+            var folder = Directory.CreateDirectory(Path.Combine(harness.Services.Paths.GetInstanceModsFolder(instance.InstanceId), name)).FullName;
+            File.WriteAllText(Path.Combine(folder, "mod.toml"), $"name = \"{name}\"");
+        }
 
-        Assert.Contains(localization.InstanceTabManualInstalls, texts);
-        Assert.True(fits);
+        await harness.ViewModel.LoadAsync();
+        await harness.ViewModel.Instances.Single().OpenCommand.ExecuteAsync(null);
+        return harness;
+    }
 
-        var opened = new List<string>();
-        viewModel.OpenWithSystem = opened.Add;
-        command!.Execute(null);
-
-        Assert.Equal([harness.Services.Paths.GetInstanceModsFolder(viewModel.SelectedInstance!.InstanceId)], opened);
-        Assert.Empty(viewModel.Toasts.Items);
+    private static List<(string? Header, ICommand? Command)> MenuOf(Control page, object row)
+    {
+        var button = page.GetVisualDescendants().OfType<Button>().Single(button => button.IsEffectivelyVisible && button.DataContext == row && button.Flyout is MenuFlyout);
+        button.Flyout!.ShowAt(button);
+        page.UpdateLayout();
+        var items = ((MenuFlyout)button.Flyout).Items.OfType<MenuItem>().Where(item => item.IsVisible).Select(item => (item.Header as string, item.Command)).ToList();
+        button.Flyout.Hide();
+        return items;
     }
 
     [Theory]
     [InlineData(860)]
     [InlineData(1280)]
     [InlineData(1920)]
-    public async Task ManualInstalls_TheHeaderExplainsThatTheGameLoadsTheseMods(double width)
+    public async Task ForeignFolder_ShowsInATableOfItsOwnBelowTheManagedMods(double width)
     {
-        using var harness = await EmptyInstanceAsync();
+        using var harness = await ManagedModAndFoldersAsync("LocalOnly");
         var viewModel = harness.ViewModel;
         var localization = harness.Localization;
-        var folder = Path.Combine(harness.Services.Paths.GetInstanceModsFolder(viewModel.SelectedInstance!.InstanceId), "LocalOnly");
-        Directory.CreateDirectory(folder);
-        File.WriteAllText(Path.Combine(folder, "mod.toml"), "name = \"LocalOnly\"");
-        await viewModel.ShowInstanceManualInstallsCommand.ExecuteAsync(null);
+        Assert.True(viewModel.IsContentTab);
+        var managed = viewModel.ContentGroups.SelectMany(group => group.Items).Single().Name;
 
-        var (info, fits) = await OnInstancePageAsync(harness, width, page =>
+        var (managedTexts, foreignTexts, below, info, infoFits, open, openFits) = await OnInstancePageAsync(harness, width, page =>
         {
-            var table = TableAround(page, "LocalOnly")!;
-            var info = table.GetVisualDescendants().OfType<InfoButton>().Single(button => button.IsEffectivelyVisible);
-            return (info.Text, Holds(table, info));
+            var managedTable = TableAround(page, managed)!;
+            var foreignTable = TableAround(page, "LocalOnly")!;
+            var info = foreignTable.GetVisualDescendants().OfType<InfoButton>().Single(button => button.IsEffectivelyVisible);
+            var open = ButtonIn(foreignTable, localization.GameDataOpenFolder);
+            var below = foreignTable.TranslatePoint(default, page)!.Value.Y >= managedTable.TranslatePoint(default, page)!.Value.Y + managedTable.Bounds.Height;
+            return (TextsIn(managedTable), TextsIn(foreignTable), below, info.Text, Holds(foreignTable, info), open.Command, Holds(foreignTable, open));
         });
 
+        Assert.DoesNotContain("LocalOnly", managedTexts);
+        Assert.DoesNotContain(managed, foreignTexts);
+        Assert.Contains(localization.InstanceGroupNotManaged, foreignTexts);
+        Assert.Contains(localization.ManualInstallsNoUpdates, foreignTexts);
+        Assert.True(below);
         Assert.Equal(localization.ManualInstallsInfo, info);
-        Assert.True(fits);
+        Assert.True(infoFits);
+        Assert.True(openFits);
+
+        var opened = new List<string>();
+        viewModel.OpenWithSystem = opened.Add;
+        open!.Execute(null);
+
+        Assert.Equal([harness.Services.Paths.GetInstanceModsFolder(viewModel.SelectedInstance!.InstanceId)], opened);
+        Assert.Empty(viewModel.Toasts.Items);
+    }
+
+    [Fact]
+    public async Task NoForeignFolder_ShowsTheEmptyTableWithItsHintAndOpenFolder()
+    {
+        using var harness = await ManagedModAndFoldersAsync();
+        var localization = harness.Localization;
+
+        var (texts, open) = await OnInstancePageAsync(harness, 1280, page => (TextsIn(page), ButtonIn(TableAround(page, localization.ManualInstallsEmptyHint)!, localization.GameDataOpenFolder).Command));
+
+        Assert.Contains(harness.ViewModel.ContentGroups.SelectMany(group => group.Items).Single().Name, texts);
+        Assert.Contains(localization.InstanceGroupNotManaged, texts);
+        Assert.Contains(localization.ManualInstallsEmptyHint, texts);
+        Assert.DoesNotContain(localization.ManualInstallsNoUpdates, texts);
+        Assert.Same(harness.ViewModel.OpenInstanceModsFolderCommand, open);
+    }
+
+    [Fact]
+    public async Task ForeignFolder_TheRowOffersEveryActionOfAFolderThatBoreaDidNotInstall()
+    {
+        using var harness = await ManagedModAndFoldersAsync("MeasureTools", "LocalOnly");
+        var viewModel = harness.ViewModel;
+        var localization = harness.Localization;
+        var known = viewModel.ManualInstallItems.Single(item => item.FolderName == "MeasureTools");
+        var local = viewModel.ManualInstallItems.Single(item => item.FolderName == "LocalOnly");
+
+        var (menu, manage, localHasMenu) = await OnInstancePageAsync(harness, 1280, page =>
+            (MenuOf(page, known), ButtonIn(TableAround(page, "MeasureTools")!, localization.ManualInstallsManage).Command,
+                page.GetVisualDescendants().OfType<Button>().Any(button => button.IsEffectivelyVisible && button.DataContext == local && button.Flyout is not null)));
+
+        Assert.Equal([(localization.ManualInstallsReplace, known.BeginReplaceCommand)], menu);
+        Assert.Same(known.ManageCommand, manage);
+        Assert.False(localHasMenu);
+
+        await known.BeginReplaceCommand.ExecuteAsync(null);
+        Assert.True(known.IsConfirmingReplace);
+        var (replace, cancelReplace) = await OnInstancePageAsync(harness, 1280, page =>
+        {
+            var row = TableAround(page, "MeasureTools")!;
+            return (ButtonIn(row, localization.ManualInstallsDeleteAndReplace).Command, ButtonIn(row, localization.LibraryCancel).Command);
+        });
+
+        Assert.Same(known.ConfirmReplaceCommand, replace);
+        Assert.Same(known.CancelReplaceCommand, cancelReplace);
+
+        await known.ConfirmReplaceCommand.ExecuteAsync(null);
+        Assert.NotNull(known.InstallWarning);
+        var (install, cancelInstall) = await OnInstancePageAsync(harness, 1280, page =>
+        {
+            var row = TableAround(page, "MeasureTools")!;
+            return (ButtonIn(row, localization.InstallAnyway).Command, ButtonIn(row, localization.LibraryCancel).Command);
+        });
+
+        Assert.Same(known.ConfirmInstallCommand, install);
+        Assert.Same(known.CancelInstallCommand, cancelInstall);
+    }
+
+    [Fact]
+    public async Task ForeignFolder_WhileAnUpdateOfTheInstanceRuns_TheRowActionsAreOff()
+    {
+        const string archiveHost = "archives.test";
+        using var download = new ManualResetEventSlim();
+        using var harness = await ViewModelHarness.CreateAsync(respond: request =>
+        {
+            if (request.RequestUri?.Host != archiveHost)
+                return null;
+
+            download.Wait(TimeSpan.FromSeconds(30));
+            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        });
+        harness.SpaceDock.Releases.AddRange(new[] { "1.0.0", "1.1.0" }.Select(version => new ModVersionMetadata(
+            specVersion: 1,
+            modId: ViewModelHarness.FakeSpaceDock.OwnId,
+            version: ModVersion.Parse(version),
+            releaseStatus: ReleaseStatus.Stable,
+            releaseDate: DateTimeOffset.UnixEpoch,
+            gameMin: "2026.1.1.1",
+            gameMinRevision: 1,
+            download: new DownloadInfo($"https://{archiveHost}/{version}.zip", sha256: null, sizeBytes: null, contentType: "application/zip"),
+            installSizeBytes: null,
+            dependencies: [])));
+        var viewModel = harness.ViewModel;
+        var instance = await InstalledContent.AddAsync(harness, ViewModelHarness.FakeSpaceDock.OwnId, activate: true, ownership: ModInstallOwnership.Borea, version: "1.0.0");
+        foreach (var name in new[] { "AdvancedFlightComputer", "KSArmory", "MeasureTools" })
+        {
+            var folder = Directory.CreateDirectory(Path.Combine(harness.Services.Paths.GetInstanceModsFolder(instance.InstanceId), name)).FullName;
+            File.WriteAllText(Path.Combine(folder, "mod.toml"), $"name = \"{name}\"");
+        }
+
+        await viewModel.LoadAsync();
+        await viewModel.ActiveInstance!.OpenCommand.ExecuteAsync(null);
+        var rows = viewModel.ManualInstallItems.ToDictionary(item => item.FolderName);
+        Assert.All(rows.Values, row => Assert.True(row.CanAct));
+        rows["KSArmory"].IsConfirmingReplace = true;
+        rows["AdvancedFlightComputer"].InstallWarning = "A warning";
+        var content = viewModel.ContentGroups.Single().Items.Single();
+        await content.UpdateCommand.ExecuteAsync(null);
+
+        var update = content.ConfirmUpdateCommand.ExecuteAsync(null);
+        (bool Menu, bool Replace, bool Install, bool Cancel) enabled;
+        try
+        {
+            for (var wait = 0; wait < 300 && !harness.Requests.Any(uri => uri.Host == archiveHost); wait++)
+                await Task.Delay(100);
+            Assert.False(viewModel.CanChangeContent);
+
+            enabled = await HeadlessApp.RunAsync(() =>
+            {
+                var page = new InstancePage();
+                var window = new Window { Width = 1280, Height = 900, DataContext = viewModel, Content = page };
+                window.Show();
+                try
+                {
+                    page.UpdateLayout();
+                    var buttons = page.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible).ToList();
+                    return Task.FromResult((
+                        buttons.Single(button => button.DataContext == rows["MeasureTools"] && button.Flyout is MenuFlyout).IsEffectivelyEnabled,
+                        buttons.Single(button => button.Command == rows["KSArmory"].ConfirmReplaceCommand).IsEffectivelyEnabled,
+                        buttons.Single(button => button.Command == rows["AdvancedFlightComputer"].ConfirmInstallCommand).IsEffectivelyEnabled,
+                        buttons.Single(button => button.Command == rows["KSArmory"].CancelReplaceCommand).IsEffectivelyEnabled));
+                }
+                finally
+                {
+                    // the update ends off the headless thread, so no binding may still listen to its rows
+                    window.Content = null;
+                    window.DataContext = null;
+                    window.Close();
+                }
+            });
+        }
+        finally
+        {
+            download.Set();
+            await update;
+        }
+
+        Assert.False(enabled.Menu);
+        Assert.False(enabled.Replace);
+        Assert.False(enabled.Install);
+        Assert.True(enabled.Cancel);
+    }
+
+    [Fact]
+    public async Task TabBar_OffersContentGameDataAndLog()
+    {
+        using var harness = await EmptyInstanceAsync();
+        var localization = harness.Localization;
+
+        var tabs = await OnInstancePageAsync(harness, 1280, page =>
+            page.GetVisualDescendants().OfType<Button>().Where(button => button.Classes.Contains("tab") && button.IsEffectivelyVisible).Select(button => button.Content as string).ToList());
+
+        Assert.Equal([localization.InstanceTabContent, localization.InstanceTabGameData, localization.InstanceTabLog], tabs);
     }
 
     [Theory]

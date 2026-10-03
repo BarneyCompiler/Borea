@@ -3219,8 +3219,26 @@
   <data name="ContentCopyLink" xml:space="preserve">
     <value>Copy link</value>
   </data>
+  <data name="ContentCopyShareLink" xml:space="preserve">
+    <value>Copy share link</value>
+  </data>
   <data name="ContentLinkCopied" xml:space="preserve">
     <value>Copied the link to the clipboard.</value>
+  </data>
+  <data name="ContentReport" xml:space="preserve">
+    <value>Report</value>
+  </data>
+  <data name="ContentReportTakedown" xml:space="preserve">
+    <value>Takedown request</value>
+  </data>
+  <data name="ContentReportTakedownHint" xml:space="preserve">
+    <value>Ask a steward to stop offering a listing or a pack version.</value>
+  </data>
+  <data name="ContentReportDispute" xml:space="preserve">
+    <value>Id dispute</value>
+  </data>
+  <data name="ContentReportDisputeHint" xml:space="preserve">
+    <value>Contest who owns the id of a listing.</value>
   </data>
   <data name="ContentTags" xml:space="preserve">
     <value>Tags</value>

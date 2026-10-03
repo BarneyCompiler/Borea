@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Borea.App.ViewModels"
+             xmlns:stewardship="using:Borea.Core.Stewardship"
              xmlns:views="using:Borea.App.Views"
              x:Class="Borea.App.Views.Pages.PackPage"
              x:DataType="vm:MainViewModel">
@@ -86,6 +87,25 @@
                                         <Button.Flyout>
                                             <MenuFlyout Placement="BottomEdgeAlignedRight">
                                                 <MenuItem Header="{Binding SelectedPack.FavoriteText}" Command="{Binding SelectedPack.ToggleFavoriteCommand}" />
+                                                <MenuItem Header="{Binding Localization.ContentCopyShareLink}" Command="{Binding CopyPackShareLinkCommand}" IsVisible="{Binding PackShareUrl, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <MenuItem Header="{Binding Localization.ContentReport}" IsVisible="{Binding CanReportPack}">
+                                                    <MenuItem Command="{Binding ReportPackCommand}" CommandParameter="{x:Static stewardship:IndexReportKind.Takedown}" AutomationProperties.Name="{Binding Localization.ContentReportTakedown}" AutomationProperties.HelpText="{Binding Localization.ContentReportTakedownHint}">
+                                                        <MenuItem.Header>
+                                                            <StackPanel Spacing="2">
+                                                                <TextBlock Text="{Binding Localization.ContentReportTakedown}" />
+                                                                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ContentReportTakedownHint}" />
+                                                            </StackPanel>
+                                                        </MenuItem.Header>
+                                                    </MenuItem>
+                                                    <MenuItem Command="{Binding ReportPackCommand}" CommandParameter="{x:Static stewardship:IndexReportKind.Dispute}" AutomationProperties.Name="{Binding Localization.ContentReportDispute}" AutomationProperties.HelpText="{Binding Localization.ContentReportDisputeHint}">
+                                                        <MenuItem.Header>
+                                                            <StackPanel Spacing="2">
+                                                                <TextBlock Text="{Binding Localization.ContentReportDispute}" />
+                                                                <TextBlock Classes="body-sm secondary" Text="{Binding Localization.ContentReportDisputeHint}" />
+                                                            </StackPanel>
+                                                        </MenuItem.Header>
+                                                    </MenuItem>
+                                                </MenuItem>
                                                 <MenuItem Header="{Binding Localization.PackMakeNextVersion}" Command="{Binding MakeNextPackVersionCommand}" />
                                                 <MenuItem Header="{Binding Localization.StewardDispute}" Command="{Binding DisputePackCommand}" IsVisible="{Binding CanEditIndexStatus}" />
                                                 <MenuItem Header="{Binding Localization.StewardDelist}" Command="{Binding DelistPackCommand}" IsVisible="{Binding CanEditIndexStatus}" />

@@ -2790,6 +2790,12 @@ public sealed class LocalizationService : INotifyPropertyChanged
         return string.IsNullOrWhiteSpace(reason) ? text : $"{text} {reason}";
     }
 
+    public string FormatPackMemberIncompatible(string modId, string version, string gameMin)
+        => string.Format(CultureInfo.CurrentCulture, Resources.PackMemberIncompatibleFormat, modId, version, gameMin);
+
+    public string FormatPackMemberUntested(string modId, string version, string gameMax)
+        => string.Format(CultureInfo.CurrentCulture, Resources.PackMemberUntestedFormat, modId, version, gameMax);
+
     public string FormatPackIncomplete(int failed, int total)
         => string.Format(CultureInfo.CurrentCulture, Resources.PackIncompleteFormat, failed, total);
 

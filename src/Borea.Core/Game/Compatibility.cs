@@ -69,12 +69,28 @@ public static class Compatibility
     }
 
     /// <summary>
-    /// The same check for the authored bounds of a pack version, with a month bound resolved through <paramref name="releases"/>.
-    /// A bound that does not resolve supports no build.
+    /// The state a pack version and the releases it pins put the installed game in.
+    /// The least compatible one decides, so one incompatible pin makes the pack incompatible and one untested pin makes it untested.
     /// </summary>
-    public static bool SupportsAnyBuild(ModPackMetadata pack, int? fromRevision, int? toRevision, GameReleaseList releases)
+    public static GameCompatibility Evaluate(ModPackMetadata pack, IEnumerable<ModVersionMetadata> pinned, GameVersion? installed, GameReleaseList releases)
+    {
+        ArgumentNullException.ThrowIfNull(pinned);
+
+        var least = Evaluate(pack, installed, releases);
+        foreach (var release in pinned)
+            least = Least(least, Evaluate(release, installed));
+
+        return least;
+    }
+
+    /// <summary>
+    /// The same check for a pack version, where a build counts only when the authored bounds of the pack and the bounds of every release in <paramref name="pinned"/> admit it.
+    /// A month bound resolves through <paramref name="releases"/>, and a bound that does not resolve supports no build.
+    /// </summary>
+    public static bool SupportsAnyBuild(ModPackMetadata pack, IEnumerable<ModVersionMetadata> pinned, int? fromRevision, int? toRevision, GameReleaseList releases)
     {
         ArgumentNullException.ThrowIfNull(pack);
+        ArgumentNullException.ThrowIfNull(pinned);
         ArgumentNullException.ThrowIfNull(releases);
 
         if (!releases.TryResolveLowerBound(pack.GameMin, out var min))
@@ -84,7 +100,14 @@ public static class Compatibility
         if (pack.GameMax is not null && !releases.TryResolveUpperBound(pack.GameMax, out max))
             return false;
 
-        return SupportsAnyBuild(min, max, fromRevision, toRevision);
+        foreach (var release in pinned)
+        {
+            min = Math.Max(min, release.GameMinRevision);
+            if (release.GameMaxRevision is { } releaseMax)
+                max = max is { } current ? Math.Min(current, releaseMax) : releaseMax;
+        }
+
+        return (max is not { } last || min <= last) && SupportsAnyBuild(min, max, fromRevision, toRevision);
     }
 
     /// <summary>
@@ -109,6 +132,18 @@ public static class Compatibility
 
         return new OsSupport(supported, unrecognized);
     }
+
+    /// <summary>Incompatible blocks, and Unknown says less than Untested, so they rank above it.</summary>
+    private static GameCompatibility Least(GameCompatibility first, GameCompatibility second)
+        => Rank(first) >= Rank(second) ? first : second;
+
+    private static int Rank(GameCompatibility compatibility) => compatibility switch
+    {
+        GameCompatibility.Compatible => 0,
+        GameCompatibility.Untested => 1,
+        GameCompatibility.Unknown => 2,
+        _ => 3,
+    };
 
     private static OsPlatform? Parse(string value) => value.ToLowerInvariant() switch
     {

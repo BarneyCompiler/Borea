@@ -54,6 +54,7 @@ public sealed class MarkdownView : StackPanel
     public MarkdownView()
     {
         Spacing = 12;
+        new MarkdownSelection(this);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

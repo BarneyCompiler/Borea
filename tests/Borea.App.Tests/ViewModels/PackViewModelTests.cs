@@ -145,6 +145,29 @@ public sealed class PackViewModelTests
     }
 
     [Fact]
+    public async Task ModpacksTab_LicenseFilter_ShowsThePacksWhoseLicenseNamesAChosenOne()
+    {
+        var shared = Pack("shared-pack", "Shared Pack", Version("1.0.0", Pin("KSArmory", "0.8.44")))
+            .Replace("\"license\": \"MIT\"", "\"license\": \"MIT AND CC-BY-SA-4.0\"", StringComparison.Ordinal);
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(
+            Pack("starter-pack", "Starter Pack", Version("1.0.0", Pin("MeasureTools", "1.1.10"))),
+            shared));
+        var viewModel = harness.ViewModel;
+        await viewModel.EnsureDiscoverLoadedAsync();
+        viewModel.ShowDiscoverModpacksCommand.Execute(null);
+        Assert.Contains("CC-BY-SA-4.0", viewModel.LicenseOptions.Select(license => license.Value));
+
+        viewModel.ToggleLicenseCommand.Execute("CC-BY-SA-4.0");
+        Assert.Equal(["shared-pack"], viewModel.DiscoverPacks.Select(pack => pack.PackId));
+
+        viewModel.ToggleLicenseCommand.Execute("MIT");
+        Assert.Equal(["shared-pack", "starter-pack"], viewModel.DiscoverPacks.Select(pack => pack.PackId));
+
+        viewModel.ClearDiscoverFiltersCommand.Execute(null);
+        Assert.Equal(["shared-pack", "starter-pack"], viewModel.DiscoverPacks.Select(pack => pack.PackId));
+    }
+
+    [Fact]
     public async Task OpenPack_ShowsTheMembersWithTheirVersions()
     {
         using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(

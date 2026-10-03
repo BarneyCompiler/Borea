@@ -10,6 +10,7 @@ using Borea.Core.Game;
 using Borea.Core.History;
 using Borea.Core.Index;
 using Borea.Core.Instances;
+using Borea.Core.Licenses;
 using Borea.Core.ModPacks;
 using Borea.Core.Mods;
 using Borea.Core.Planning;
@@ -97,8 +98,8 @@ public partial class MainViewModel
             filtered = filtered.Where(pack => pack.IsInOtherInstance);
         if (SelectedOs is not null)
             filtered = filtered.Where(pack => pack.SupportsOs(SelectedOs));
-        if (SelectedLicense is not null)
-            filtered = filtered.Where(pack => string.Equals(pack.License, SelectedLicense, StringComparison.OrdinalIgnoreCase));
+        if (SelectedLicenses.Count > 0)
+            filtered = filtered.Where(pack => LicenseFilter.Matches(pack.License, SelectedLicenses));
         if (HasGameVersionRange)
             filtered = filtered.Where(pack => Borea.Core.Game.Compatibility.SupportsAnyBuild(pack.Metadata, pack.Pinned, DiscoverGameMin?.Revision, DiscoverGameMax?.Revision, _gameReleases));
         if (SelectedCategories.Count > 0)

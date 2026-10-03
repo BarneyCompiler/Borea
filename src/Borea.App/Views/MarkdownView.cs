@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
@@ -9,22 +9,15 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Borea.App.ViewModels;
+using Borea.Core.Listings;
+using Markdig.Extensions.Tables;
+using Markdig.Syntax;
 
 namespace Borea.App.Views;
 
-/// <summary>A run of inline spans, or an image that takes a line of its own.</summary>
-public abstract record MarkdownPart;
-
-public sealed record MarkdownTextPart(IReadOnlyList<MarkdownSpan> Spans) : MarkdownPart;
-
-public sealed record MarkdownImagePart(ListingImage Image, string AlternativeText) : MarkdownPart;
-
-/// <summary>A ksa-image reference to an id that has no record.</summary>
-public sealed record MarkdownMissingImagePart(string AlternativeText) : MarkdownPart;
-
 /// <summary>
-/// Shows a listing description. <see cref="MarkdownParser"/> splits the text;
-/// this control only turns blocks and spans into controls.
+/// Shows a description, release notes or a post. <see cref="MarkdownSyntax"/> parses the text,
+/// this control turns its blocks into controls, and <see cref="MarkdownText"/> writes the text of each block.
 /// </summary>
 public sealed class MarkdownView : StackPanel
 {
@@ -34,7 +27,9 @@ public sealed class MarkdownView : StackPanel
     public static readonly StyledProperty<DescriptionImages?> ImagesProperty =
         AvaloniaProperty.Register<MarkdownView, DescriptionImages?>(nameof(Images));
 
-    private static readonly FontFamily MonoFont = new("avares://Borea.App/Assets/Fonts#IBM Plex Mono");
+    internal static readonly FontFamily MonoFont = new("avares://Borea.App/Assets/Fonts#IBM Plex Mono");
+
+    private const string Bullet = "\u2022";
 
     public string? Markdown
     {
@@ -61,120 +56,146 @@ public sealed class MarkdownView : StackPanel
             Rebuild();
     }
 
-    internal static IReadOnlyList<MarkdownPart> Split(string text, DescriptionImages? images)
-    {
-        var parts = new List<MarkdownPart>();
-        var spans = new List<MarkdownSpan>();
-        foreach (var span in MarkdownParser.ParseInline(text))
-        {
-            if (span.Kind != MarkdownSpanKind.Image)
-            {
-                spans.Add(span);
-            }
-            else if (images is not null && DescriptionImages.TryGetId(span.Destination, out var id))
-            {
-                Flush();
-                parts.Add(images.Find(id) is { } image
-                    ? new MarkdownImagePart(image, span.Text)
-                    : new MarkdownMissingImagePart(span.Text));
-            }
-            else if (span.Text.Length > 0)
-            {
-                spans.Add(new MarkdownSpan(MarkdownSpanKind.Text, span.Text));
-            }
-        }
-
-        Flush();
-        return parts;
-
-        void Flush()
-        {
-            if (spans.Any(span => !string.IsNullOrWhiteSpace(span.Text)))
-                parts.Add(new MarkdownTextPart(spans.ToArray()));
-            spans.Clear();
-        }
-    }
-
     private void Rebuild()
     {
         Children.Clear();
-        foreach (var block in MarkdownParser.Parse(Markdown))
+        if (!string.IsNullOrWhiteSpace(Markdown))
+            AddBlocks(Children, MarkdownSyntax.Parse(Markdown), Images);
+    }
+
+    /// <summary>A link reference definition, and any block that CommonMark has but this view does not draw, shows nothing.</summary>
+    private static void AddBlocks(Controls target, ContainerBlock container, DescriptionImages? images)
+    {
+        foreach (var block in container)
         {
-            if (block.Kind == MarkdownBlockKind.Code)
+            switch (block)
             {
-                Children.Add(Code(block.Text));
-                continue;
+                case HeadingBlock heading:
+                    MarkdownText.Write(target, heading.Inline, HeadingClass(heading.Level), images);
+                    break;
+                case ParagraphBlock paragraph:
+                    MarkdownText.Write(target, paragraph.Inline, textClass: null, images);
+                    break;
+                case CodeBlock code:
+                    target.Add(Code(code.Lines.ToString()));
+                    break;
+                case HtmlBlock html when MarkdownText.HtmlBlockText(html) is { Length: > 0 } text:
+                    var body = MarkdownText.Body();
+                    body.Inlines!.Add(new Run(text));
+                    target.Add(body);
+                    break;
+                case ThematicBreakBlock:
+                    target.Add(new Border { Height = 1, Background = Resource<IBrush>("Brush.BorderStrong") });
+                    break;
+                case ListBlock list:
+                    target.Add(List(list, images));
+                    break;
+                case QuoteBlock quote:
+                    target.Add(new Border
+                    {
+                        BorderBrush = Resource<IBrush>("Brush.BorderStrong"),
+                        BorderThickness = new Thickness(3, 0, 0, 0),
+                        Padding = new Thickness(16, 0, 0, 0),
+                        Child = Blocks(quote, images),
+                    });
+                    break;
+                case Table table:
+                    target.Add(Table(table, images));
+                    break;
             }
-
-            var parts = Split(block.Text, Images);
-            for (var index = 0; index < parts.Count; index++)
-                Children.Add(Build(block, parts[index], first: index == 0));
         }
     }
 
-    private static Control Build(MarkdownBlock block, MarkdownPart part, bool first)
+    private static StackPanel Blocks(ContainerBlock container, DescriptionImages? images)
     {
-        if (part is MarkdownTextPart text)
+        var panel = new StackPanel { Spacing = 12 };
+        AddBlocks(panel.Children, container, images);
+        return panel;
+    }
+
+    private static string HeadingClass(int level) => level switch
+    {
+        1 => "heading-lg",
+        2 => "heading-md",
+        _ => "heading-sm",
+    };
+
+    /// <summary>Each item is a row of its marker and its blocks, so a nested list sits one indent deeper than the item that holds it.</summary>
+    private static StackPanel List(ListBlock list, DescriptionImages? images)
+    {
+        var panel = new StackPanel { Spacing = 12, Margin = new Thickness(20, 0, 0, 0) };
+        var number = list.IsOrdered && int.TryParse(list.OrderedStart, NumberStyles.None, CultureInfo.InvariantCulture, out var start) ? start : 1;
+        foreach (var item in list.OfType<ListItemBlock>())
         {
-            return block.Kind switch
+            var marker = list.IsOrdered ? (number++).ToString(CultureInfo.InvariantCulture) + list.OrderedDelimiter : Bullet;
+            var content = Blocks(item, images);
+            Grid.SetColumn(content, 1);
+            panel.Children.Add(new Grid
             {
-                MarkdownBlockKind.Heading => Text(text.Spans, block.Level switch
+                ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+                Children =
                 {
-                    1 => "heading-lg",
-                    2 => "heading-md",
-                    _ => "heading-sm",
-                }),
-                MarkdownBlockKind.ListItem => ListItem(block, text.Spans, first),
-                _ => Text(text.Spans, "body-md"),
-            };
-        }
-
-        var image = part is MarkdownImagePart found ? Figure(found) : MissingImage(((MarkdownMissingImagePart)part).AlternativeText);
-        if (block.Kind == MarkdownBlockKind.ListItem)
-            image.Margin = new Thickness(20, 0, 0, 0);
-        return image;
-    }
-
-    /// <summary>A continuation of an item keeps the width of the marker, so its text lines up with the first part.</summary>
-    private static Grid ListItem(MarkdownBlock block, IReadOnlyList<MarkdownSpan> spans, bool first)
-    {
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Margin = new Thickness(20, 0, 0, 0) };
-        var marker = new TextBlock { Text = block.Marker + "  ", Classes = { "body-md" }, FontSize = 16, LineHeight = 26, Opacity = first ? 1 : 0 };
-        var content = Text(spans, "body-md");
-        Grid.SetColumn(content, 1);
-        row.Children.Add(marker);
-        row.Children.Add(content);
-        return row;
-    }
-
-    private static TextBlock Text(IReadOnlyList<MarkdownSpan> spans, string textClass)
-    {
-        var text = new TextBlock { TextWrapping = TextWrapping.Wrap, Classes = { textClass } };
-        if (textClass == "body-md")
-        {
-            text.FontSize = 16;
-            text.LineHeight = 26;
-        }
-
-        foreach (var span in spans)
-        {
-            text.Inlines!.Add(span.Kind switch
-            {
-                MarkdownSpanKind.Bold => new Bold { Inlines = { new Run(span.Text) } },
-                MarkdownSpanKind.Italic => new Italic { Inlines = { new Run(span.Text) } },
-                MarkdownSpanKind.BoldItalic => new Bold { Inlines = { new Italic { Inlines = { new Run(span.Text) } } } },
-                MarkdownSpanKind.Code => new Run(span.Text) { FontFamily = MonoFont, Background = Brushes.Black },
-                MarkdownSpanKind.Link => new Run(span.Text) { TextDecorations = TextDecorations.Underline },
-                _ => new Run(span.Text),
+                    new TextBlock { Text = marker + "  ", Classes = { "body-md" }, FontSize = 16, LineHeight = 26 },
+                    content,
+                },
             });
         }
 
-        return text;
+        return panel;
     }
 
-    private static Control Figure(MarkdownImagePart part)
+    /// <summary>
+    /// The header row decides the number of columns, as GFM does. Each column gets a share of the width by the
+    /// longest cell in it, so the cells wrap inside the view instead of pushing it wider.
+    /// </summary>
+    private static Border Table(Table table, DescriptionImages? images)
     {
-        var image = part.Image;
+        var rows = table.OfType<TableRow>().ToList();
+        var columns = rows.Count > 0 ? rows[0].Count : 0;
+        var grid = new Grid();
+        for (var column = 0; column < columns; column++)
+        {
+            var longest = rows.Max(row => column < row.Count ? row[column].Span.Length : 0);
+            grid.ColumnDefinitions.Add(new ColumnDefinition(Math.Clamp(longest, 4, 40), GridUnitType.Star));
+        }
+
+        for (var index = 0; index < rows.Count; index++)
+        {
+            var row = rows[index];
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            for (var column = 0; column < columns; column++)
+            {
+                var cell = new Border
+                {
+                    BorderBrush = Resource<IBrush>("Brush.BorderStrong"),
+                    BorderThickness = new Thickness(column > 0 ? 1 : 0, index > 0 ? 1 : 0, 0, 0),
+                    Padding = new Thickness(12, 8),
+                    Child = column < row.Count ? Blocks((TableCell)row[column], images) : new StackPanel(),
+                };
+                if (row.IsHeader)
+                {
+                    cell.Background = Resource<IBrush>("Brush.SurfaceRaised");
+                    TextElement.SetFontWeight(cell, FontWeight.SemiBold);
+                }
+
+                Grid.SetRow(cell, index);
+                Grid.SetColumn(cell, column);
+                grid.Children.Add(cell);
+            }
+        }
+
+        return new Border
+        {
+            BorderBrush = Resource<IBrush>("Brush.BorderStrong"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
+            Child = grid,
+        };
+    }
+
+    internal static Control Figure(ListingImage image, string alternativeText)
+    {
         var view = new ListingImageView
         {
             Image = image,
@@ -182,11 +203,11 @@ public sealed class MarkdownView : StackPanel
             Background = Resource<IBrush>("Brush.Surface"),
             Child = new Path { Classes = { "icon", "size-32" }, Data = Resource<Geometry>("Icon.Image") },
         };
-        AutomationProperties.SetName(view, part.AlternativeText);
+        AutomationProperties.SetName(view, alternativeText);
 
         var frame = new Border { Classes = { "thumbnail" }, HorizontalAlignment = HorizontalAlignment.Left, Child = view };
-        if (part.AlternativeText.Length > 0)
-            ToolTip.SetTip(frame, part.AlternativeText);
+        if (alternativeText.Length > 0)
+            ToolTip.SetTip(frame, alternativeText);
 
         if (!image.HasCredit)
             return frame;
@@ -212,7 +233,7 @@ public sealed class MarkdownView : StackPanel
         return figure;
     }
 
-    private static Border MissingImage(string alternativeText)
+    internal static Border MissingImage(string alternativeText)
     {
         var glyph = new Path { Classes = { "icon" }, Data = Resource<Geometry>("Icon.Image"), Margin = new Thickness(0, 0, 8, 0) };
         DockPanel.SetDock(glyph, Dock.Left);
@@ -225,17 +246,19 @@ public sealed class MarkdownView : StackPanel
         return placeholder;
     }
 
+    /// <summary>The text classes style only a TextBlock, so the selectable code block takes the font of label-md itself.</summary>
     private static SelectableTextBlock Code(string code) => new()
     {
         Text = code,
-        Classes = { "label-md" },
+        FontFamily = MonoFont,
+        Foreground = Resource<IBrush>("Brush.TextSecondary"),
         FontSize = 13,
         TextWrapping = TextWrapping.Wrap,
         Padding = new Thickness(12),
-        Background = Brushes.Black,
+        Background = Resource<IBrush>("Brush.SurfaceHeader"),
     };
 
-    private static T? Resource<T>(string key)
+    internal static T? Resource<T>(string key)
         where T : class
         => Application.Current?.TryFindResource(key, out var value) == true ? value as T : null;
 }

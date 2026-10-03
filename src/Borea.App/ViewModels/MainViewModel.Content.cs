@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -455,11 +454,24 @@ public partial class MainViewModel
         }
     }
 
-    private static string? TryOpenUrl(string url)
+    /// <summary>Opens a link of a Markdown text when it is an http or https URL, and shows a toast when it could not.</summary>
+    internal void OpenMarkdownLink(string url)
+    {
+        if (WebLink(url) is { } link)
+            ShowOpenError(() => link, TryOpenUrl(link));
+    }
+
+    /// <summary>The URL as an absolute http or https address, or null for any other text, so a link never starts a program or a file.</summary>
+    internal static string? WebLink(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)
+            ? uri.AbsoluteUri
+            : null;
+
+    private string? TryOpenUrl(string url)
     {
         try
         {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            OpenWithSystem(url);
             return null;
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)

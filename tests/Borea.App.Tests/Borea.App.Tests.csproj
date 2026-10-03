@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <None Include="..\Borea.Storage.Tests\Index\Fixtures\current-snapshot.json" Link="Index\Fixtures\current-snapshot.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Views\Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Import Project="..\VersionFixtures.targets" />

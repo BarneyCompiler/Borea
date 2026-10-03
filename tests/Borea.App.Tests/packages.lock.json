@@ -240,6 +240,11 @@
           "JsonPointer.Net": "7.0.2"
         }
       },
+      "Markdig": {
+        "type": "Transitive",
+        "resolved": "1.4.0",
+        "contentHash": "lLhaiI/mNDTNzgLqnmknhf4LjgTqOAyjx5+GNz0X3AxYMxUhmFppF2WVMdER+SDqwhE5wUF1pzs/cuLwFxs7xA=="
+      },
       "MicroCom.Runtime": {
         "type": "Transitive",
         "resolved": "0.11.6",
@@ -395,7 +400,10 @@
         }
       },
       "borea.core": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Markdig": "[1.4.0, )"
+        }
       },
       "borea.network": {
         "type": "Project",

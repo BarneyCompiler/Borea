@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Borea.Core.Index;
@@ -125,8 +124,6 @@ public sealed partial class ListingImage : ObservableObject
 /// <summary>The images one description can show, by their id.</summary>
 public sealed class DescriptionImages
 {
-    public const string Scheme = "ksa-image:";
-
     private readonly Dictionary<string, ListingImage> _byId = new(StringComparer.Ordinal);
 
     /// <summary>No images, so every ksa-image reference shows a missing image.</summary>
@@ -146,12 +143,6 @@ public sealed class DescriptionImages
     private DescriptionImages()
     {
         Images = [];
-    }
-
-    public static bool TryGetId(string? destination, [NotNullWhen(true)] out string? id)
-    {
-        id = destination is not null && destination.StartsWith(Scheme, StringComparison.Ordinal) ? destination[Scheme.Length..] : null;
-        return id is not null;
     }
 
     public ListingImage? Find(string id) => _byId.GetValueOrDefault(id);

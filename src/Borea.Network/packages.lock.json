@@ -2,8 +2,16 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "Markdig": {
+        "type": "Transitive",
+        "resolved": "1.4.0",
+        "contentHash": "lLhaiI/mNDTNzgLqnmknhf4LjgTqOAyjx5+GNz0X3AxYMxUhmFppF2WVMdER+SDqwhE5wUF1pzs/cuLwFxs7xA=="
+      },
       "borea.core": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Markdig": "[1.4.0, )"
+        }
       }
     },
     "net10.0/linux-x64": {},

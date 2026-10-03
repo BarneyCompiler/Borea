@@ -7,6 +7,8 @@ using Borea.Core.Index;
 using Borea.Core.Listings;
 using Borea.Core.Mods;
 using Borea.Core.Tags;
+using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
 
 namespace Borea.Core.Tests.Listings;
 
@@ -245,6 +247,67 @@ public sealed class ListingSourceTests
         Assert.Equal(["ksa-image:map", "ksa-image:my_shot"], destinations);
         Assert.Equal(0, html);
     }
+
+    [Fact]
+    public void Scan_ReadsListsQuotesAndTablesInTheOrderOfTheText()
+    {
+        const string markdown = """
+            - first ![One](ksa-image:one)
+              > ![Two](ksa-image:two)
+
+            | a | b |
+            | - | - |
+            | ![Three](ksa-image:three) | `![code](ksa-image:in-code)` |
+
+            <p align="center">
+              <img src="banner.png"> <picture></picture>
+            </p>
+
+            [![Four](ksa-image:four)](https://example.com) <IMG src="x.png">
+            """;
+
+        var (destinations, html) = MarkdownImages.Scan(markdown);
+
+        Assert.Equal(["ksa-image:one", "ksa-image:two", "ksa-image:three", "ksa-image:four"], destinations);
+        Assert.Equal(3, html);
+        Assert.Equal(["one", "two", "three", "four"], MarkdownImages.References(markdown));
+    }
+
+    [Theory]
+    [InlineData("quotes past the Markdig limit")]
+    [InlineData("lists past the Markdig limit")]
+    [InlineData("quotes past the bound")]
+    [InlineData("deep emphasis")]
+    [InlineData("deep images")]
+    public void Parse_NestingDeeperThanTheBound_ReadsTheTextAsOneParagraphOfItsSource(string text)
+    {
+        var markdown = Nested(text);
+
+        var document = MarkdownSyntax.Parse(markdown);
+
+        var paragraph = Assert.IsType<ParagraphBlock>(Assert.Single(document));
+        var literal = Assert.IsType<LiteralInline>(Assert.Single(paragraph.Inline!));
+        Assert.Equal(markdown, literal.Content.ToString());
+        Assert.Empty(MarkdownImages.Scan(markdown).Destinations);
+    }
+
+    [Fact]
+    public void Parse_NestingAtTheBound_KeepsTheParse()
+    {
+        var markdown = string.Concat(Enumerable.Repeat("> ", MarkdownSyntax.MaximumDepth - 4)) + "![Kept](ksa-image:kept)";
+
+        Assert.Equal(["kept"], MarkdownImages.References(markdown));
+    }
+
+    private static string Nested(string text) => text switch
+    {
+        "quotes past the Markdig limit" => string.Concat(Enumerable.Repeat("> ", 130)) + "x",
+        "lists past the Markdig limit" => string.Concat(Enumerable.Repeat("- ", 65)) + "x",
+        "quotes past the bound" => string.Concat(Enumerable.Repeat("> ", MarkdownSyntax.MaximumDepth - 3)) + "![Deep](ksa-image:deep)",
+        "deep emphasis" => new string('*', 8000) + "x" + new string('*', 8000),
+        "deep images" => string.Concat(Enumerable.Repeat("![", 10000)) + "x" + string.Concat(Enumerable.Repeat("](ksa-image:deep)", 10000)),
+        _ => throw new ArgumentOutOfRangeException(nameof(text)),
+    };
 
     [Fact]
     public void Measure_PngIcon_GivesTheRecordFacts()

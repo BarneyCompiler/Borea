@@ -302,6 +302,8 @@ public sealed class AnnouncementViewModelTests
     [InlineData("# Only a heading", "Only a heading")]
     [InlineData("```\ncode\n```\nPlain  text\nacross lines.", "Plain text across lines.")]
     [InlineData("", "")]
+    [InlineData("**Bold ![Map](ksa-image:map)** [![Logo](logo.png) site](https://example.com) text", "Bold site text")]
+    [InlineData("line one<br>line two<BR/>three <b>bold</b>", "line one line two three bold")]
     public void Summarize_ReadsTheFirstBlockAsPlainText(string markdown, string expected)
     {
         Assert.Equal(expected, MainViewModel.Summarize(markdown));

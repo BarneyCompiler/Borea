@@ -211,6 +211,38 @@ public sealed class FileInstanceRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task RoundTrip_PersistsTheDetachedModsOfAPack_AndAPackWithoutThemWritesNoKey()
+    {
+        var instance = (await _repository.CreateAsync("Alpha", new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")))).Instance;
+        instance.AddMod(new InstalledMod("detached-mod", ModVersion.Parse("1.0.0"), InstallReason.ModPack, DateTimeOffset.UtcNow, MetadataFixtures.MinimalRelease("detached-mod", "1.0.0")));
+        await _repository.SaveAsync(instance);
+        var path = _pathProvider.GetInstanceMetadataPath(instance.InstanceId);
+        Assert.DoesNotContain(File.ReadAllLines(path), line => line.StartsWith("SourceModPackDetached", StringComparison.Ordinal));
+
+        await _repository.UpdateAsync(instance.InstanceId, saved => saved.DetachFromModPack("detached-mod"));
+        await _repository.UpdateAsync(instance.InstanceId, saved => saved.RemoveMod("detached-mod"));
+
+        var reloaded = await new FileInstanceRepository(_pathProvider).GetByIdAsync(instance.InstanceId);
+        Assert.Equal(new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")).WithDetached(["detached-mod"]), reloaded!.Source);
+        Assert.Empty(reloaded.Mods);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_RecordWithADetachedMod_ReadsInABuildThatDoesNotKnowIt()
+    {
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Alpha", new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")).WithDetached(["detached-mod"]), DateTimeOffset.UtcNow, [], false);
+        await _repository.SaveAsync(instance);
+        var path = _pathProvider.GetInstanceMetadataPath(instance.InstanceId);
+        // the older build must meet the key, or the read below proves nothing
+        Assert.Contains(File.ReadAllLines(path), line => line.StartsWith("SourceModPackDetached = [", StringComparison.Ordinal));
+
+        var older = await TomlFileStore.ReadAsync<RecordWithoutDetachedDto>(path);
+
+        Assert.Equal(instance.InstanceId.ToString(), older!.InstanceId);
+        Assert.Equal(("ModPack", "pack", "1.0.0"), (older.SourceType, older.SourceModPackId, older.SourceModPackVersion));
+    }
+
+    [Fact]
     public async Task CreateAsync_ThrowsWhenNameAlreadyTaken()
     {
         await _repository.CreateAsync("Duplicate Name", InstanceSource.Custom.Value);
@@ -438,5 +470,14 @@ public sealed class FileInstanceRepositoryTests : IDisposable
     {
         public string ModId { get; set; } = string.Empty;
         public string Version { get; set; } = string.Empty;
+    }
+
+    private sealed class RecordWithoutDetachedDto
+    {
+        public string InstanceId { get; set; } = string.Empty;
+        public string SourceType { get; set; } = string.Empty;
+        public string? SourceModPackId { get; set; }
+        public string? SourceModPackVersion { get; set; }
+        public List<ModWithoutPinDto> Mods { get; set; } = [];
     }
 }

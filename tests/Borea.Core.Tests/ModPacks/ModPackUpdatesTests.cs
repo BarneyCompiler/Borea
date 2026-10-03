@@ -51,6 +51,40 @@ public sealed class ModPackUpdatesTests
     }
 
     [Fact]
+    public void Compare_DetachedMods_StayAtTheirVersion_AndARemovedOneDoesNotComeBack()
+    {
+        var instance = Instance(
+            Installed("Detached", "1.0.0", InstallReason.ModPack),
+            Installed("Same", "1.0.0", InstallReason.ModPack),
+            Installed("Removed", "1.0.0", InstallReason.ModPack),
+            Installed("Member", "1.0.0", InstallReason.ModPack));
+        instance.DetachFromModPack("Detached");
+        instance.DetachFromModPack("Same");
+        instance.DetachFromModPack("Removed");
+        instance.RemoveMod("Removed");
+
+        var changes = ModPackUpdates.Compare(instance, Pack("2.0.0", ("Detached", "1.1.0"), ("Same", "1.0.0"), ("Removed", "1.1.0"), ("Member", "1.1.0")));
+
+        Assert.Equal(
+        [
+            new ModPackChange("Member", ModPackChangeKind.Change, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.1.0")),
+            new ModPackChange("Detached", ModPackChangeKind.Detached, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.0.0")),
+            new ModPackChange("Removed", ModPackChangeKind.Detached, null, null),
+        ], changes);
+    }
+
+    [Fact]
+    public void SourceAfter_KeepsEveryDetachedMod_AlsoOneThatTheNewVersionDoesNotPin()
+    {
+        var source = new InstanceSource.FromModPack("Pack", ModVersion.Parse("1.0.0")).WithDetached(["Kept", "Dropped"]);
+
+        var after = ModPackUpdates.SourceAfter(source, Pack("2.0.0", ("kept", "1.1.0"), ("Other", "1.0.0")));
+
+        Assert.Equal(new InstanceSource.FromModPack("Pack", ModVersion.Parse("2.0.0")).WithDetached(["Kept", "Dropped"]), after);
+        Assert.NotEqual(new InstanceSource.FromModPack("Pack", ModVersion.Parse("2.0.0")), after);
+    }
+
+    [Fact]
     public void KeepNeeded_DroppedModThatAStayingModRequires_IsKept()
     {
         var instance = Instance(

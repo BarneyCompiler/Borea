@@ -178,6 +178,54 @@ public sealed class Instance
         return true;
     }
 
+    /// <summary>
+    /// Makes a mod of the pack a mod the player chose, so a pack update leaves it alone, also after the player
+    /// removed it. Returns false when the mod already was detached.
+    /// </summary>
+    public bool DetachFromModPack(string modId)
+    {
+        if (Source is not InstanceSource.FromModPack pack)
+            throw new InvalidOperationException($"Instance '{Name}' was not created from a mod pack.");
+
+        var mod = _mods.FirstOrDefault(m => ModIds.Equals(m.ModId, modId))
+            ?? throw new InvalidOperationException($"Mod '{modId}' is not installed in this instance.");
+
+        if (mod.Reason != InstallReason.ModPack)
+        {
+            if (pack.Detached.Contains(mod.ModId))
+                return false;
+
+            throw new InvalidOperationException($"Mod '{mod.ModId}' was not installed from the mod pack of this instance.");
+        }
+
+        Source = pack.WithDetached(pack.Detached.Append(mod.ModId));
+        mod.MarkAsManuallyInstalled();
+        return true;
+    }
+
+    /// <summary>
+    /// Makes a detached mod follow the pack again, so the next pack update moves it to the version the pack pins.
+    /// A detached mod that the player removed only leaves the set. Returns false when the mod already follows the pack.
+    /// </summary>
+    public bool AttachToModPack(string modId)
+    {
+        if (Source is not InstanceSource.FromModPack pack)
+            throw new InvalidOperationException($"Instance '{Name}' was not created from a mod pack.");
+
+        var mod = _mods.FirstOrDefault(m => ModIds.Equals(m.ModId, modId));
+        if (!pack.Detached.Contains(modId))
+        {
+            if (mod?.Reason == InstallReason.ModPack)
+                return false;
+
+            throw new InvalidOperationException($"Mod '{mod?.ModId ?? modId}' is not detached from the mod pack of this instance.");
+        }
+
+        Source = pack.WithDetached(pack.Detached.Where(id => !ModIds.Equals(id, modId)));
+        mod?.MarkAsModPackMember();
+        return true;
+    }
+
     public void ReplaceForeignMods(IReadOnlyList<ForeignMod> foreignMods)
     {
         ArgumentNullException.ThrowIfNull(foreignMods);

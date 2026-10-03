@@ -23,6 +23,9 @@ public sealed class InstanceDto
     /// <summary>Only populated when SourceType is "ModPack". ModVersion as a string.</summary>
     public string? SourceModPackVersion { get; set; }
 
+    /// <summary>The pack mods the player detached. Absent when there are none, so such a record does not change.</summary>
+    public List<string>? SourceModPackDetached { get; set; }
+
     public List<InstalledModDto> Mods { get; set; } = new();
     public List<ForeignModDto> ForeignMods { get; set; } = new();
 }

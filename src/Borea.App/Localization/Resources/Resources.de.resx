@@ -1848,6 +1848,30 @@
   <data name="InstallMessagePinnedDependencyFormat" xml:space="preserve">
     <value>Diese Version braucht {0}, aber {1} ist in dieser Instanz bei {2} angeheftet.</value>
   </data>
+  <data name="ContentDetachFromPack" xml:space="preserve">
+    <value>Vom Modpack lösen</value>
+  </data>
+  <data name="ContentAttachToPack" xml:space="preserve">
+    <value>Wieder an das Modpack binden</value>
+  </data>
+  <data name="ContentAttachVersionFormat" xml:space="preserve">
+    <value>Wechselt auf {0}, die Version, die {1} {2} vorgibt</value>
+  </data>
+  <data name="ToastDetachFailedFormat" xml:space="preserve">
+    <value>{0} konnte nicht vom Modpack gelöst werden</value>
+  </data>
+  <data name="ToastAttachFailedFormat" xml:space="preserve">
+    <value>{0} konnte nicht wieder an das Modpack gebunden werden</value>
+  </data>
+  <data name="PackUpdateDetachedFormat" xml:space="preserve">
+    <value>Lässt {0} unverändert, weil es vom Modpack gelöst ist</value>
+  </data>
+  <data name="InstancePackDifferenceOne" xml:space="preserve">
+    <value>1 Mod weicht von {1} {2} ab</value>
+  </data>
+  <data name="InstancePackDifferenceFormat" xml:space="preserve">
+    <value>{0} Mods weichen von {1} {2} ab</value>
+  </data>
   <data name="ContentRemove" xml:space="preserve">
     <value>Entfernen</value>
   </data>

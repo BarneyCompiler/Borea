@@ -27,6 +27,7 @@ public static class ModPackUpdates
     /// <summary>
     /// The pins that <paramref name="target"/> adds or changes, and the pack mods that it no longer pins.
     /// A mod the player pinned keeps its version, and stays as a normal mod when the pack drops it.
+    /// A mod the player detached keeps its version, or stays away when the player removed it.
     /// </summary>
     public static IReadOnlyList<ModPackChange> Compare(Instance instance, ModPackMetadata target)
     {
@@ -37,7 +38,12 @@ public static class ModPackUpdates
         foreach (var pin in target.Mods)
         {
             var installed = instance.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, pin.ContentId));
-            if (installed is null)
+            if (IsDetached(instance.Source, pin.ContentId))
+            {
+                if (installed?.Version != pin.Version)
+                    changes.Add(new ModPackChange(installed?.ModId ?? pin.ContentId, ModPackChangeKind.Detached, installed?.Version, installed?.Version));
+            }
+            else if (installed is null)
                 changes.Add(new ModPackChange(pin.ContentId, ModPackChangeKind.Add, null, pin.Version));
             else if (installed.IsPinned && installed.Version != pin.Version)
                 changes.Add(new ModPackChange(installed.ModId, ModPackChangeKind.Pinned, installed.Version, installed.Version));
@@ -53,6 +59,23 @@ public static class ModPackUpdates
         }
 
         return Ordered(changes);
+    }
+
+    /// <summary>Whether a pack update leaves <paramref name="modId"/> alone, because the player detached it from the pack.</summary>
+    public static bool IsDetached(InstanceSource source, string modId)
+        => source is InstanceSource.FromModPack pack && pack.Detached.Contains(modId);
+
+    /// <summary>
+    /// The source that names <paramref name="target"/> once the update is complete. Every detached mod stays
+    /// detached, also when <paramref name="target"/> does not pin it, so a later version that pins it again leaves it alone.
+    /// </summary>
+    public static InstanceSource.FromModPack SourceAfter(InstanceSource current, ModPackMetadata target)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(target);
+
+        return new InstanceSource.FromModPack(target.ModPackId, target.Version)
+            .WithDetached(current is InstanceSource.FromModPack pack ? pack.Detached : []);
     }
 
     /// <summary>Turns a removal into <see cref="ModPackChangeKind.Keep"/> while a mod that stays or a <paramref name="planned"/> release needs it.</summary>

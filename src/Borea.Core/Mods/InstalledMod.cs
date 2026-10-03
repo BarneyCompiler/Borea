@@ -97,5 +97,10 @@ public sealed class InstalledMod
         Reason = InstallReason.Manual;
     }
 
+    public void MarkAsModPackMember()
+    {
+        Reason = InstallReason.ModPack;
+    }
+
     public void SetPinned(bool pinned) => IsPinned = pinned;
 }

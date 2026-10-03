@@ -65,6 +65,10 @@ public partial class MainViewModel
 
     public bool HasContent => _content.Count > 0;
 
+    /// <summary>"2 mods differ from Flight Planning Essentials 1.0.1", or null when the instance has its pack as the pack pins it.</summary>
+    [ObservableProperty]
+    private string? _packDifferenceText;
+
     /// <summary>
     /// The "Update all" action of the page header, for the shown instance.
     /// </summary>
@@ -220,7 +224,11 @@ public partial class MainViewModel
     private void RefreshContentGroups()
     {
         foreach (var item in _content)
+        {
             item.RefreshText();
+            // a pack version that no longer pins the mod would remove it once it follows the pack again
+            item.CanAttach = item.IsDetached && (_contentPack is null || _contentPack.Mods.Any(pin => ModIds.Equals(pin.ContentId, item.ModId)));
+        }
 
         MissingContent?.RefreshText();
 
@@ -240,6 +248,7 @@ public partial class MainViewModel
         Add(Localization.InstanceGroupOther, chosen.Where(content => content.Type is not ContentType.Mod and not ContentType.ModLoader));
         Add(Localization.InstanceGroupDependencies, _content.Where(content => content.IsDependency), isDependencies: true);
         OnPropertyChanged(nameof(HasContent));
+        PackDifferenceText = DescribePackDifference(_selectedInstanceEntity, _contentPack);
 
         void Add(string title, IEnumerable<ContentItem> items, bool isDependencies = false)
         {
@@ -247,6 +256,28 @@ public partial class MainViewModel
             if (list.Count > 0)
                 ContentGroups.Add(new ContentGroup(title, list, isDependencies));
         }
+    }
+
+    /// <summary>
+    /// A detached mod that the pack pins always differs, and so does a mod that is gone or at another version than
+    /// the pack pins. Without the pack version from the index, every detached mod counts.
+    /// </summary>
+    private string? DescribePackDifference(Instance? instance, ModPackMetadata? pack)
+    {
+        if (instance?.Source is not InstanceSource.FromModPack source)
+            return null;
+
+        if (pack is null)
+            return source.Detached.Count == 0 ? null : Localization.FormatInstancePackDifference(source.Detached.Count, source.ModPackId, source.Version.ToString());
+
+        var differ = new HashSet<string>(ModIds.Comparer);
+        foreach (var pin in pack.Mods)
+        {
+            if (source.Detached.Contains(pin.ContentId) || instance.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, pin.ContentId))?.Version != pin.Version)
+                differ.Add(pin.ContentId);
+        }
+
+        return differ.Count == 0 ? null : Localization.FormatInstancePackDifference(differ.Count, pack.Name, source.Version.ToString());
     }
 
     private async Task<ModPackMetadata?> ResolveSourcePackAsync(InstanceSource? source)
@@ -805,34 +836,75 @@ public partial class MainViewModel
             ShowErrorToast(() => enabled ? Localization.FormatToastEnableFailed(name) : Localization.FormatToastDisableFailed(name), error);
     }
 
+    /// <summary>Pins or unpins a mod Borea owns.</summary>
+    internal Task SetContentPinnedAsync(ContentItem item, bool pinned)
+        => ChangeContentRecordAsync(
+            item,
+            instance => instance.SetPinned(item.ModId, pinned),
+            () => pinned ? Localization.FormatToastPinFailed(item.Name) : Localization.FormatToastUnpinFailed(item.Name));
+
+    /// <summary>Makes a mod of the pack a mod the player chose, so pack updates leave it alone.</summary>
+    internal Task DetachContentFromPackAsync(ContentItem item)
+        => ChangeContentRecordAsync(item, instance => instance.DetachFromModPack(item.ModId), () => Localization.FormatToastDetachFailed(item.Name));
+
     /// <summary>
-    /// Pins or unpins a mod Borea owns. A pin changes what an update plans, so it does nothing while an update
-    /// of the instance runs, and the reload drops the plans that wait for a confirmation.
+    /// Makes a detached mod follow the pack again. When the pack pins another version than the installed one, the row
+    /// then plans that version and asks first, because the files of the installed version go away with it.
     /// </summary>
-    internal async Task SetContentPinnedAsync(ContentItem item, bool pinned)
+    internal async Task AttachContentToPackAsync(ContentItem item)
     {
-        if (_services is not { } services || _runningUpdates.ContainsKey(item.InstanceId))
+        var pack = _contentPack;
+        if (!await ChangeContentRecordAsync(item, instance => instance.AttachToModPack(item.ModId), () => Localization.FormatToastAttachFailed(item.Name)))
             return;
 
-        string Failed() => pinned ? Localization.FormatToastPinFailed(item.Name) : Localization.FormatToastUnpinFailed(item.Name);
+        var pinned = pack?.Mods.Where(entry => ModIds.Equals(entry.ContentId, item.ModId)).Select(entry => (ModPackEntry?)entry).FirstOrDefault();
+        var row = _content.FirstOrDefault(content => content.InstanceId == item.InstanceId && ModIds.Equals(content.ModId, item.ModId));
+        if (pack is null || pinned is not { } pin || row is null || row.Version == pin.Version.ToString() || _services is not { } services)
+            return;
+
+        if (await services.Mods.GetReleaseAsync(pin.ContentId, pin.Version) is not { } release)
+            return;
+
+        await RunUpdateAsync(row, row.InstanceId, () => PlanAndExecuteAsync(
+            row,
+            row.InstanceId,
+            _ => Task.FromResult<IReadOnlyList<RequestedMod>>([new RequestedMod(release, InstallReason.ModPack)]),
+            (_, _) =>
+            {
+                row.PackVersionText = Localization.FormatContentAttachVersion(pin.Version.ToString(), pack.Name, pack.Version.ToString());
+                return Task.FromResult(true);
+            }));
+    }
+
+    /// <summary>
+    /// The change alters what an update plans, so it does nothing while an update of the instance runs,
+    /// and the reload drops the plans that wait for a confirmation. Returns whether the record changed.
+    /// </summary>
+    private async Task<bool> ChangeContentRecordAsync(ContentItem item, Func<Instance, bool> change, Func<string> failed)
+    {
+        if (_services is not { } services || _runningUpdates.ContainsKey(item.InstanceId))
+            return false;
+
         using var libraryUse = TryUseLibrary();
         if (libraryUse is null)
         {
-            ShowErrorToast(Failed, Localization.LibraryFolderBusy);
-            return;
+            ShowErrorToast(failed, Localization.LibraryFolderBusy);
+            return false;
         }
 
+        bool changed;
         try
         {
-            await services.Instances.UpdateAsync(item.InstanceId, instance => instance.SetPinned(item.ModId, pinned));
+            changed = await services.Instances.UpdateAsync(item.InstanceId, change);
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
-            ShowErrorToast(Failed, exception.Message);
-            return;
+            ShowErrorToast(failed, exception.Message);
+            return false;
         }
 
         await ReloadInstancesAsync();
+        return changed;
     }
 
     /// <summary>Enables or disables the mod, or returns why it could not.</summary>
@@ -1168,6 +1240,16 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
 
     public bool CanPin => IsOwned && !IsPinned;
 
+    /// <summary>The pack of the instance installed the mod, so pack updates move it until it is detached.</summary>
+    public bool CanDetach { get; }
+
+    /// <summary>The player detached the mod from the pack of the instance.</summary>
+    public bool IsDetached { get; }
+
+    /// <summary>Set with the content groups, because it needs the pack version from the index.</summary>
+    [ObservableProperty]
+    private bool _canAttach;
+
     public string? PinnedText => IsPinned ? _owner.Localization.FormatContentPinned(Version) : null;
 
     public string? AuthorsText => Authors is null ? null : _owner.Localization.FormatContentByAuthor(Authors);
@@ -1316,9 +1398,16 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
 
     public bool HasChangelogs => Changelogs.Count > 0;
 
-    public bool IsConfirmingUpdate => InstallWarning is not null || HasChangelogs || Choices is not null;
+    /// <summary>"Changes to 0.8.44, the version that Tools Pack 1.0.0 pins", while that change waits for a confirmation.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsConfirmingUpdate))]
+    [NotifyPropertyChangedFor(nameof(ConfirmUpdateText))]
+    private string? _packVersionText;
 
-    public string ConfirmUpdateText => InstallWarning is null ? _owner.Localization.ContentUpdate : _owner.Localization.UpdateAnyway;
+    public bool IsConfirmingUpdate => InstallWarning is not null || HasChangelogs || Choices is not null || PackVersionText is not null;
+
+    public string ConfirmUpdateText => PackVersionText is not null ? _owner.Localization.ContentChangeVersion
+        : InstallWarning is null ? _owner.Localization.ContentUpdate : _owner.Localization.UpdateAnyway;
 
     public InstallPlan? PendingPlan { get; set; }
 
@@ -1341,6 +1430,8 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
         IsDependency = mod.Reason == InstallReason.Dependency;
         IsOwned = mod.Ownership == ModInstallOwnership.Borea;
         IsPinned = mod.IsPinned;
+        CanDetach = instance.Source is InstanceSource.FromModPack && mod.Reason == InstallReason.ModPack;
+        IsDetached = instance.Source is InstanceSource.FromModPack pack && pack.Detached.Contains(mod.ModId);
         _isEnabled = enabled;
     }
 
@@ -1352,6 +1443,12 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
 
     [RelayCommand]
     private Task UnpinAsync() => _owner.SetContentPinnedAsync(this, pinned: false);
+
+    [RelayCommand]
+    private Task DetachAsync() => _owner.DetachContentFromPackAsync(this);
+
+    [RelayCommand]
+    private Task AttachAsync() => _owner.AttachContentToPackAsync(this);
 
     /// <summary>
     /// The whole row is this command, so it stays executable while the page
@@ -1395,7 +1492,7 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
     [RelayCommand]
     private void BeginRemove()
     {
-        MainViewModel.CancelUpdate(this);
+        CancelUpdate();
         IsConfirmingRemove = true;
     }
 
@@ -1432,7 +1529,11 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
         : _owner.ConfirmUpdateAsync(this, InstanceId);
 
     [RelayCommand]
-    private void CancelUpdate() => MainViewModel.CancelUpdate(this);
+    private void CancelUpdate()
+    {
+        PackVersionText = null;
+        MainViewModel.CancelUpdate(this);
+    }
 }
 
 /// <summary>

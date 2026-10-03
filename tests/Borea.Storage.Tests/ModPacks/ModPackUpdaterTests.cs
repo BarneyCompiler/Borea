@@ -1,4 +1,5 @@
 using Borea.Core.Dependencies;
+using Borea.Core.Index;
 using Borea.Core.Instances;
 using Borea.Core.ModPacks;
 using Borea.Core.Mods;
@@ -58,6 +59,116 @@ public sealed class ModPackUpdaterTests
         var kept = updated.Mods.Single(mod => mod.ModId == "Pinned");
         Assert.Equal((ModVersion.Parse("1.0.0"), InstallReason.ModPack, true), (kept.Version, kept.Reason, kept.IsPinned));
         Assert.Equal(ModVersion.Parse("1.1.0"), updated.Mods.Single(mod => mod.ModId == "Repinned").Version);
+    }
+
+    [Fact]
+    public async Task Update_DetachedMod_StaysAtItsVersion_AndTheOtherModsMove()
+    {
+        var newerDetached = Release("Detached", "1.1.0");
+        var newerMember = Release("Member", "1.1.0");
+        var instance = PackInstance(Installed(Release("Detached"), InstallReason.ModPack), Installed(Release("Member"), InstallReason.ModPack));
+        instance.DetachFromModPack("Detached");
+        var instances = new MemoryInstanceRepository(instance);
+
+        var result = await Updater(instances, new FakeInstaller(instances), new FakeUninstaller(instances)).UpdateAsync(Request(instance.InstanceId, Pack("2.0.0", newerDetached, newerMember), [newerDetached, newerMember]));
+
+        Assert.True(result.IsComplete);
+        Assert.Equal(
+            [new ModPackChange("Member", ModPackChangeKind.Change, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.1.0")), new ModPackChange("Detached", ModPackChangeKind.Detached, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.0.0"))],
+            result.Changes);
+        Assert.DoesNotContain(result.Members, member => member.ModId == "Detached");
+        var updated = (await instances.GetByIdAsync(instance.InstanceId))!;
+        Assert.Equal(new InstanceSource.FromModPack("Pack", ModVersion.Parse("2.0.0")).WithDetached(["Detached"]), updated.Source);
+        var detached = updated.Mods.Single(mod => mod.ModId == "Detached");
+        Assert.Equal((ModVersion.Parse("1.0.0"), InstallReason.Manual), (detached.Version, detached.Reason));
+        Assert.Equal(ModVersion.Parse("1.1.0"), updated.Mods.Single(mod => mod.ModId == "Member").Version);
+    }
+
+    [Fact]
+    public async Task Update_DetachedModThatThePlayerRemoved_DoesNotComeBackWithTheNextUpdates()
+    {
+        var instance = PackInstance(Installed(Release("Removed"), InstallReason.ModPack), Installed(Release("Member"), InstallReason.ModPack));
+        instance.DetachFromModPack("Removed");
+        instance.RemoveMod("Removed");
+        var instances = new MemoryInstanceRepository(instance);
+        var updater = Updater(instances, new FakeInstaller(instances), new FakeUninstaller(instances));
+
+        foreach (var version in new[] { "2.0.0", "3.0.0" })
+        {
+            var releases = new[] { Release("Removed", version), Release("Member", version) };
+            var result = await updater.UpdateAsync(Request(instance.InstanceId, Pack(version, releases), releases));
+
+            Assert.True(result.IsComplete);
+            Assert.Contains(new ModPackChange("Removed", ModPackChangeKind.Detached, null, null), result.Changes);
+            var updated = (await instances.GetByIdAsync(instance.InstanceId))!;
+            Assert.Equal([("Member", ModVersion.Parse(version))], updated.Mods.Select(mod => (mod.ModId, mod.Version)));
+            Assert.Equal(new InstanceSource.FromModPack("Pack", ModVersion.Parse(version)).WithDetached(["Removed"]), updated.Source);
+        }
+    }
+
+    [Fact]
+    public async Task Update_DetachedModsThatAVersionDropsAndALaterVersionPinsAgain_StayAlone()
+    {
+        var instance = PackInstance(Installed(Release("Kept"), InstallReason.ModPack), Installed(Release("Removed"), InstallReason.ModPack), Installed(Release("Member"), InstallReason.ModPack));
+        instance.DetachFromModPack("Kept");
+        instance.DetachFromModPack("Removed");
+        instance.RemoveMod("Removed");
+        var instances = new MemoryInstanceRepository(instance);
+        var updater = Updater(instances, new FakeInstaller(instances), new FakeUninstaller(instances));
+        var dropped = new[] { Release("Member", "2.0.0") };
+        Assert.True((await updater.UpdateAsync(Request(instance.InstanceId, Pack("2.0.0", dropped), dropped))).IsComplete);
+        var again = new[] { Release("Kept", "3.0.0"), Release("Removed", "3.0.0"), Release("Member", "3.0.0") };
+
+        var result = await updater.UpdateAsync(Request(instance.InstanceId, Pack("3.0.0", again), again));
+
+        Assert.True(result.IsComplete);
+        Assert.Equal(
+            [
+                new ModPackChange("Member", ModPackChangeKind.Change, ModVersion.Parse("2.0.0"), ModVersion.Parse("3.0.0")),
+                new ModPackChange("Kept", ModPackChangeKind.Detached, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.0.0")),
+                new ModPackChange("Removed", ModPackChangeKind.Detached, null, null),
+            ],
+            result.Changes);
+        var updated = (await instances.GetByIdAsync(instance.InstanceId))!;
+        Assert.Equal([("Kept", ModVersion.Parse("1.0.0")), ("Member", ModVersion.Parse("3.0.0"))], updated.Mods.Select(mod => (mod.ModId, mod.Version)).OrderBy(mod => mod.ModId, StringComparer.Ordinal));
+        Assert.Equal(new InstanceSource.FromModPack("Pack", ModVersion.Parse("3.0.0")).WithDetached(["Kept", "Removed"]), updated.Source);
+    }
+
+    [Fact]
+    public async Task Plan_UpdateThatCannotRun_NamesNoDetachedModAsAMember()
+    {
+        var yanked = Release("Yanked", "2.0.0", yanked: true);
+        var newerDetached = Release("Detached", "2.0.0");
+        var instance = PackInstance(Installed(Release("Detached"), InstallReason.ModPack));
+        instance.DetachFromModPack("Detached");
+        var instances = new MemoryInstanceRepository(instance);
+        var updater = Updater(instances, new FakeInstaller(instances), new FakeUninstaller(instances));
+        var pack = Pack("2.0.0", newerDetached, yanked);
+        var retracted = new ModPackResult(pack.Id, pack.Version, pack.Metadata, null, new IndexStatus(IndexStatusState.Retracted, "retracted", reason: "Broken pack."), []);
+
+        var needsConfirmation = await updater.PlanAsync(Request(instance.InstanceId, pack, [newerDetached, yanked]));
+        var retractedResult = await updater.PlanAsync(Request(instance.InstanceId, retracted, [newerDetached, yanked]));
+
+        Assert.False(needsConfirmation.CanRun);
+        Assert.Equal(["Yanked"], needsConfirmation.Members.Select(member => member.ModId));
+        Assert.False(retractedResult.CanRun);
+        Assert.Equal(["Yanked"], retractedResult.Members.Select(member => member.ModId));
+    }
+
+    [Fact]
+    public async Task Update_DetachedModThatANewPinNeeds_IsListedAsAChange()
+    {
+        var newerDetached = Release("Detached", "1.1.0");
+        var added = Release("Added", dependencies: [new ModDependency("Detached", ModDependencyKind.Required, minVersion: ModVersion.Parse("1.1.0"))]);
+        var instance = PackInstance(Installed(Release("Detached"), InstallReason.ModPack));
+        instance.DetachFromModPack("Detached");
+        var instances = new MemoryInstanceRepository(instance);
+
+        var result = await Updater(instances, new FakeInstaller(instances), new FakeUninstaller(instances)).PlanAsync(Request(instance.InstanceId, Pack("2.0.0", Release("Detached", "1.2.0"), added), [newerDetached, added]));
+
+        Assert.Equal(
+            [new ModPackChange("Added", ModPackChangeKind.Add, null, ModVersion.Parse("1.0.0")), new ModPackChange("Detached", ModPackChangeKind.Change, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.1.0"))],
+            result.Changes);
     }
 
     [Fact]

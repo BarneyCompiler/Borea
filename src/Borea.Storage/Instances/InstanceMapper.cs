@@ -26,6 +26,9 @@ public static class InstanceMapper
             SourceType = sourceType,
             SourceModPackId = modPackId,
             SourceModPackVersion = modPackVersion,
+            SourceModPackDetached = instance.Source is InstanceSource.FromModPack { Detached.Count: > 0 } pack
+                ? pack.Detached.Order(ModIds.Comparer).ToList()
+                : null,
             Mods = instance.Mods.Select(InstalledModMapper.ToDto).ToList(),
             ForeignMods = instance.ForeignMods.Select(ForeignModMapper.ToDto).ToList(),
         };
@@ -41,7 +44,8 @@ public static class InstanceMapper
         {
             "ModPack" => new InstanceSource.FromModPack(
                 dto.SourceModPackId ?? throw new FormatException("ModPack source is missing SourceModPackId."),
-                ModVersion.Parse(dto.SourceModPackVersion ?? throw new FormatException("ModPack source is missing SourceModPackVersion."))),
+                ModVersion.Parse(dto.SourceModPackVersion ?? throw new FormatException("ModPack source is missing SourceModPackVersion.")))
+                .WithDetached(dto.SourceModPackDetached ?? []),
             "Custom" => InstanceSource.Custom.Value,
             _ => throw new FormatException($"Unknown SourceType '{dto.SourceType}'."),
         };

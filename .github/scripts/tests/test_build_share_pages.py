@@ -366,7 +366,8 @@ class Build(unittest.TestCase):
         self.assertIn("borea://mod/AdvancedFlightComputer", hrefs)
         self.assertIn("borea://install/AdvancedFlightComputer", hrefs)
         self.assertIn("../../#download", hrefs)
-        self.assertIn("need Borea on this computer", self.page("mod", "AdvancedFlightComputer"))
+        self.assertIn('"Open in Borea" and "Install with Borea" work only when Borea is installed',
+                      self.page("mod", "AdvancedFlightComputer"))
 
     def test_a_phone_gets_the_line_and_copy_link_in_place_of_the_borea_buttons(self):
         self.build()
@@ -384,8 +385,8 @@ class Build(unittest.TestCase):
                      ("a", {"class": "button secondary", "href": "../../#download"})],
                     buttons)
                 self.assertEqual(2, page.count('href="borea://'))
-                self.assertIn('<p class="meta hint desktop-only">Open in Borea and Install with Borea need Borea on '
-                              'this computer.</p>', page)
+                self.assertIn('<p class="meta hint desktop-only">"Open in Borea" and "Install with Borea" work only '
+                              'when Borea is installed on this computer.</p>', page)
                 self.assertIn('<p class="meta hint handheld-only">Borea runs on Windows, Linux and macOS. To install '
                               'this with Borea, open this page on a computer.</p>', page)
 

@@ -200,7 +200,8 @@ public sealed class FileSharedModStore : ISharedModStore
                         linked.Checksum,
                         ModInstallOwnership.Borea,
                         ownershipToken,
-                        ModStorage.Private));
+                        ModStorage.Private,
+                        linked.IsPinned));
                     return true;
                 },
                 cancellationToken).ConfigureAwait(false);

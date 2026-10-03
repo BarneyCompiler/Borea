@@ -25,6 +25,8 @@ internal static class PlanningText
             PlanningMessageKind.OutsideChannel => Resources.InstallMessageOutsideChannel,
             PlanningMessageKind.MissingRequest => Resources.InstallMessageMissingRequest,
             PlanningMessageKind.ExactPin => Fill(Resources.InstallMessageExactPinFormat, message.Version),
+            PlanningMessageKind.Pinned => Fill(Resources.InstallMessagePinnedFormat, message.Version, message.OtherVersion),
+            PlanningMessageKind.PinnedDependency => Fill(Resources.InstallMessagePinnedDependencyFormat, dependency, message.Value, message.Version),
             PlanningMessageKind.ProposedConflict => Fill(Resources.InstallMessageProposedConflictFormat, dependency),
             PlanningMessageKind.Yanked => WithReason(Resources.InstallMessageYanked, message.Value),
             PlanningMessageKind.YankedPin => WithReason(Resources.InstallMessageYankedPin, message.Value),

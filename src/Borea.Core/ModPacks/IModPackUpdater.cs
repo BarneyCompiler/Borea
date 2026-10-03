@@ -39,6 +39,9 @@ public enum ModPackChangeKind
 
     /// <summary>The new version no longer pins the mod, but it stays as a normal mod of the instance.</summary>
     Keep,
+
+    /// <summary>The new version pins another version of the mod, but the player pinned it, so it stays at its version.</summary>
+    Pinned,
 }
 
 /// <param name="From">The installed version, or null for an added mod.</param>

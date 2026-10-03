@@ -130,6 +130,8 @@ internal static class ModInstallCommands
             var requested = selected.Select(mod => new RequestedMod(mod.Metadata, mod.Reason, Exact: false)).ToList();
             var releaseChannel = ArgumentRules.ChannelOrSaved(parse.GetValue(channel), cli.Settings.ReleaseChannel);
             var plan = await PlanAsync(cli, target, repository, requested, releaseChannel, parse.GetValue(recommended), ParseAlternatives(parse.GetValue(alternatives)), ct).ConfigureAwait(false);
+            foreach (var pinned in selected.Where(mod => mod.IsPinned))
+                output.WriteLine($"Keep {pinned.ModId} {pinned.Version}, because it is pinned. Run 'borea unpin {pinned.ModId}' to update it.");
             PrintPlan(output, plan);
             if (parse.GetValue(dryRun))
                 return plan.IsReady ? ExitCodes.Done : ExitCodes.Failed;

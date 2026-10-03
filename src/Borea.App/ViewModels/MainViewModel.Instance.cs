@@ -805,6 +805,36 @@ public partial class MainViewModel
             ShowErrorToast(() => enabled ? Localization.FormatToastEnableFailed(name) : Localization.FormatToastDisableFailed(name), error);
     }
 
+    /// <summary>
+    /// Pins or unpins a mod Borea owns. A pin changes what an update plans, so it does nothing while an update
+    /// of the instance runs, and the reload drops the plans that wait for a confirmation.
+    /// </summary>
+    internal async Task SetContentPinnedAsync(ContentItem item, bool pinned)
+    {
+        if (_services is not { } services || _runningUpdates.ContainsKey(item.InstanceId))
+            return;
+
+        string Failed() => pinned ? Localization.FormatToastPinFailed(item.Name) : Localization.FormatToastUnpinFailed(item.Name);
+        using var libraryUse = TryUseLibrary();
+        if (libraryUse is null)
+        {
+            ShowErrorToast(Failed, Localization.LibraryFolderBusy);
+            return;
+        }
+
+        try
+        {
+            await services.Instances.UpdateAsync(item.InstanceId, instance => instance.SetPinned(item.ModId, pinned));
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            ShowErrorToast(Failed, exception.Message);
+            return;
+        }
+
+        await ReloadInstancesAsync();
+    }
+
     /// <summary>Enables or disables the mod, or returns why it could not.</summary>
     private async Task<string?> TrySetContentEnabledAsync(Guid instanceId, string modId, bool enabled)
     {
@@ -1133,6 +1163,13 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
     /// <summary>Borea installed the files, so it may update them.</summary>
     public bool IsOwned { get; }
 
+    /// <summary>Updates leave the mod at its version.</summary>
+    public bool IsPinned { get; }
+
+    public bool CanPin => IsOwned && !IsPinned;
+
+    public string? PinnedText => IsPinned ? _owner.Localization.FormatContentPinned(Version) : null;
+
     public string? AuthorsText => Authors is null ? null : _owner.Localization.FormatContentByAuthor(Authors);
 
     private readonly DateTimeOffset? _unavailableSince;
@@ -1303,11 +1340,18 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
         Reason = mod.Reason;
         IsDependency = mod.Reason == InstallReason.Dependency;
         IsOwned = mod.Ownership == ModInstallOwnership.Borea;
+        IsPinned = mod.IsPinned;
         _isEnabled = enabled;
     }
 
     [RelayCommand]
     private Task ToggleEnabledAsync() => _owner.SetContentEnabledAsync(InstanceId, ModId, Name, IsEnabled);
+
+    [RelayCommand]
+    private Task PinAsync() => _owner.SetContentPinnedAsync(this, pinned: true);
+
+    [RelayCommand]
+    private Task UnpinAsync() => _owner.SetContentPinnedAsync(this, pinned: false);
 
     /// <summary>
     /// The whole row is this command, so it stays executable while the page
@@ -1341,6 +1385,7 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
         OnPropertyChanged(nameof(RemoveActionText));
         OnPropertyChanged(nameof(RemoveSteps));
         OnPropertyChanged(nameof(UpdateText));
+        OnPropertyChanged(nameof(PinnedText));
         OnPropertyChanged(nameof(ManageConfirmText));
         OnPropertyChanged(nameof(ManageMissingText));
         OnPropertyChanged(nameof(ManageInstallMissingText));

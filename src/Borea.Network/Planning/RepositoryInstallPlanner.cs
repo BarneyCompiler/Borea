@@ -71,6 +71,13 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
         conflicts = [];
         foreach (var item in request.Requested.OrderBy(value => value.Release.ModId, ModIds.Comparer))
         {
+            // an update asks for the version a mod has, so only a request for another version of a pinned mod is a conflict
+            if (Pinned(request, item.Release.ModId) is { } pinned)
+            {
+                if (item.Release.Version != pinned.Version)
+                    conflicts.Add(new PlanningMessage(pinned.ModId, PlanningMessageKind.Pinned) { Version = pinned.Version, OtherVersion = item.Release.Version });
+                continue;
+            }
             if (request.Instance.ForeignMods.Any(value => ModIds.Equals(value.ModId, item.Release.ModId)))
                 conflicts.Add(Message(item.Release.ModId, PlanningMessageKind.ForeignOwned));
             if (roots.TryGetValue(item.Release.ModId, out var previous) && previous.Exact && item.Exact && previous.Release.Version != item.Release.Version)
@@ -83,7 +90,7 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
 
     /// <summary>
     /// The candidates of every reachable mod, newest first, and last the yanked releases and those whose download is gone and that are not installed,
-    /// because an installed copy is never replaced for its gone download. An exact request is its own only candidate,
+    /// because an installed copy is never replaced for its gone download. An exact request and a pinned mod have one candidate each,
     /// and every other candidate is inside the channel or already installed.
     /// </summary>
     private static async Task<Dictionary<string, IReadOnlyList<RequestedMod?>>> BuildDomainsAsync(InstallPlanningRequest request, Dictionary<string, RequestedMod> roots, ReleaseChannel channel, List<PlanningMessage> conflicts, CancellationToken cancellationToken)
@@ -97,7 +104,10 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
             if (!seen.Add(id)) continue;
             var values = new List<ModVersionMetadata>();
             var outsideChannel = false;
-            if (roots.TryGetValue(id, out var root) && root.Exact)
+            roots.TryGetValue(id, out var root);
+            if (Pinned(request, id) is { } pinned)
+                values.Add(pinned.Metadata);
+            else if (root is { Exact: true })
                 values.Add(root.Release);
             else if (!request.Instance.ForeignMods.Any(value => ModIds.Equals(value.ModId, id)))
             {
@@ -214,6 +224,7 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
         if (version is { } installed && dependency.BoundsContain(installed)) return;
         if (foreign && dependency.MinVersion is null && dependency.MaxVersion is null) return;
         if (foreign) unresolved.Add(Message(owner, PlanningMessageKind.ForeignVersionUnknown, dependency));
+        else if (Pinned(request, dependency.ModId!) is { } pinned) conflicts.Add(new PlanningMessage(owner, PlanningMessageKind.PinnedDependency) { Dependency = dependency, Value = pinned.ModId, Version = pinned.Version });
         else conflicts.Add(Message(owner, PlanningMessageKind.UnsatisfiedDependency, dependency));
     }
 
@@ -229,6 +240,7 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
         if (chosen is null) { conflicts.Add(new PlanningMessage(owner, PlanningMessageKind.InvalidAlternative) { Dependency = dependency, Value = requested }); return; }
         if (AlternativeSatisfied(request, selected, chosen)) return;
         if (request.Instance.ForeignMods.Any(value => ModIds.Equals(value.ModId, chosen.ModId))) unresolved.Add(new PlanningMessage(owner, PlanningMessageKind.ForeignAlternativeUnknown) { Dependency = dependency, Value = chosen.ModId });
+        else if (Pinned(request, chosen.ModId) is { } pinned) conflicts.Add(new PlanningMessage(owner, PlanningMessageKind.PinnedDependency) { Dependency = new ModDependency(chosen.ModId, ModDependencyKind.Required, chosen.MinVersion, chosen.MaxVersion), Value = pinned.ModId, Version = pinned.Version });
         else conflicts.Add(new PlanningMessage(owner, PlanningMessageKind.UnsatisfiedAlternative) { Dependency = dependency, Value = chosen.ModId });
     }
 
@@ -344,6 +356,7 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
     }
 
     private static void Validate(InstallPlanningRequest request) { ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(request.Instance); ArgumentNullException.ThrowIfNull(request.Requested); ArgumentNullException.ThrowIfNull(request.Repository); }
+    private static InstalledMod? Pinned(InstallPlanningRequest request, string id) => request.Instance.Mods.FirstOrDefault(value => value.IsPinned && ModIds.Equals(value.ModId, id));
     private static bool IsInstalled(InstallPlanningRequest request, ModVersionMetadata release) => request.Instance.Mods.Any(value => ModIds.Equals(value.ModId, release.ModId) && value.Version == release.Version);
     private static string ChoiceKey(string owner, int index, string kind) => $"{owner}:dependency:{index}:{kind}";
     private static PlanningMessage Message(string id, PlanningMessageKind kind, ModDependency? dependency = null) => new(id, kind) { Dependency = dependency };
@@ -352,7 +365,7 @@ public sealed class RepositoryInstallPlanner : IInstallPlanner
     /// <param name="Age">How far the requests that are not exact sit behind their newest candidate.</param>
     private sealed record SearchResult(Dictionary<string, RequestedMod> Selected, int Age, IReadOnlyList<PlanningMessage> Warnings, IReadOnlyList<PlanningMessage> Unresolved, IReadOnlyList<PlanningMessage> Conflicts, IReadOnlyList<PlanningChoice> Choices)
     {
-        public SearchScore Score => new(Conflicts.Count, Conflicts.Count(value => value.Kind is PlanningMessageKind.UnsatisfiedDependency or PlanningMessageKind.MissingRequest or PlanningMessageKind.RetainedUnsatisfied), Age, Unresolved.Count, Warnings.Count, Selected.Count);
+        public SearchScore Score => new(Conflicts.Count, Conflicts.Count(value => value.Kind is PlanningMessageKind.UnsatisfiedDependency or PlanningMessageKind.PinnedDependency or PlanningMessageKind.MissingRequest or PlanningMessageKind.RetainedUnsatisfied), Age, Unresolved.Count, Warnings.Count, Selected.Count);
     }
     // age ranks above open choices, warnings and the number of mods, so a request does not fall back to an older release to avoid the dependencies of the newest one
     private readonly record struct SearchScore(int Conflicts, int Missing, int Age, int Unresolved, int Warnings, int Selected) : IComparable<SearchScore>

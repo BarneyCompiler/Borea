@@ -38,6 +38,29 @@ public sealed class ModPackUpdaterTests
     }
 
     [Fact]
+    public async Task Update_PinnedMod_StaysAtItsVersion_AndTheOtherModsMove()
+    {
+        var pinned = Installed(Release("Pinned"), InstallReason.ModPack);
+        pinned.SetPinned(true);
+        var repinned = Release("Repinned", "1.1.0");
+        var newerPin = Release("Pinned", "1.1.0");
+        var instance = PackInstance(pinned, Installed(Release("Repinned"), InstallReason.ModPack));
+        var instances = new MemoryInstanceRepository(instance);
+        var installer = new FakeInstaller(instances);
+
+        var result = await Updater(instances, installer, new FakeUninstaller(instances)).UpdateAsync(Request(instance.InstanceId, Pack("2.0.0", newerPin, repinned), [newerPin, repinned]));
+
+        Assert.True(result.IsComplete);
+        Assert.Contains(new ModPackChange("Pinned", ModPackChangeKind.Pinned, ModVersion.Parse("1.0.0"), ModVersion.Parse("1.0.0")), result.Changes);
+        Assert.DoesNotContain(result.Members, member => member.ModId == "Pinned");
+        var updated = (await instances.GetByIdAsync(instance.InstanceId))!;
+        Assert.Equal(new InstanceSource.FromModPack("Pack", ModVersion.Parse("2.0.0")), updated.Source);
+        var kept = updated.Mods.Single(mod => mod.ModId == "Pinned");
+        Assert.Equal((ModVersion.Parse("1.0.0"), InstallReason.ModPack, true), (kept.Version, kept.Reason, kept.IsPinned));
+        Assert.Equal(ModVersion.Parse("1.1.0"), updated.Mods.Single(mod => mod.ModId == "Repinned").Version);
+    }
+
+    [Fact]
     public async Task Update_DroppedModsThatOtherModsNeed_StayAsModsOfTheInstance()
     {
         var other = Release("Other", dependencies: [new ModDependency("NeededByPin", ModDependencyKind.Required)]);

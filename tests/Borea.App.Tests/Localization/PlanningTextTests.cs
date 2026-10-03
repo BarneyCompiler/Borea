@@ -44,6 +44,18 @@ public sealed class PlanningTextTests : IDisposable
     }
 
     [Fact]
+    public void Pins_NameThePinnedVersion()
+    {
+        var pinned = new PlanningMessage("flight-tools", PlanningMessageKind.Pinned) { Version = ModVersion.Parse("1.0.0"), OtherVersion = ModVersion.Parse("2.0.0") };
+        var dependency = new PlanningMessage("flight-tools", PlanningMessageKind.PinnedDependency) { Dependency = Library, Value = "library", Version = ModVersion.Parse("0.9.0") };
+
+        Assert.Equal("This mod is pinned at 1.0.0 in this instance. Unpin it to change it to 2.0.0.", Format("en", pinned));
+        Assert.StartsWith("Diese Mod ist in dieser Instanz bei 1.0.0 angeheftet. Hebe das Anheften auf, um sie auf 2.0.0 zu ", Format("de", pinned));
+        Assert.Equal("This release needs library >= 1.0.0, but library is pinned at 0.9.0 in this instance.", Format("en", dependency));
+        Assert.Equal("Diese Version braucht library >= 1.0.0, aber library ist in dieser Instanz bei 0.9.0 angeheftet.", Format("de", dependency));
+    }
+
+    [Fact]
     public void ReleaseChannel_UsesTheStatusOfTheDisplayLanguage()
     {
         var message = new PlanningMessage("flight-tools", PlanningMessageKind.ReleaseChannel) { Version = ModVersion.Parse("2.0.0-dev.1"), Status = ReleaseStatus.Dev, Channel = ReleaseChannel.Stable };

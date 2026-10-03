@@ -945,6 +945,25 @@ public sealed class PackCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task PackUpdate_PinnedMod_StaysAtItsVersionAndTheOtherModIsAdded()
+    {
+        await CreateNavigationInstanceAsync();
+        _host.Mods.Releases.Add(ContentCommandFixtures.Release(version: "2.1.0"));
+        var newer = ContentCommandFixtures.PackVersion(version: "1.1.0", mods: [new ModPackEntry("flight-tools", ModVersion.Parse("2.1.0")), new ModPackEntry("library", ModVersion.Parse("1.0.0"))]);
+        _host.IndexReader.Snapshot = Snapshot(Pack(ContentCommandFixtures.PackVersion(), newer));
+        Assert.Equal(0, (await _host.RunAsync("pin", "flight-tools", "--instance", "Navigation")).ExitCode);
+
+        var run = await _host.RunAsync("pack", "update", "Navigation");
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Contains("Keep flight-tools 2.0.0, because it is pinned in this instance.", run.Output);
+        Assert.Contains("Add library 1.0.0.", run.Output);
+        var instance = Assert.Single(await new FileInstanceRepository(_host.Paths).GetAllAsync());
+        Assert.Equal(new InstanceSource.FromModPack("navigation-pack", ModVersion.Parse("1.1.0")), instance.Source);
+        Assert.Equal(["flight-tools 2.0.0", "library 1.0.0"], instance.Mods.Select(mod => $"{mod.ModId} {mod.Version}").Order());
+    }
+
+    [Fact]
     public async Task PackUpdate_RemovesTheDroppedModAddsTheNewOneAndNamesTheNewVersion()
     {
         await CreateNavigationInstanceAsync();

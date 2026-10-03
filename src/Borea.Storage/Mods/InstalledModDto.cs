@@ -19,6 +19,9 @@ public sealed class InstalledModDto
     /// <summary>ModStorage as a string. Absent means Private.</summary>
     public string? Storage { get; set; }
 
+    /// <summary>True for a pinned mod and absent otherwise, so a record without pins does not change.</summary>
+    public bool? Pinned { get; set; }
+
     /// <summary>The release the mod was installed from.</summary>
     public ModVersionMetadataDto Metadata { get; set; } = new();
 }

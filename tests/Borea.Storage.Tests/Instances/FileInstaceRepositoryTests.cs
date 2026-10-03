@@ -3,6 +3,7 @@ using Borea.Core.Instances;
 using Borea.Core.Mods;
 using Borea.Storage.Files;
 using Borea.Storage.Instances;
+using Borea.Storage.Toml;
 using Borea.Storage.Tests.Launch;
 using Borea.Storage.Tests.Mods;
 using Borea.Storage.Tests.Paths;
@@ -172,6 +173,41 @@ public sealed class FileInstanceRepositoryTests : IDisposable
 
         Assert.NotNull(reloaded);
         Assert.Empty(reloaded.LaunchArguments);
+    }
+
+    [Fact]
+    public async Task RoundTrip_PersistsThePinOfAMod_AndAModWithoutAPinWritesNoKey()
+    {
+        var instance = (await _repository.CreateAsync("Alpha", InstanceSource.Custom.Value)).Instance;
+        instance.AddMod(new InstalledMod("pinned-mod", ModVersion.Parse("1.0.0"), InstallReason.Manual, DateTimeOffset.UtcNow, MetadataFixtures.MinimalRelease("pinned-mod", "1.0.0")));
+        instance.AddMod(new InstalledMod("free-mod", ModVersion.Parse("1.0.0"), InstallReason.Manual, DateTimeOffset.UtcNow, MetadataFixtures.MinimalRelease("free-mod", "1.0.0")));
+        await _repository.SaveAsync(instance);
+        var path = _pathProvider.GetInstanceMetadataPath(instance.InstanceId);
+        Assert.DoesNotContain(File.ReadAllLines(path), line => line.StartsWith("Pinned", StringComparison.Ordinal));
+
+        await _repository.UpdateAsync(instance.InstanceId, saved => saved.SetPinned("pinned-mod", pinned: true));
+
+        var reloaded = await new FileInstanceRepository(_pathProvider).GetByIdAsync(instance.InstanceId);
+        Assert.True(reloaded!.Mods.Single(mod => mod.ModId == "pinned-mod").IsPinned);
+        Assert.False(reloaded.Mods.Single(mod => mod.ModId == "free-mod").IsPinned);
+        Assert.Single(File.ReadAllLines(path), line => line.StartsWith("Pinned", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_RecordWithAPin_ReadsInABuildThatDoesNotKnowThePin()
+    {
+        var instance = (await _repository.CreateAsync("Alpha", InstanceSource.Custom.Value)).Instance;
+        instance.AddMod(new InstalledMod("pinned-mod", ModVersion.Parse("1.2.3"), InstallReason.Manual, DateTimeOffset.UtcNow, MetadataFixtures.MinimalRelease("pinned-mod", "1.2.3"), isPinned: true));
+        await _repository.SaveAsync(instance);
+        var path = _pathProvider.GetInstanceMetadataPath(instance.InstanceId);
+        // the older build must meet the key, or the read below proves nothing
+        Assert.Contains(File.ReadAllLines(path), line => line.StartsWith("Pinned = true", StringComparison.Ordinal));
+
+        var older = await TomlFileStore.ReadAsync<RecordWithoutPinDto>(path);
+
+        Assert.Equal(instance.InstanceId.ToString(), older!.InstanceId);
+        var mod = Assert.Single(older.Mods);
+        Assert.Equal(("pinned-mod", "1.2.3"), (mod.ModId, mod.Version));
     }
 
     [Fact]
@@ -390,4 +426,17 @@ public sealed class FileInstanceRepositoryTests : IDisposable
     }
 
     public void Dispose() => DirectoryLinks.DeleteTreeWithoutFollowingLinks(_tempRoot);
+
+    /// <summary>A part of the record as a build reads it that has no pin, with fewer keys than the record holds.</summary>
+    private sealed class RecordWithoutPinDto
+    {
+        public string InstanceId { get; set; } = string.Empty;
+        public List<ModWithoutPinDto> Mods { get; set; } = [];
+    }
+
+    private sealed class ModWithoutPinDto
+    {
+        public string ModId { get; set; } = string.Empty;
+        public string Version { get; set; } = string.Empty;
+    }
 }

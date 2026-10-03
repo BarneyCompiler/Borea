@@ -937,6 +937,24 @@ public sealed class PackViewModelTests
     }
 
     [Fact]
+    public async Task PackUpdate_PinnedMod_SaysItStaysAtItsVersion()
+    {
+        var versions = Pack("tools-pack", "Tools Pack", Version("1.0.0", Pin("KSArmory", "0.8.44")), Version("1.1.0", Pin("KSArmory", "0.9.0"), Pin("MeasureTools", "1.1.10")));
+        using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(versions));
+        var viewModel = harness.ViewModel;
+        var instance = await OpenToolsPackInstanceAsync(harness);
+        await viewModel.ContentGroups.SelectMany(group => group.Items).Single().PinCommand.ExecuteAsync(null);
+
+        await viewModel.PackUpdate!.UpdateCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            [harness.Localization.FormatPackUpdateAdd(viewModel.ContentName("MeasureTools"), "1.1.10"), harness.Localization.FormatPackUpdatePinned(viewModel.ContentName("KSArmory"), "0.8.44")],
+            viewModel.PackUpdate.ChangeTexts);
+        var mod = Assert.Single((await harness.Services.Instances.GetByIdAsync(instance.InstanceId))!.Mods);
+        Assert.Equal(("KSArmory", ModVersion.Parse("0.8.44"), true), (mod.ModId, mod.Version, mod.IsPinned));
+    }
+
+    [Fact]
     public async Task PackUpdate_FailedDownload_KeepsTheOldSourceTheDroppedModAndTheNotice()
     {
         using var harness = await ViewModelHarness.CreateAsync(editSnapshot: WithPacks(ToolsPackVersions()));

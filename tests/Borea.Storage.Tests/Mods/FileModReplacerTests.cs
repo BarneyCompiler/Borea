@@ -54,6 +54,19 @@ public sealed class FileModReplacerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReplaceAsync_PinnedMod_KeepsThePin()
+    {
+        await InstallAsync(Release("1.0.0"), "old", enabled: true);
+        await _instances.UpdateAsync(_instanceId, instance => instance.SetPinned(ModId, pinned: true));
+        var current = Assert.Single((await _instances.GetByIdAsync(_instanceId))!.Mods);
+        _downloader.Bytes = Archive("again");
+
+        await new FileModReplacer(_paths, _downloader, _instances, _state).ReplaceAsync(_instanceId, current, Release("1.0.0"));
+
+        Assert.True(Assert.Single((await _instances.GetByIdAsync(_instanceId))!.Mods).IsPinned);
+    }
+
+    [Fact]
     public async Task ReplaceAsync_InvalidArchiveLeavesTheCurrentInstallUntouched()
     {
         var current = await InstallAsync(Release("1.0.0"), "old", enabled: true);

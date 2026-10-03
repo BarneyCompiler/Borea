@@ -11,6 +11,8 @@ public enum PlanningMessageKind
     OutsideChannel,
     MissingRequest,
     ExactPin,
+    Pinned,
+    PinnedDependency,
     ProposedConflict,
     Yanked,
     YankedPin,
@@ -58,7 +60,7 @@ public sealed record PlanningMessage(string ModId, PlanningMessageKind Kind)
 
     public OsPlatform? Platform { get; init; }
 
-    /// <summary>The author's reason for a yank or a retraction, an unknown platform, an alternative's mod id, or the game build a release needs.</summary>
+    /// <summary>The author's reason for a yank or a retraction, an unknown platform, an alternative's mod id, the game build a release needs, or the pinned mod a release needs.</summary>
     public string? Value { get; init; }
 
     public int? Limit { get; init; }
@@ -73,6 +75,8 @@ public sealed record PlanningMessage(string ModId, PlanningMessageKind Kind)
         PlanningMessageKind.OutsideChannel => "outside-channel",
         PlanningMessageKind.MissingRequest => "missing-request",
         PlanningMessageKind.ExactPin => "exact-pin",
+        PlanningMessageKind.Pinned => "pinned",
+        PlanningMessageKind.PinnedDependency => "pinned-dependency",
         PlanningMessageKind.ProposedConflict => "proposed-conflict",
         PlanningMessageKind.Yanked or PlanningMessageKind.YankedPin => "yanked",
         PlanningMessageKind.Unavailable => "unavailable",
@@ -109,6 +113,8 @@ public sealed record PlanningMessage(string ModId, PlanningMessageKind Kind)
         PlanningMessageKind.OutsideChannel => $"No release of {ModId} in the {Channel?.ToName()} channel is available.",
         PlanningMessageKind.MissingRequest => "No release was selected for the request.",
         PlanningMessageKind.ExactPin => $"Exact version {Version} was not selected.",
+        PlanningMessageKind.Pinned => $"The mod is pinned at {Version} in this instance, so Borea does not change it to {OtherVersion}. Unpin it first.",
+        PlanningMessageKind.PinnedDependency => $"{Dependency}: {Value} is pinned at {Version} in this instance.",
         PlanningMessageKind.Yanked => Value ?? "The selected release is yanked.",
         PlanningMessageKind.YankedPin => Value ?? "The exact pinned release is yanked.",
         PlanningMessageKind.Unavailable => $"The download of {ModId} {Version} is gone from its host since {Since:yyyy-MM-dd}, so Borea can install it only from a mirror or a copy it already has.",

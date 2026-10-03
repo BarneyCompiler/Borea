@@ -107,6 +107,30 @@ public sealed class InstanceTests
     }
 
     [Fact]
+    public void SetPinned_PinsAndUnpinsTheMod_AndSaysWhetherItChanged()
+    {
+        var instance = new Instance("Test", InstanceSource.Custom.Value);
+        instance.AddMod(TestFixtures.SampleInstalledMod());
+
+        Assert.True(instance.SetPinned("TEST-MOD", pinned: true));
+        Assert.True(instance.Mods.Single().IsPinned);
+        Assert.False(instance.SetPinned("test-mod", pinned: true));
+        Assert.True(instance.SetPinned("test-mod", pinned: false));
+        Assert.False(instance.Mods.Single().IsPinned);
+    }
+
+    [Fact]
+    public void SetPinned_ModBoreaDoesNotOwnOrDoesNotHave_Throws()
+    {
+        var foreign = TestFixtures.SampleInstalledMod();
+        var instance = Instance.FromExisting(Guid.NewGuid(), "Test", InstanceSource.Custom.Value, DateTimeOffset.UnixEpoch, [new InstalledMod(foreign.ModId, foreign.Version, foreign.Reason, foreign.InstalledAt, foreign.Metadata, ownership: ModInstallOwnership.Foreign)], false);
+
+        Assert.Throws<InvalidOperationException>(() => instance.SetPinned("test-mod", pinned: true));
+        Assert.False(instance.Mods.Single().IsPinned);
+        Assert.Throws<InvalidOperationException>(() => instance.SetPinned("other-mod", pinned: true));
+    }
+
+    [Fact]
     public void AddMod_DuplicateModId_ThrowsInvalidOperationException()
     {
         var instance = new Instance("Test", InstanceSource.Custom.Value);

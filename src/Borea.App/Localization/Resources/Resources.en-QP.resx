@@ -1188,6 +1188,30 @@
   <data name="ContentChangeVersion" xml:space="preserve">
     <value>Swap the version</value>
   </data>
+  <data name="ContentPinVersion" xml:space="preserve">
+    <value>Nail down this version</value>
+  </data>
+  <data name="ContentUnpin" xml:space="preserve">
+    <value>Pull the nail</value>
+  </data>
+  <data name="ContentPinnedFormat" xml:space="preserve">
+    <value>Nailed down at {0}. No tide moves this booty off that version.</value>
+  </data>
+  <data name="ToastPinFailedFormat" xml:space="preserve">
+    <value>Couldn't nail down {0}</value>
+  </data>
+  <data name="ToastUnpinFailedFormat" xml:space="preserve">
+    <value>Couldn't pull the nail from {0}</value>
+  </data>
+  <data name="PackUpdatePinnedFormat" xml:space="preserve">
+    <value>Keeps {0} at {1}, fer it be nailed down</value>
+  </data>
+  <data name="InstallMessagePinnedFormat" xml:space="preserve">
+    <value>This booty be nailed down at {0} on this sea. Pull the nail to swap it fer {1}.</value>
+  </data>
+  <data name="InstallMessagePinnedDependencyFormat" xml:space="preserve">
+    <value>This bounty be needin' {0}, but {1} be nailed down at {2} on this sea.</value>
+  </data>
   <data name="ContentRemove" xml:space="preserve">
     <value>Toss overboard</value>
   </data>

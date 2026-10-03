@@ -203,6 +203,8 @@ The exit code is 0 when the command completed, 1 when the operation failed and t
 | `borea instance delete-backup <instance> <backup>` | Delete a backup for good. |
 | `borea enable <mod-id> [--instance <instance>]` | Make the game load a mod. |
 | `borea disable <mod-id> [--instance <instance>]` | Stop the game from loading a mod. |
+| `borea pin <mod-id> [--instance <instance>]` | Keep a mod at its version. Updates and pack updates leave it alone, and a plan that needs another version of it stops. |
+| `borea unpin <mod-id> [--instance <instance>]` | Let updates change the version of a pinned mod again. |
 
 ## Repository structure
 

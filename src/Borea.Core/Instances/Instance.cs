@@ -159,6 +159,25 @@ public sealed class Instance
         _mods[index] = replacement;
     }
 
+    /// <summary>
+    /// Pins or unpins a mod whose files Borea owns, because only those can be updated.
+    /// Returns false when the mod already was in that state.
+    /// </summary>
+    public bool SetPinned(string modId, bool pinned)
+    {
+        var mod = _mods.FirstOrDefault(m => ModIds.Equals(m.ModId, modId))
+            ?? throw new InvalidOperationException($"Mod '{modId}' is not installed in this instance.");
+
+        if (mod.IsPinned == pinned)
+            return false;
+
+        if (pinned && mod.Ownership != ModInstallOwnership.Borea)
+            throw new InvalidOperationException($"Borea does not own the files of '{mod.ModId}', so it never updates them and cannot pin them.");
+
+        mod.SetPinned(pinned);
+        return true;
+    }
+
     public void ReplaceForeignMods(IReadOnlyList<ForeignMod> foreignMods)
     {
         ArgumentNullException.ThrowIfNull(foreignMods);

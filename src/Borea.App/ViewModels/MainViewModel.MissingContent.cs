@@ -261,7 +261,8 @@ public partial class MainViewModel
 
     /// <summary>
     /// Puts back the records the run dropped for the mods it did not install.
-    /// A mod the run did install keeps the record the install wrote.
+    /// A mod the run did install keeps the record the install wrote, and gets
+    /// its pin back when the install wrote the version that was pinned.
     /// </summary>
     private static async Task RestoreMissingRecordsAsync(BoreaServices services, Guid instanceId, IReadOnlyList<InstalledMod> dropped)
     {
@@ -275,8 +276,14 @@ public partial class MainViewModel
                 var restored = false;
                 foreach (var record in dropped)
                 {
-                    if (instance.Mods.Any(mod => ModIds.Equals(mod.ModId, record.ModId)))
+                    if (instance.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, record.ModId)) is { } installed)
+                    {
+                        // the install writes a new record without the pin, so the pin of the same version comes back
+                        if (record.IsPinned && installed.Version == record.Version && installed.Ownership == ModInstallOwnership.Borea)
+                            restored |= instance.SetPinned(record.ModId, pinned: true);
+
                         continue;
+                    }
 
                     instance.AddMod(record);
                     restored = true;

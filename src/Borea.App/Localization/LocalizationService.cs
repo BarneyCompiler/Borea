@@ -240,6 +240,12 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatToastDisableFailed(string content)
         => string.Format(CultureInfo.CurrentCulture, Resources.ToastDisableFailedFormat, content);
 
+    public string FormatToastPinFailed(string content)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ToastPinFailedFormat, content);
+
+    public string FormatToastUnpinFailed(string content)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ToastUnpinFailedFormat, content);
+
     public string FormatToastCheckFailed(string folder)
         => string.Format(CultureInfo.CurrentCulture, Resources.ToastCheckFailedFormat, folder);
 
@@ -1342,6 +1348,14 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string ContentChangeVersion => Resources.ContentChangeVersion;
 
+    public string ContentPinVersion => Resources.ContentPinVersion;
+
+    public string ContentUnpin => Resources.ContentUnpin;
+
+    /// <summary>"Pinned at 1.2.0. Updates leave this mod at this version."</summary>
+    public string FormatContentPinned(string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ContentPinnedFormat, version);
+
     public string ContentNotOnDisk => Resources.ContentNotOnDisk;
 
     public string ContentNotOnDiskDetail => Resources.ContentNotOnDiskDetail;
@@ -2172,6 +2186,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string FormatPackUpdateKeepChange(string name, string from, string to)
         => string.Format(CultureInfo.CurrentCulture, Resources.PackUpdateKeepChangeFormat, name, from, to);
+
+    public string FormatPackUpdatePinned(string name, string version)
+        => string.Format(CultureInfo.CurrentCulture, Resources.PackUpdatePinnedFormat, name, version);
 
     public string PackUpdateNoModChanges => Resources.PackUpdateNoModChanges;
 

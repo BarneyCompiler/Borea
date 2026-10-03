@@ -987,6 +987,56 @@ public sealed class PackCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task PackAttach_DetachedMod_FollowsThePackAgainAtTheNextUpdate()
+    {
+        await CreateNavigationInstanceAsync();
+        // the new version no longer pins flight-tools, so a mod that follows the pack goes with it
+        var newer = ContentCommandFixtures.PackVersion(version: "1.1.0", mods: [new ModPackEntry("library", ModVersion.Parse("1.0.0"))]);
+        _host.IndexReader.Snapshot = Snapshot(Pack(ContentCommandFixtures.PackVersion(), newer));
+        await _host.RunAsync("pack", "detach", "flight-tools", "--instance", "Navigation");
+
+        var attach = await _host.RunAsync("pack", "attach", "FLIGHT-TOOLS", "--instance", "Navigation");
+        var again = await _host.RunAsync("pack", "attach", "Flight-Tools", "--instance", "Navigation");
+        var run = await _host.RunAsync("pack", "update", "Navigation");
+
+        Assert.Equal(0, attach.ExitCode);
+        Assert.Equal("Attached flight-tools to pack navigation-pack in 'Navigation'. The next pack update moves it to the version the pack pins.", attach.Output.Trim());
+        Assert.Equal("flight-tools follows pack navigation-pack in 'Navigation' already.", again.Output.Trim());
+        Assert.Equal(0, run.ExitCode);
+        Assert.Contains("Remove flight-tools 2.0.0.", run.Output);
+        var instance = Assert.Single(await new FileInstanceRepository(_host.Paths).GetAllAsync());
+        Assert.Equal(new InstanceSource.FromModPack("navigation-pack", ModVersion.Parse("1.1.0")), instance.Source);
+        Assert.Equal(["library 1.0.0 ModPack"], instance.Mods.Select(mod => $"{mod.ModId} {mod.Version} {mod.Reason}"));
+    }
+
+    [Fact]
+    public async Task PackAttach_DetachedModThatWasRemoved_LeavesTheSetAndKeepsItsSpelling()
+    {
+        await CreateNavigationInstanceAsync();
+        await _host.RunAsync("pack", "detach", "flight-tools", "--instance", "Navigation");
+        var repository = new FileInstanceRepository(_host.Paths);
+        var id = Assert.Single(await repository.GetAllAsync()).InstanceId;
+        await repository.UpdateAsync(id, instance => instance.RemoveMod("flight-tools"));
+
+        var attach = await _host.RunAsync("pack", "attach", "FLIGHT-TOOLS", "--instance", "Navigation");
+
+        Assert.Equal(0, attach.ExitCode);
+        Assert.StartsWith("Attached flight-tools to pack navigation-pack", attach.Output.Trim());
+        Assert.Empty(((InstanceSource.FromModPack)Assert.Single(await repository.GetAllAsync()).Source).Detached);
+    }
+
+    [Fact]
+    public async Task PackAttach_ModThatIsNotDetached_Fails()
+    {
+        await CreateNavigationInstanceAsync();
+
+        var run = await _host.RunAsync("pack", "attach", "other-mod", "--instance", "Navigation");
+
+        Assert.NotEqual(0, run.ExitCode);
+        Assert.Contains("Mod 'other-mod' is not detached from the mod pack of this instance.", run.Error);
+    }
+
+    [Fact]
     public async Task PackDetach_InstanceThatIsNotFromAPack_Fails()
     {
         await _host.RunAsync("instance", "create", "Alpha");

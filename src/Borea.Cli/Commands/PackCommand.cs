@@ -14,18 +14,19 @@ namespace Borea.Cli.Commands;
 /// The pack command group. Search and show read mod packs from the content index,
 /// install gives one exact pack version to <see cref="IModPackInstaller"/>, update moves
 /// an instance to the newest version of its pack through <see cref="IModPackUpdater"/>, and
-/// detach makes a mod of the pack one that pack updates leave alone.
+/// detach makes a mod of the pack one that pack updates leave alone, and attach undoes that.
 /// </summary>
 internal static class PackCommand
 {
     public static Command Build(Func<CancellationToken, Task<CliServices>> services)
     {
-        var pack = new Command("pack", "Find, inspect, install, and update mod packs, and detach a mod from its pack.");
+        var pack = new Command("pack", "Find, inspect, install, and update mod packs, and detach a mod from its pack or attach it again.");
         pack.Subcommands.Add(BuildSearch(services));
         pack.Subcommands.Add(BuildShow(services));
         pack.Subcommands.Add(BuildInstall(services));
         pack.Subcommands.Add(BuildUpdate(services));
         pack.Subcommands.Add(BuildDetach(services));
+        pack.Subcommands.Add(BuildAttach(services));
         return pack;
     }
 
@@ -463,6 +464,39 @@ internal static class PackCommand
         }));
 
         return detach;
+    }
+
+    private static Command BuildAttach(Func<CancellationToken, Task<CliServices>> services)
+    {
+        var modId = ArgumentRules.Text("mod-id", "The id of a mod that is detached from the mod pack of the instance.");
+        var instance = ArgumentRules.Instance();
+        var attach = new Command("attach", "Make a detached mod follow the pack of an instance again. The next pack update moves it to the version the pack pins.");
+        attach.Arguments.Add(modId);
+        attach.Options.Add(instance);
+
+        attach.SetAction((parseResult, cancellationToken) => CommandRunner.RunAsync(parseResult, services, cancellationToken, async (cli, output, _, ct) =>
+        {
+            var id = parseResult.GetRequiredValue(modId);
+            var target = await InstanceLookup.ResolveTargetAsync(cli.Instances, parseResult.GetValue(instance)).ConfigureAwait(false);
+            var (changed, attached, packId) = await cli.Instances.UpdateAsync(
+                target.InstanceId,
+                current =>
+                {
+                    // the detached set keeps the spelling of a mod that the player removed
+                    var spelling = (current.Source as InstanceSource.FromModPack)?.Detached.FirstOrDefault(detached => ModIds.Equals(detached, id))
+                        ?? current.Mods.FirstOrDefault(mod => ModIds.Equals(mod.ModId, id))?.ModId
+                        ?? id;
+                    return (current.AttachToModPack(id), spelling, ((InstanceSource.FromModPack)current.Source).ModPackId);
+                },
+                ct).ConfigureAwait(false);
+
+            output.WriteLine(changed
+                ? $"Attached {attached} to pack {packId} in '{target.Name}'. The next pack update moves it to the version the pack pins."
+                : $"{attached} follows pack {packId} in '{target.Name}' already.");
+            return ExitCodes.Done;
+        }));
+
+        return attach;
     }
 
     private static Option<string[]> ProceedWithYankedOption()

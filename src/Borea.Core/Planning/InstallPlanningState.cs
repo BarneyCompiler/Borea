@@ -84,7 +84,7 @@ public sealed record InstallPlanningState(string Value)
     private static string Source(InstanceSource source) => source switch
     {
         InstanceSource.Custom => "custom",
-        InstanceSource.FromModPack pack => $"pack:{pack.ModPackId}:{pack.Version}",
+        InstanceSource.FromModPack pack => $"pack:{pack.ModPackId}:{pack.Version}" + string.Concat(pack.Detached.Order(ModIds.Comparer).Select(modId => $":{modId.Length}:{modId}")),
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 

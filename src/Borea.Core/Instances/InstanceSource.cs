@@ -15,7 +15,29 @@ public abstract record InstanceSource
     /// <summary>
     /// An instance materialized from a specific modpack at a specific version.
     /// </summary>
-    public sealed record FromModPack(string ModPackId, ModVersion Version) : InstanceSource;
+    public sealed record FromModPack(string ModPackId, ModVersion Version) : InstanceSource
+    {
+        private static readonly IReadOnlySet<string> None = new HashSet<string>(ModIds.Comparer);
+
+        /// <summary>
+        /// The pack mods the player detached. A pack update leaves them alone, also after the player removed them.
+        /// </summary>
+        public IReadOnlySet<string> Detached { get; private init; } = None;
+
+        public FromModPack WithDetached(IEnumerable<string> modIds)
+        {
+            ArgumentNullException.ThrowIfNull(modIds);
+            return this with { Detached = modIds.ToHashSet(ModIds.Comparer) };
+        }
+
+        public bool Equals(FromModPack? other)
+            => other is not null
+                && string.Equals(ModPackId, other.ModPackId, StringComparison.Ordinal)
+                && Version == other.Version
+                && Detached.SetEquals(other.Detached);
+
+        public override int GetHashCode() => HashCode.Combine(ModPackId, Version, Detached.Count);
+    }
 
     /// <summary>
     /// A user-curated instance with no modpack origin.

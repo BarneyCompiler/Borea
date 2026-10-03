@@ -1,5 +1,6 @@
 ﻿using Borea.Core.Mods;
 using Borea.Core.Instances;
+using Borea.Core.Planning;
 using Borea.Core.Tests.Mods;
 
 namespace Borea.Core.Tests.Instances;
@@ -128,6 +129,35 @@ public sealed class InstanceTests
         Assert.Throws<InvalidOperationException>(() => instance.SetPinned("test-mod", pinned: true));
         Assert.False(instance.Mods.Single().IsPinned);
         Assert.Throws<InvalidOperationException>(() => instance.SetPinned("other-mod", pinned: true));
+    }
+
+    [Fact]
+    public void DetachFromModPack_PackMod_BecomesAModThePlayerChose_AndTheSourceNamesIt()
+    {
+        var instance = new Instance("Test", new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")));
+        instance.AddMod(TestFixtures.SampleInstalledMod(reason: InstallReason.ModPack));
+
+        Assert.True(instance.DetachFromModPack("TEST-MOD"));
+
+        Assert.Equal(InstallReason.Manual, instance.Mods.Single().Reason);
+        Assert.Equal(new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")).WithDetached(["test-mod"]), instance.Source);
+        Assert.False(instance.DetachFromModPack("test-mod"));
+        Assert.True(InstallPlanningState.Capture(instance) != InstallPlanningState.Capture(Instance.FromExisting(instance.InstanceId, instance.Name, new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")), instance.CreatedAt, instance.Mods, false)));
+    }
+
+    [Fact]
+    public void DetachFromModPack_ModThatIsNotOfThePack_Throws()
+    {
+        var custom = new Instance("Custom", InstanceSource.Custom.Value);
+        custom.AddMod(TestFixtures.SampleInstalledMod(reason: InstallReason.ModPack));
+        var pack = new Instance("Pack", new InstanceSource.FromModPack("pack", ModVersion.Parse("1.0.0")));
+        pack.AddMod(TestFixtures.SampleInstalledMod(reason: InstallReason.Dependency));
+
+        Assert.Throws<InvalidOperationException>(() => custom.DetachFromModPack("test-mod"));
+        Assert.Throws<InvalidOperationException>(() => pack.DetachFromModPack("test-mod"));
+        Assert.Throws<InvalidOperationException>(() => pack.DetachFromModPack("other-mod"));
+        Assert.Equal(InstallReason.Dependency, pack.Mods.Single().Reason);
+        Assert.Empty(((InstanceSource.FromModPack)pack.Source).Detached);
     }
 
     [Fact]

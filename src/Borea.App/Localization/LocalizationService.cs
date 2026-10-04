@@ -1374,6 +1374,10 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FormatContentPinned(string version)
         => string.Format(CultureInfo.CurrentCulture, Resources.ContentPinnedFormat, version);
 
+    /// <summary>"2.0.0 needs Library >= 1.1.0, which is pinned at 1.0.0."</summary>
+    public string FormatContentHeldByPin(string version, string dependency, string pinnedVersion)
+        => string.Format(CultureInfo.CurrentCulture, Resources.ContentHeldByPinFormat, version, dependency, pinnedVersion);
+
     public string ContentNotOnDisk => Resources.ContentNotOnDisk;
 
     public string ContentNotOnDiskDetail => Resources.ContentNotOnDiskDetail;

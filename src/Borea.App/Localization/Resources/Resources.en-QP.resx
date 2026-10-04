@@ -1197,6 +1197,9 @@
   <data name="ContentPinnedFormat" xml:space="preserve">
     <value>Nailed down at {0}. No tide moves this booty off that version.</value>
   </data>
+  <data name="ContentHeldByPinFormat" xml:space="preserve">
+    <value>{0} be needin' {1}, but that be nailed down at {2}.</value>
+  </data>
   <data name="ToastPinFailedFormat" xml:space="preserve">
     <value>Couldn't nail down {0}</value>
   </data>

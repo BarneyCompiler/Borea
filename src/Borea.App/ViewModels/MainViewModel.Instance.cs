@@ -329,13 +329,14 @@ public partial class MainViewModel
         if (services is null)
             return;
 
-        // the shown instance is often the active one, so each mod is planned once
-        var found = new Dictionary<(Guid InstanceId, string ModId), ModVersion?>();
-        async Task<ModVersion?> FindAsync(Instance instance, InstalledMod installed)
+        // the shown instance is often the active one, so each mod is planned once,
+        // and only its rows look for a pin that holds an update back
+        var found = new Dictionary<(Guid InstanceId, string ModId), UpdateCheck>();
+        async Task<UpdateCheck> FindAsync(Instance instance, InstalledMod installed, bool findHeld)
         {
-            if (!found.TryGetValue((instance.InstanceId, installed.ModId), out var newer))
-                found[(instance.InstanceId, installed.ModId)] = newer = await FindUpdateAsync(services, instance, installed);
-            return newer;
+            if (!found.TryGetValue((instance.InstanceId, installed.ModId), out var check))
+                found[(instance.InstanceId, installed.ModId)] = check = await FindUpdateAsync(services, instance, installed, findHeld);
+            return check;
         }
 
         if (shown is not null)
@@ -351,11 +352,12 @@ public partial class MainViewModel
                 if (installed is null)
                     continue;
 
-                var newer = await FindAsync(shown, installed);
+                var check = await FindAsync(shown, installed, findHeld: true);
                 if (generation != _contentUpdateCheckGeneration)
                     return;
 
-                item.UpdateVersion = newer?.ToString();
+                item.UpdateVersion = check.Newer?.ToString();
+                item.HeldUpdate = check.Held;
             }
 
             OnPropertyChanged(nameof(HasUpdates));
@@ -367,11 +369,11 @@ public partial class MainViewModel
         var count = 0;
         foreach (var installed in active?.Mods.Where(mod => mod.Ownership == ModInstallOwnership.Borea && !missing.Contains(mod.ModId, ModIds.Comparer)) ?? [])
         {
-            var newer = await FindAsync(active!, installed);
+            var check = await FindAsync(active!, installed, findHeld: false);
             if (generation != _contentUpdateCheckGeneration)
                 return;
 
-            if (newer is not null)
+            if (check.Newer is not null)
                 count++;
         }
 
@@ -398,19 +400,63 @@ public partial class MainViewModel
         }
     }
 
-    private static async Task<ModVersion?> FindUpdateAsync(BoreaServices services, Instance instance, InstalledMod installed)
+    /// <summary>
+    /// The planner ranks a conflict above a newer release, so a pin can keep the update at the installed release
+    /// without a word. Only then, when <paramref name="findHeld"/> is set and the newest release needs another
+    /// version of a pinned mod, the newest release is planned once more on its own to find the pin that holds it back.
+    /// </summary>
+    private static async Task<UpdateCheck> FindUpdateAsync(BoreaServices services, Instance instance, InstalledMod installed, bool findHeld)
     {
         try
         {
             var plan = await services.InstallPlanner.PlanAsync(PlanningRequest(services, instance, UpdateRequests([installed])));
-            return plan.Operations
+            var newer = plan.Operations
                 .Select(operation => operation.Release)
                 .FirstOrDefault(release => ModIds.Equals(release.ModId, installed.ModId) && release.Version > installed.Version)?.Version;
+            if (newer is not null || !findHeld || installed.IsPinned || !instance.Mods.Any(mod => mod.IsPinned))
+                return new UpdateCheck(newer, null);
+
+            if (await services.Mods.GetLatestReleaseAsync(installed.ModId) is not { } latest || latest.Version <= installed.Version || !NeedsOtherPinnedVersion(instance, latest))
+                return UpdateCheck.None;
+
+            var exact = await services.InstallPlanner.PlanAsync(PlanningRequest(services, instance, [new RequestedMod(latest, installed.Reason)]));
+            bool IsOwnPin(PlanningMessage conflict) => conflict.Kind == PlanningMessageKind.PinnedDependency && ModIds.Equals(conflict.ModId, installed.ModId);
+            // unpinning must bring the update, so a conflict the update plan does not already have hides the note
+            var known = plan.Conflicts.Select(ConflictKey).ToHashSet();
+            if (exact.Conflicts.FirstOrDefault(IsOwnPin) is not { } pin || exact.Conflicts.Any(conflict => !IsOwnPin(conflict) && !known.Contains(ConflictKey(conflict))))
+                return UpdateCheck.None;
+
+            return new UpdateCheck(null, new HeldUpdate(latest.Version, pin));
         }
         catch (Exception exception) when (exception is System.Net.Http.HttpRequestException or IOException or InvalidOperationException or TaskCanceledException)
         {
-            return null;
+            return UpdateCheck.None;
         }
+    }
+
+    /// <summary>
+    /// An update check asks for no alternative and no recommendation, so only a required dependency of the release
+    /// itself gives it a pinned dependency conflict of its own.
+    /// </summary>
+    private static bool NeedsOtherPinnedVersion(Instance instance, ModVersionMetadata release)
+        => release.Dependencies.Any(dependency => dependency.Kind == ModDependencyKind.Required && !dependency.IsAnyOf
+            && instance.Mods.FirstOrDefault(mod => mod.IsPinned && ModIds.Equals(mod.ModId, dependency.ModId)) is { } pinned
+            && !dependency.BoundsContain(pinned.Version));
+
+    private static (string ModId, string Code, string Message) ConflictKey(PlanningMessage conflict) => (conflict.ModId, conflict.Code, conflict.Message);
+
+    private sealed record UpdateCheck(ModVersion? Newer, HeldUpdate? Held)
+    {
+        public static UpdateCheck None { get; } = new(null, null);
+    }
+
+    /// <summary>"2.0.0 needs Library >= 1.1.0, which is pinned at 1.0.0", with the name of the pinned mod when the instance shows it.</summary>
+    internal string HeldUpdateText(HeldUpdate held)
+    {
+        var pinnedId = held.Pin.Value ?? string.Empty;
+        var name = _content.FirstOrDefault(content => ModIds.Equals(content.ModId, pinnedId))?.Name ?? pinnedId;
+        var dependency = held.Pin.Dependency;
+        return Localization.FormatContentHeldByPin(held.Version.ToString(), PlanningText.Bounds(name, dependency?.MinVersion, dependency?.MaxVersion), held.Pin.Version?.ToString() ?? string.Empty);
     }
 
     /// <summary>
@@ -1209,6 +1255,9 @@ internal interface IUpdateRow : IInstallRow
 /// <param name="IsDependencies">The design shows this group last, after the saves and vehicles.</param>
 public sealed record ContentGroup(string Title, IReadOnlyList<ContentItem> Items, bool IsDependencies = false);
 
+/// <summary>The newest release of a mod and the planner conflict that says which pin it needs to move.</summary>
+public sealed record HeldUpdate(ModVersion Version, PlanningMessage Pin);
+
 /// <summary>
 /// One row of the instance's content table.
 /// </summary>
@@ -1359,6 +1408,13 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
 
     public string? UpdateText => UpdateVersion is null ? null : _owner.Localization.FormatContentUpdateTo(UpdateVersion);
 
+    /// <summary>The newest release that a pin of another mod holds back, while the row has no update.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeldText))]
+    private HeldUpdate? _heldUpdate;
+
+    public string? HeldText => HeldUpdate is { } held ? _owner.HeldUpdateText(held) : null;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUpdate))]
     [NotifyPropertyChangedFor(nameof(CanManage))]
@@ -1482,6 +1538,7 @@ public sealed partial class ContentItem : ObservableObject, IUpdateRow
         OnPropertyChanged(nameof(RemoveActionText));
         OnPropertyChanged(nameof(RemoveSteps));
         OnPropertyChanged(nameof(UpdateText));
+        OnPropertyChanged(nameof(HeldText));
         OnPropertyChanged(nameof(PinnedText));
         OnPropertyChanged(nameof(ManageConfirmText));
         OnPropertyChanged(nameof(ManageMissingText));

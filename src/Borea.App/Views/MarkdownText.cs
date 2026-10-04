@@ -46,7 +46,7 @@ internal sealed partial class MarkdownText
         _text = NewText();
     }
 
-    /// <param name="textClass">The text class of a heading, or null for body text, which can be selected.</param>
+    /// <param name="textClass">The text class of a heading, or null for body text.</param>
     public static void Write(Controls target, ContainerInline? inlines, string? textClass, DescriptionImages? images)
     {
         var writer = new MarkdownText(target, textClass, images);
@@ -66,7 +66,7 @@ internal sealed partial class MarkdownText
 
     private TextBlock NewText() => _textClass is null
         ? Body()
-        : new TextBlock { TextWrapping = TextWrapping.Wrap, Classes = { _textClass } };
+        : new SelectableTextBlock { TextWrapping = TextWrapping.Wrap, Classes = { _textClass } };
 
     private void WriteChildren(ContainerInline container, RunStyle style)
     {
@@ -194,14 +194,31 @@ internal sealed partial class MarkdownText
         text.PointerExited += (_, _) => Hover(text, null);
     }
 
+    /// <summary>
+    /// Finds the line itself, because TextLayout.HitTestPoint compares the point with the height of a line and not with its place,
+    /// so it puts a point on any line below the first outside the text.
+    /// </summary>
     private static string? LinkAt(TextBlock text, MarkdownLink[] links, Point point)
     {
-        var hit = text.TextLayout.HitTestPoint(point);
-        if (!hit.IsInside)
-            return null;
+        var top = 0.0;
+        foreach (var line in text.TextLayout.TextLines)
+        {
+            if (point.Y < top)
+                return null;
 
-        var index = hit.CharacterHit.FirstCharacterIndex;
-        return links.FirstOrDefault(link => index >= link.Start && index < link.End)?.Url;
+            if (point.Y < top + line.Height)
+            {
+                if (point.X < line.Start || point.X > line.Start + line.Width)
+                    return null;
+
+                var index = line.GetCharacterHitFromDistance(point.X).FirstCharacterIndex;
+                return links.FirstOrDefault(link => index >= link.Start && index < link.End)?.Url;
+            }
+
+            top += line.Height;
+        }
+
+        return null;
     }
 
     /// <summary>The address of a link shows as the tooltip while the pointer is on it.</summary>

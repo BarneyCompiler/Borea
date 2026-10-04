@@ -99,6 +99,23 @@ public sealed partial class MarkdownViewTests
     }
 
     [Fact]
+    public async Task LinkOnALowerLineOfAWrappedParagraph_OpensOnClick()
+    {
+        var (viewModel, opened) = Opener();
+
+        var line = await RenderAsync("This paragraph is long enough to wrap onto more than one line in a narrow view, and [the guide](https://example.com/guide) is near its end.", (window, view) =>
+        {
+            var text = Assert.Single(TextBlocks(view));
+            var link = Text(text).IndexOf("guide", StringComparison.Ordinal);
+            Click(window, text, link);
+            return text.TextLayout.GetLineIndexFromCharacterIndex(link, false);
+        }, viewModel: viewModel, width: 300);
+
+        Assert.True(line > 0, "The link is on the first line.");
+        Assert.Equal(["https://example.com/guide"], opened);
+    }
+
+    [Fact]
     public async Task BareUrl_IsALinkByTheSameRule()
     {
         var (viewModel, opened) = Opener();
@@ -270,6 +287,21 @@ public sealed partial class MarkdownViewTests
                 ("indented", string.Empty, true),
             ],
             blocks);
+    }
+
+    [Fact]
+    public async Task Headings_CanBeSelectedAndKeepTheLookOfTheirTextClass()
+    {
+        var headings = await RenderAsync("# Large\n\n## Medium\n\n### Small", (_, view) =>
+            TextBlocks(view).Select(text => (text is SelectableTextBlock, Text(text), string.Join(' ', text.Classes), text.FontSize, text.FontWeight)).ToList());
+
+        Assert.Equal(
+            [
+                (true, "Large", "heading-lg", 24, FontWeight.SemiBold),
+                (true, "Medium", "heading-md", 16, FontWeight.SemiBold),
+                (true, "Small", "heading-sm", 14, FontWeight.SemiBold),
+            ],
+            headings);
     }
 
     [Fact]

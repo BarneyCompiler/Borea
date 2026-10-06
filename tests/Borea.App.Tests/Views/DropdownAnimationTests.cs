@@ -31,7 +31,8 @@ public sealed class DropdownAnimationTests
         });
 
         Assert.True(seen.onArrival.Open);
-        Assert.Equal(0, seen.onArrival.Opacity);
+        // the click runs the dispatcher, so the first frame of the fade may already have passed
+        Assert.InRange(seen.onArrival.Opacity, 0, 0.1);
         Assert.NotNull(seen.onArrival.Transform);
         Assert.Equal(1, seen.arrived.Opacity);
         Assert.Null(seen.arrived.Transform);
@@ -77,7 +78,7 @@ public sealed class DropdownAnimationTests
             return (reopened);
         });
 
-        Assert.Equal(0, seen);
+        Assert.InRange(seen, 0, 0.1);
     }
 
     [Fact]
@@ -93,7 +94,7 @@ public sealed class DropdownAnimationTests
             var arrived = (Opacity: panel.Opacity, Transform: panel.RenderTransform);
 
             box.IsDropDownOpen = false;
-            
+
             var putBackUp = 0;
             for (var frame = 0; frame < 8; frame++)
             {

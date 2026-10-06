@@ -181,44 +181,70 @@
             <Setter Property="HideDelay" Value="0:0:0" />
         </Style>
 
-        <!-- A hover that changes a colour now fades into it and out of it, instead of switching at once.
+        <!-- A hover that changes a colour fades into it and out of it, instead of switching at once.
              An eighth of a second is long enough to read as a fade and short enough that the pointer
-             never feels like it is waiting. The transitions sit on the parts the hover rules below reach
-             for, so every one of them fades without each rule having to say so. They ease in and out
-             rather than out, because a fade that starts at its fastest reads as the colour snapping
-             into place on the first frame and then trailing after it, and they mix with the
-             transparency of each colour counted in, which is what BrushFade is for: most of these
-             surfaces fade in from nothing, and a fade that does not count it passes through a colour
-             of its own on the way. -->
-        <Style Selector="ContentPresenter">
+             never feels like it is waiting. The transitions sit only on the parts that the hover rules
+             below change, and not on every Border, TextBlock and shape of the app: Discover recycles
+             many rows while it scrolls, and a transition on each of them is a cost for every row
+             (#658 took the app-level styles out for the same reason). The text of a button follows the
+             Foreground of its ContentPresenter, so it fades with its background instead of trailing it.
+             They ease in and out rather than out, and they mix with the transparency of each colour
+             counted in, which is what BrushFade is for: most of these surfaces fade in from nothing,
+             and a fade that does not count it passes through a colour of its own on the way. -->
+
+        <!-- hover rules that change the Background of the button -->
+        <Style Selector="Button.nav, Button.add, Button.chip-button, Button.link, Button.dropdown, Button.icon, Button.info, Button.plain">
+            <Style Selector="^ /template/ ContentPresenter">
+                <Setter Property="Transitions">
+                    <Transitions>
+                        <views:BrushFade Property="Background" Duration="0:0:0.12" Easing="CubicEaseInOut" />
+                    </Transitions>
+                </Setter>
+            </Style>
+        </Style>
+        <!-- hover rules that change the Background and the BorderBrush -->
+        <Style Selector="Button.to-top">
+            <Style Selector="^ /template/ ContentPresenter">
+                <Setter Property="Transitions">
+                    <Transitions>
+                        <views:BrushFade Property="Background" Duration="0:0:0.12" Easing="CubicEaseInOut" />
+                        <views:BrushFade Property="BorderBrush" Duration="0:0:0.12" Easing="CubicEaseInOut" />
+                    </Transitions>
+                </Setter>
+            </Style>
+        </Style>
+        <!-- hover and press rules that change the Background, the Foreground and the Opacity -->
+        <Style Selector="Button.text, Button.cta, Button.splitButton, Button.tab, Button.menu, Button.filter">
+            <Style Selector="^ /template/ ContentPresenter">
+                <Setter Property="Transitions">
+                    <Transitions>
+                        <views:BrushFade Property="Background" Duration="0:0:0.12" Easing="CubicEaseInOut" />
+                        <views:BrushFade Property="Foreground" Duration="0:0:0.12" Easing="CubicEaseInOut" />
+                        <DoubleTransition Property="Opacity" Duration="0:0:0.1" Easing="CubicEaseInOut" />
+                    </Transitions>
+                </Setter>
+            </Style>
+        </Style>
+        <!-- the title and the icon of a plain button, which turn to the accent colour on their own -->
+        <Style Selector="Button.plain > TextBlock">
             <Setter Property="Transitions">
                 <Transitions>
-                    <views:BrushFade Property="Background" Duration="0:0:0.12" Easing="CubicEaseInOut" />
                     <views:BrushFade Property="Foreground" Duration="0:0:0.12" Easing="CubicEaseInOut" />
-                    <DoubleTransition Property="Opacity" Duration="0:0:0.1" Easing="CubicEaseInOut" />
                 </Transitions>
             </Setter>
         </Style>
-        <Style Selector="Border">
-            <Setter Property="Transitions">
-                <Transitions>
-                    <views:BrushFade Property="Background" Duration="0:0:0.12" Easing="CubicEaseInOut" />
-                    <views:BrushFade Property="BorderBrush" Duration="0:0:0.12" Easing="CubicEaseInOut" />
-                </Transitions>
-            </Setter>
-        </Style>
-        <Style Selector="TextBlock, SelectableTextBlock">
-            <Setter Property="Transitions">
-                <Transitions>
-                    <views:BrushFade Property="Foreground" Duration="0:0:0.12" Easing="CubicEaseInOut" />
-                </Transitions>
-            </Setter>
-        </Style>
-        <Style Selector="Path, Ellipse, Rectangle">
+        <Style Selector="Button.plain > Path.icon, Button.filter Path.icon">
             <Setter Property="Transitions">
                 <Transitions>
                     <views:BrushFade Property="Stroke" Duration="0:0:0.12" Easing="CubicEaseInOut" />
-                    <views:BrushFade Property="Fill" Duration="0:0:0.12" Easing="CubicEaseInOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <!-- the card and the row that a card-button lights up -->
+        <Style Selector="Button.card-button Border.card, Button.card-button Border.list-row">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <views:BrushFade Property="Background" Duration="0:0:0.12" Easing="CubicEaseInOut" />
                 </Transitions>
             </Setter>
         </Style>

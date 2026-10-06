@@ -4,11 +4,16 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 
 namespace Borea.App.Views;
 
+/// <summary>
+/// Eases the mouse wheel of a <see cref="ScrollViewer"/> toward a target offset instead of
+/// jumping one notch at a time. Turn it on per viewer with <see cref="IsEnabledProperty"/>.
+/// </summary>
 public static class SmoothScroll
 {
     internal const double Notch = 50;
@@ -63,7 +68,7 @@ public static class SmoothScroll
             || args.Handled
             || TopLevel.GetTopLevel(viewer) is null
             || viewer.Content is ILogicalScrollable { IsLogicalScrollEnabled: true }
-            || InsideAnotherViewer(viewer, args.Source))
+            || WheelBelongsToAnother(viewer, args.Source))
         {
             return;
         }
@@ -76,16 +81,26 @@ public static class SmoothScroll
             args.Handled = !viewer.IsScrollChainingEnabled;
     }
 
-    private static bool InsideAnotherViewer(ScrollViewer viewer, object? source)
+    /// <summary>
+    /// True when the wheel is not for this viewer: it is over a viewer inside it, or over a combo
+    /// box that is focused or open, which uses the wheel to change or scroll its selection.
+    /// </summary>
+    private static bool WheelBelongsToAnother(ScrollViewer viewer, object? source)
     {
-        for (var node = source as Visual; node is not null && node != viewer; node = node.GetVisualParent())
+        for (var node = source as Visual; node is not null && node != viewer; node = ParentOf(node))
         {
             if (node is ScrollViewer)
+                return true;
+
+            if (node is ComboBox box && (box.IsDropDownOpen || box.IsFocused))
                 return true;
         }
 
         return false;
     }
+
+    private static Visual? ParentOf(Visual node) =>
+        node.GetVisualParent() ?? (node as ILogical)?.LogicalParent as Visual;
 
     private static Vector ReadDelta(ScrollViewer viewer, PointerWheelEventArgs args)
     {
@@ -127,14 +142,14 @@ public static class SmoothScroll
 
         public bool Nudge(Vector step)
         {
-            if (!_running)
+            var wasRunning = _running;
+            if (!wasRunning)
                 _target = _viewer.Offset;
 
             var next = Clamp(_viewer, _target + step);
             if (next == _target)
             {
-                _target = _viewer.Offset;
-                return false;
+                return wasRunning && step != default;
             }
 
             GoTo(next);

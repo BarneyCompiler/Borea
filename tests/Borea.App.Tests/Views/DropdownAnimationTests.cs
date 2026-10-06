@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using Borea.App.Views;
 
@@ -11,22 +12,20 @@ namespace Borea.App.Tests.Views;
 public sealed class DropdownAnimationTests
 {
     [Fact]
-    public async Task AMenuFlyout_FadesInFromItsClosedLook_AndFadesOutBeforeItGoes()
+    public async Task AMenuOnAButton_FadesInFromItsClosedLook_AndClosesAtOnce()
     {
         var seen = await HeadlessApp.RunAsync(async () =>
         {
             var (window, button, flyout) = ShowButtonWithMenu();
-            flyout.ShowAt(button);
+            Click(window, button);
             var panel = PanelOf(flyout);
             var onArrival = (Opacity: panel.Opacity, Transform: panel.RenderTransform, Open: flyout.IsOpen);
 
-            await HeadlessApp.FramesAsync();
+            await HeadlessApp.FramesUntilAsync(() => panel.RenderTransform is null);
             var arrived = (Opacity: panel.Opacity, Transform: panel.RenderTransform);
 
             flyout.Hide();
-            var onLeaving = (Opacity: panel.Opacity, StillOpen: flyout.IsOpen);
-            await HeadlessApp.FramesAsync();
-            var result = (onArrival, arrived, onLeaving, Gone: flyout.IsOpen);
+            var result = (onArrival, arrived, Closed: !flyout.IsOpen);
             window.Close();
             return result;
         });
@@ -36,22 +35,43 @@ public sealed class DropdownAnimationTests
         Assert.NotNull(seen.onArrival.Transform);
         Assert.Equal(1, seen.arrived.Opacity);
         Assert.Null(seen.arrived.Transform);
-        Assert.Equal(1, seen.onLeaving.Opacity);
-        Assert.True(seen.onLeaving.StillOpen, "A flyout must stay on screen while it fades out.");
-        Assert.False(seen.Gone);
+        Assert.True(seen.Closed, "A flyout must close at once; only the opening is animated.");
     }
 
     [Fact]
-    public async Task AClosedFlyout_LeavesItsPanelWhereTheNextOpenStartsFrom()
+    public async Task AClickOnAMenuItem_ClosesTheMenuAndLeavesNoPopupBehind()
     {
         var seen = await HeadlessApp.RunAsync(async () =>
         {
             var (window, button, flyout) = ShowButtonWithMenu();
-            flyout.ShowAt(button);
-            await HeadlessApp.FramesAsync();
+            Click(window, button);
+            var panel = PanelOf(flyout);
+            await HeadlessApp.FramesUntilAsync(() => panel.RenderTransform is null);
+
+            window.UpdateLayout();
+            Click(window, flyout.Items.OfType<MenuItem>().First());
+            await HeadlessApp.FramesUntilAsync(() => !flyout.IsOpen);
+            var result = (FlyoutOpen: flyout.IsOpen, PopupOpen: flyout.Popup.IsOpen);
+            window.Close();
+            return result;
+        });
+
+        Assert.False(seen.FlyoutOpen);
+        Assert.False(seen.PopupOpen);
+    }
+
+    [Fact]
+    public async Task AMenuThatOpensAgain_StartsFromItsClosedLook()
+    {
+        var seen = await HeadlessApp.RunAsync(async () =>
+        {
+            var (window, button, flyout) = ShowButtonWithMenu();
+            Click(window, button);
+            var panel = PanelOf(flyout);
+            await HeadlessApp.FramesUntilAsync(() => panel.RenderTransform is null);
             flyout.Hide();
-            await HeadlessApp.FramesAsync();
-            flyout.ShowAt(button);
+
+            Click(window, button);
             var reopened = PanelOf(flyout).Opacity;
             window.Close();
             return (reopened);
@@ -61,7 +81,7 @@ public sealed class DropdownAnimationTests
     }
 
     [Fact]
-    public async Task AComboBox_FadesItsPanelIn_AndClosesWithoutBeingPutBackUpToFadeItOut()
+    public async Task AComboBox_FadesItsPanelIn_AndClosesWithoutBeingPutBackUp()
     {
         var seen = await HeadlessApp.RunAsync(async () =>
         {
@@ -69,12 +89,13 @@ public sealed class DropdownAnimationTests
             var panel = PanelOf(box);
             box.IsDropDownOpen = true;
             var onArrival = (Opacity: panel.Opacity, Transform: panel.RenderTransform, Open: box.IsDropDownOpen);
-            await HeadlessApp.FramesAsync();
+            await HeadlessApp.FramesUntilAsync(() => panel.RenderTransform is null);
             var arrived = (Opacity: panel.Opacity, Transform: panel.RenderTransform);
 
             box.IsDropDownOpen = false;
+            
             var putBackUp = 0;
-            for (var frame = 0; frame < 12; frame++)
+            for (var frame = 0; frame < 8; frame++)
             {
                 if (box.IsDropDownOpen)
                     putBackUp++;
@@ -101,7 +122,7 @@ public sealed class DropdownAnimationTests
         var (menu, combo) = await HeadlessApp.RunAsync(async () =>
         {
             var (window, button, flyout) = ShowButtonWithMenu();
-            flyout.ShowAt(button);
+            Click(window, button);
             var presenter = (MenuFlyoutPresenter)PanelOf(flyout);
             var menu = (Corner: presenter.CornerRadius,
                 Clipped: presenter.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "LayoutRoot").ClipToBounds);
@@ -114,7 +135,7 @@ public sealed class DropdownAnimationTests
             var combo = (Corner: border.CornerRadius, Clipped: border.ClipToBounds);
             box.IsDropDownOpen = false;
             comboWindow.Close();
-            return ((menu, combo));
+            return await Task.FromResult((menu, combo));
         });
 
         Assert.Equal(new CornerRadius(12), menu.Corner);
@@ -128,7 +149,7 @@ public sealed class DropdownAnimationTests
     [InlineData(PlacementMode.Bottom)]
     [InlineData(PlacementMode.Left)]
     [InlineData(PlacementMode.Right)]
-    public async Task WhereAFlyoutOpens_TellsItWhichWayItSlidesIn(PlacementMode placement)
+    public void WhereAFlyoutOpens_TellsItWhichWayItSlidesIn(PlacementMode placement)
     {
         var edge = DropdownAnimation.Edge(placement);
 
@@ -139,13 +160,13 @@ public sealed class DropdownAnimationTests
         Assert.Equal(DropdownAnimation.Travel, Math.Max(Math.Abs(edge.Travel.X), Math.Abs(edge.Travel.Y)));
     }
 
+    // <Button.Flyout>, opened by a click
     private static (Window Window, Button Button, MenuFlyout Flyout) ShowButtonWithMenu()
     {
         var flyout = new MenuFlyout();
         flyout.Items.Add(new MenuItem { Header = "First" });
         flyout.Items.Add(new MenuItem { Header = "Second" });
-        var button = new Button { Classes = { "dropdown" }, Content = "Open", Width = 100, Height = 30 };
-        Flyout.SetAttachedFlyout(button, flyout);
+        var button = new Button { Classes = { "dropdown" }, Content = "Open", Width = 100, Height = 30, Flyout = flyout };
         var window = new Window { Width = 400, Height = 300, Content = button };
         window.Show();
         window.UpdateLayout();
@@ -159,6 +180,13 @@ public sealed class DropdownAnimationTests
         window.Show();
         window.UpdateLayout();
         return (window, box);
+    }
+
+    private static void Click(Window window, Control control)
+    {
+        var center = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseUp(center, MouseButton.Left);
     }
 
     private static Control PanelOf(PopupFlyoutBase flyout) => flyout.Popup.Child!;

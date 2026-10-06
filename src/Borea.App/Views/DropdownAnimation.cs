@@ -1,6 +1,4 @@
 using System;
-using System.ComponentModel;
-using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -9,6 +7,11 @@ using Avalonia.VisualTree;
 
 namespace Borea.App.Views;
 
+/// <summary>
+/// Fades and slides a dropdown in when it opens: a <see cref="ComboBox"/> that sets
+/// <see cref="IsEnabledProperty"/>, and every popup flyout set as <c>Button.Flyout</c> or as an
+/// attached flyout. Only the opening is animated, so a menu always closes at once.
+/// </summary>
 public static class DropdownAnimation
 {
     internal static readonly TimeSpan Duration = TimeSpan.FromMilliseconds(120);
@@ -17,8 +20,6 @@ public static class DropdownAnimation
 
     public static readonly AttachedProperty<bool> IsEnabledProperty =
         AvaloniaProperty.RegisterAttached<ComboBox, bool>("IsEnabled", typeof(DropdownAnimation));
-    private static readonly AttachedProperty<bool> IsHoldingFlyoutProperty =
-        AvaloniaProperty.RegisterAttached<PopupFlyoutBase, bool>("IsHolding", typeof(DropdownAnimation));
     private static readonly AttachedProperty<int> MoveProperty =
         AvaloniaProperty.RegisterAttached<Control, int>("Move", typeof(DropdownAnimation));
 
@@ -31,40 +32,34 @@ public static class DropdownAnimation
 
         _registered = true;
         IsEnabledProperty.Changed.AddClassHandler<ComboBox>((box, args) => OnIsEnabledChanged(box, args.GetNewValue<bool>()));
-        FlyoutBase.AttachedFlyoutProperty.Changed.AddClassHandler<Control>((control, args) =>
-        {
-            if (args.GetNewValue<FlyoutBase>() is PopupFlyoutBase flyout)
-            {
-                flyout.Opened -= OnFlyoutOpened;
-                flyout.Closing -= OnFlyoutClosing;
-                flyout.Opened += OnFlyoutOpened;
-                flyout.Closing += OnFlyoutClosing;
-            }
-        });
+
+        // borea menus are <Button.Flyout>;
+        Button.FlyoutProperty.Changed.AddClassHandler<Button>((_, args) =>
+            Follow(args.GetOldValue<FlyoutBase?>(), args.GetNewValue<FlyoutBase?>()));
+        FlyoutBase.AttachedFlyoutProperty.Changed.AddClassHandler<Control>((_, args) =>
+            Follow(args.GetOldValue<FlyoutBase?>(), args.GetNewValue<FlyoutBase?>()));
     }
 
     public static bool GetIsEnabled(ComboBox box) => box.GetValue(IsEnabledProperty);
 
     public static void SetIsEnabled(ComboBox box, bool value) => box.SetValue(IsEnabledProperty, value);
 
+    private static void Follow(FlyoutBase? old, FlyoutBase? current)
+    {
+        if (old is PopupFlyoutBase gone)
+            gone.Opened -= OnFlyoutOpened;
+
+        if (current is PopupFlyoutBase flyout)
+        {
+            flyout.Opened -= OnFlyoutOpened;
+            flyout.Opened += OnFlyoutOpened;
+        }
+    }
+
     private static void OnFlyoutOpened(object? sender, EventArgs e)
     {
         if (sender is PopupFlyoutBase flyout)
-            Move(flyout.Popup, flyout.Placement, opening: true);
-    }
-
-    private static void OnFlyoutClosing(object? sender, CancelEventArgs e)
-    {
-        if (sender is not PopupFlyoutBase flyout || flyout.GetValue(IsHoldingFlyoutProperty))
-            return;
-
-        e.Cancel = true;
-        flyout.SetValue(IsHoldingFlyoutProperty, true);
-        Move(flyout.Popup, flyout.Placement, opening: false, onDone: () =>
-        {
-            flyout.Hide();
-            flyout.SetValue(IsHoldingFlyoutProperty, false);
-        });
+            FadeIn(flyout.Popup, flyout.Placement);
     }
 
     private static void OnIsEnabledChanged(ComboBox box, bool enabled)
@@ -77,7 +72,7 @@ public static class DropdownAnimation
     private static void OnDropDownOpened(object? sender, EventArgs e)
     {
         if (sender is ComboBox box)
-            Move(PopupOf(box), PlacementMode.Bottom, opening: true);
+            FadeIn(PopupOf(box), PlacementMode.Bottom);
     }
 
     private static Popup? PopupOf(Control owner) => Popped(owner);
@@ -107,31 +102,20 @@ public static class DropdownAnimation
         _ => (new Vector(0, Travel), new RelativePoint(0.5, 0, RelativeUnit.Relative)),
     };
 
-    private static void Move(Popup? popup, PlacementMode placement, bool opening, Action? onDone = null)
+    private static void FadeIn(Popup? popup, PlacementMode placement)
     {
         if (popup?.Child is not { } panel || TopLevel.GetTopLevel(panel) is not { } topLevel)
-        {
-            onDone?.Invoke();
             return;
-        }
 
         var (travel, origin) = Edge(placement);
-        var away = new Look(travel, Shrink, 0);
-        var resting = new Look(Vector.Zero, 1, 1);
-
-        var from = panel.RenderTransform is TransformGroup
-            ? Looked(panel, opening ? away : resting)
-            : opening ? away : resting;
-        var to = opening ? resting : away;
-
-        var shifts = new TranslateTransform { X = from.Travel.X, Y = from.Travel.Y };
-        var grows = new ScaleTransform { ScaleX = from.Shrink, ScaleY = from.Shrink };
+        var shifts = new TranslateTransform { X = travel.X, Y = travel.Y };
+        var grows = new ScaleTransform { ScaleX = Shrink, ScaleY = Shrink };
         var transforms = new TransformGroup();
         transforms.Children.Add(grows);
         transforms.Children.Add(shifts);
         panel.RenderTransformOrigin = origin;
         panel.RenderTransform = transforms;
-        panel.Opacity = from.Opacity;
+        panel.Opacity = 0;
 
         var mine = panel.GetValue(MoveProperty) + 1;
         panel.SetValue(MoveProperty, mine);
@@ -151,10 +135,10 @@ public static class DropdownAnimation
 
             var progress = Math.Clamp((now - started) / Duration, 0, 1);
             var eased = Eased(progress);
-            panel.Opacity = from.Opacity + (to.Opacity - from.Opacity) * eased;
-            shifts.X = from.Travel.X + (to.Travel.X - from.Travel.X) * eased;
-            shifts.Y = from.Travel.Y + (to.Travel.Y - from.Travel.Y) * eased;
-            grows.ScaleX = grows.ScaleY = from.Shrink + (to.Shrink - from.Shrink) * eased;
+            panel.Opacity = eased;
+            shifts.X = travel.X * (1 - eased);
+            shifts.Y = travel.Y * (1 - eased);
+            grows.ScaleX = grows.ScaleY = Shrink + (1 - Shrink) * eased;
 
             if (progress < 1)
             {
@@ -162,35 +146,13 @@ public static class DropdownAnimation
                 return;
             }
 
-            if (opening)
-            {
-                panel.Opacity = 1;
-                panel.RenderTransform = null;
-                panel.RenderTransformOrigin = default;
-            }
-
-            onDone?.Invoke();
+            panel.Opacity = 1;
+            panel.RenderTransform = null;
+            panel.RenderTransformOrigin = default;
         }
 
         topLevel.RequestAnimationFrame(OnFrame);
     }
 
     private static double Eased(double progress) => progress * progress * (3 - 2 * progress);
-
-    private static Look Looked(Control panel, Look resting)
-    {
-        if (panel.RenderTransform is not TransformGroup transforms)
-            return resting;
-
-        var travel = resting.Travel;
-        var shrink = resting.Shrink;
-        if (transforms.Children.OfType<TranslateTransform>().FirstOrDefault() is { } shifts)
-            travel = new Vector(shifts.X, shifts.Y);
-        if (transforms.Children.OfType<ScaleTransform>().FirstOrDefault() is { } grows)
-            shrink = grows.ScaleX;
-
-        return new Look(travel, shrink, panel.Opacity);
-    }
-
-    private readonly record struct Look(Vector Travel, double Shrink, double Opacity);
 }

@@ -249,6 +249,7 @@ public sealed class ButtonStyleTests
 
     private static string[] ClassesOf(XElement element)
         => ((string?)element.Attribute("Classes") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
     private static XElement? FirstContent(XElement element)
         => element.Elements().FirstOrDefault(child => !child.Name.LocalName.Contains('.'));
 

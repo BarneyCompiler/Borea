@@ -26,7 +26,7 @@ public sealed class ScrollToTopButtonTests
             var center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
             window.MouseDown(center, MouseButton.Left);
             window.MouseUp(center, MouseButton.Left);
-            await HeadlessApp.FramesAsync();
+            await HeadlessApp.FramesUntilAsync(() => !button.IsVisible);
             var result = (atTop, oneViewport, pastOneViewport, AfterClick: button.IsVisible, Offset: scroller.Offset.Y, FirstFocused: first.IsFocused);
             window.Close();
             return (result);
@@ -50,7 +50,7 @@ public sealed class ScrollToTopButtonTests
             button.Focus(NavigationMethod.Tab);
             window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-            await HeadlessApp.FramesAsync();
+            await HeadlessApp.FramesUntilAsync(() => first.IsFocused);
             var result = (Offset: scroller.Offset.Y, button.IsVisible, FirstFocused: first.IsFocused);
             window.Close();
             return (result);
@@ -71,15 +71,20 @@ public sealed class ScrollToTopButtonTests
             window.UpdateLayout();
             var before = scroller.Offset.Y;
             var center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+
             window.MouseWheel(center, new Vector(0, -1));
+            await HeadlessApp.FramesUntilAsync(() => scroller.Offset.Y == before + 50);
+            var down = scroller.Offset.Y;
+
             window.MouseWheel(center, new Vector(0, 2));
-            await HeadlessApp.FramesAsync();
-            var result = (before, up: scroller.Offset.Y);
+            await HeadlessApp.FramesUntilAsync(() => scroller.Offset.Y == down - 100);
+            var result = (before, down, up: scroller.Offset.Y);
             window.Close();
             return (result);
         });
 
-        Assert.Equal(seen.before - 50, seen.up);
+        Assert.Equal(seen.before + 50, seen.down);
+        Assert.Equal(seen.down - 100, seen.up);
     }
 
     private static (Window Window, ScrollViewer Scroller, ScrollToTopButton Button, Button First) ShowLongList()
